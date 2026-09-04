@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { classifyReport } from "./classify";
+import { deliverQueuedPush } from "@/lib/notify/push";
 
 /**
  * The triage worker.
@@ -23,11 +24,18 @@ export interface TriageRunResult {
   routed: number;
   failed: number;
   unstaffed: number;
+  /** Claimed but already handled by the other delivery path — not an error. */
+  skipped: number;
+  pushSent: number;
+  pushFailed: number;
 }
 
 export async function runTriage(limit = 10): Promise<TriageRunResult> {
   const db = createAdminClient();
-  const result: TriageRunResult = { claimed: 0, routed: 0, failed: 0, unstaffed: 0 };
+  const result: TriageRunResult = {
+    claimed: 0, routed: 0, failed: 0, unstaffed: 0, skipped: 0,
+    pushSent: 0, pushFailed: 0,
+  };
 
   const { data: batch, error: claimError } = await db.rpc("claim_triage_batch", {
     p_limit: limit,
@@ -51,9 +59,18 @@ export async function runTriage(limit = 10): Promise<TriageRunResult> {
       });
       if (error) throw new Error(error.message);
 
-      const row = (data as { reason: string }[] | null)?.[0];
-      result.routed++;
-      if (row?.reason === "unstaffed_all_leadership") result.unstaffed++;
+      const row = (data as { reason: string; recipients: number }[] | null)?.[0];
+
+      // route_report is idempotent: a report already past 'new' comes back as
+      // already_triaged with nobody notified. Counting that as routed reported
+      // success for work that never happened, which is exactly the kind of
+      // number an operator would trust and should not.
+      if (row?.reason === "already_triaged") {
+        result.skipped++;
+      } else {
+        result.routed++;
+        if (row?.reason === "unstaffed_all_leadership") result.unstaffed++;
+      }
     } catch (err) {
       // Hand the item back for retry with backoff. After five attempts it parks
       // in dead_letter — visible and alertable, rather than silently gone.
@@ -64,6 +81,12 @@ export async function runTriage(limit = 10): Promise<TriageRunResult> {
       });
     }
   }
+
+  // Delivery is a separate concern from routing, but running it here means one
+  // invocation takes a report all the way from filed to somebody's phone.
+  const push = await deliverQueuedPush();
+  result.pushSent = push.sent;
+  result.pushFailed = push.failed;
 
   return result;
 }

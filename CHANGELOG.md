@@ -5,6 +5,31 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Web push
+- VAPID keys generated; `public/sw.js` renders the alert and opens the report on
+  tap, reusing an open tab rather than piling up windows over a shift.
+- Enabling alerts ends with a **real test notification**, not a permission prompt.
+  An unverified alert path is the same as no alerts and fails silently until the
+  day it matters.
+- iPhones that have not installed to the home screen are told so plainly instead of
+  being offered a button that cannot work there.
+- Delivery prunes dead endpoints on 404/410. A queued notification with no
+  subscribed device is marked **failed**, never left queued — a stuck queue would
+  let a club believe staff were notified when they were not.
+- The triage worker now runs classify → route → deliver in one invocation.
+
+**Not verified end to end:** the browser half cannot be exercised in this
+environment (notifications are denied in the preview browser). Server-side
+delivery, pruning and failure marking are verified; the subscribe → receive path
+needs a real device.
+
+### Worker reported success for work it did not do **[bug]**
+- `route_report` is idempotent, so a report already handled comes back as
+  `already_triaged` with nobody notified. The worker counted those as *routed* —
+  it reported "routed: 10" for ten reports it had skipped. Now counted separately
+  as `skipped`, which is exactly the kind of number an operator would otherwise
+  trust and shouldn't.
+
 ### Locked down: staff behind passwords, member surface reduced to one form
 - **Staff sign in with a password**, admin-issued. No magic link, no email
   dependency. New accounts get a temporary password and must replace it on first

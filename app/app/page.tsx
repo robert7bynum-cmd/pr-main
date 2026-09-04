@@ -3,6 +3,7 @@ import { getQueue, getDepartmentCounts } from "@/lib/queue/reports";
 import { getMe } from "@/lib/queue/actions-db";
 import { QueueCard } from "@/components/staff/queue-card";
 import { QueueLive } from "@/components/staff/queue-live";
+import { PushSetup } from "@/components/staff/push-setup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Queue — ProResponse" };
@@ -70,6 +71,10 @@ export default async function StaffQueuePage({
             ))}
           </nav>
         </header>
+
+        <div className="mb-3">
+          <PushSetup />
+        </div>
 
         {rows.length === 0 ? (
           <p className="rounded-2xl border border-line bg-surface-raised px-5 py-10 text-center text-[15px] text-ink-muted">

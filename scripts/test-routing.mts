@@ -101,5 +101,32 @@ const dead = await one<{ status: string; attempts: number }>(
 check("parks in dead_letter after repeated failure", dead?.status === "dead_letter",
   `${dead?.status} after ${dead?.attempts}`);
 
+
+console.log("\n8. silence is never a successful outcome");
+// Deactivate every person at the club: routing has nobody at all to reach.
+await db.query(`update profiles set active = false, on_duty = false`);
+id = await newReport("nobody left at this club");
+let threw = false;
+try {
+  await route(id, "course_maintenance");
+} catch {
+  threw = true;
+}
+check("routing to nobody raises rather than reporting success", threw);
+const zeroNotes = await one<{ n: number }>(
+  `select count(*)::int n from notifications where report_id=$1`, [id]);
+check("no phantom notifications recorded", (zeroNotes?.n ?? -1) === 0);
+await db.query(`update profiles set active = true`);
+
+console.log("\n9. start_report rejects an unknown report");
+threw = false;
+try {
+  await db.query(`select start_report($1,$2)`,
+    ["00000000-0000-0000-0000-0000000000ff", alice.id]);
+} catch {
+  threw = true;
+}
+check("unknown id raises instead of silently doing nothing", threw);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

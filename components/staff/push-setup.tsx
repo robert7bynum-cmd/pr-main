@@ -7,11 +7,14 @@ import { savePushSubscription, sendTestPush } from "@/app/actions/push";
  * Turning on alerts for this device.
  *
  * The flow ends with a real notification the person must see, not with a
- * permission prompt. On iOS, push only works once the site is installed to the
- * home screen, so an uninstalled iPhone is told that plainly instead of being
- * offered a button that cannot work.
+ * permission prompt — an unverified alert path is the same as no alerts.
+ *
+ * iOS does not deliver web push to a browser tab, and we are shipping native
+ * apps rather than asking members of staff to add a website to their home
+ * screen. So an iPhone is told the app is the route, not given an install
+ * instruction it will ignore. Android and desktop stations get web push today.
  */
-type State = "checking" | "unsupported" | "needs-install" | "off" | "on" | "blocked";
+type State = "checking" | "unsupported" | "ios-app" | "off" | "on" | "blocked";
 
 function urlBase64ToUint8Array(base64: string) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -28,15 +31,15 @@ export function PushSetup() {
     if (typeof window === "undefined") return;
 
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const installed =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
+
+    // Safari on iOS cannot receive web push in a tab. Rather than push people
+    // through a home-screen install they will not do, iPhones are pointed at
+    // the native app.
+    if (isIOS) return setState("ios-app");
 
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setState(isIOS && !installed ? "needs-install" : "unsupported");
-      return;
+      return setState("unsupported");
     }
-    if (isIOS && !installed) return setState("needs-install");
     if (Notification.permission === "denied") return setState("blocked");
 
     navigator.serviceWorker.getRegistration().then(async (reg) => {
@@ -89,12 +92,13 @@ export function PushSetup() {
 
   return (
     <div className="rounded-card border border-line bg-surface-raised px-4 py-3">
-      {state === "needs-install" && (
+      {state === "ios-app" && (
         <>
-          <p className="text-[14px] font-medium">Add ProResponse to your home screen</p>
+          <p className="text-[14px] font-medium">Alerts come through the iPhone app</p>
           <p className="mt-1 text-[13px] leading-relaxed text-ink-secondary">
-            On iPhone, alerts only work once this is installed. Tap Share, then
-            &ldquo;Add to Home Screen&rdquo;, and open it from there.
+            iPhone can&apos;t send alerts from a browser tab. The ProResponse app is
+            on the way — until then you&apos;ll see new reports here whenever this
+            page is open.
           </p>
         </>
       )}

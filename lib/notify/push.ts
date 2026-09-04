@@ -67,7 +67,19 @@ export async function deliverQueuedPush(limit = 50): Promise<PushResult> {
 
   for (const n of queued) {
     const report = reportById.get(n.report_id);
-    if (!report) continue;
+
+    // Its report is gone or unreadable. Leaving the notification queued would
+    // hide the gap forever — the same defect as the worker counting skipped
+    // reports as routed. Record the failure so it is countable.
+    if (!report) {
+      await db.from("notifications").update({
+        status: "failed",
+        failed_at: new Date().toISOString(),
+        error: "report not found",
+      }).eq("id", n.id);
+      result.failed++;
+      continue;
+    }
 
     const { data: subs } = await db
       .from("push_subscriptions")

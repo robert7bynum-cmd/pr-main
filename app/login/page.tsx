@@ -20,12 +20,11 @@ export default async function LoginPage({
           Sign in
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">
-          Enter the email your club uses for you. We&apos;ll send a link — no password
-          to remember.
+          Use the email and password your club set up for you.
         </p>
         {error && (
           <p className="mt-4 rounded-lg bg-urgent-surface px-4 py-3 text-[14px] text-urgent">
-            That link didn&apos;t work. Request a new one below.
+            Please sign in again.
           </p>
         )}
         <div className="mt-6">

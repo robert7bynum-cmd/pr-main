@@ -5,6 +5,25 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Silent-success class, scoped and closed **[bug x3]**
+The worker counting skipped reports as routed was a shape, not a one-off. Scoped
+the codebase for operations that report success for work that did not happen:
+- `start_report` updated by id without checking anything matched — a bad id left
+  the report untouched and still wrote an event. Now raises.
+- `route_report` could notify **nobody** and still record a successful routing.
+  Zero recipients means a club with no active staff at all; that now raises, and
+  the worker's retry-then-dead-letter path carries it to the watchdog.
+- Push delivery skipped a notification whose report was missing, leaving it queued
+  forever. Now marked failed so the gap is countable.
+Three regression tests added; routing suite is 18.
+
+### No PWA install
+- iOS cannot receive web push in a browser tab, and we are shipping native apps
+  rather than asking staff to install a website. iPhones are told the app is the
+  route; Android and desktop stations get web push today.
+- **[bug]** The sign-in page still read "we'll send a link — no password to
+  remember" directly above a password field, left over from magic-link auth.
+
 ### Web push
 - VAPID keys generated; `public/sw.js` renders the alert and opens the report on
   tap, reusing an open tab rather than piling up windows over a shift.

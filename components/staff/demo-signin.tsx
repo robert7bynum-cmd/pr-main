@@ -18,7 +18,7 @@ export function DemoSignIn() {
     <div className="mt-8 border-t border-line pt-6">
       <p className="text-[11px] uppercase tracking-[0.16em] text-ink-subtle">Demo</p>
       <p className="mt-2 text-[13px] leading-relaxed text-ink-muted">
-        Sign in as a Beacon Hill staff member. No email needed.
+        Sign in as a Beacon Hill staff member.
       </p>
       <div className="mt-3 space-y-2">
         {PERSONAS.map((p) => (

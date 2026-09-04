@@ -5,6 +5,17 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### QR placard generator
+- `/app/placards` — every code for the club, holes in play order then facilities.
+- QR is server-rendered **SVG** so it stays sharp printed large, at high error
+  correction so a scratched sign on a tee box still scans.
+- Print CSS puts **one placard per page**, so a club reprints a single damaged
+  sign rather than a whole sheet.
+- The page states which host the codes point at, because printing against the
+  wrong one means physically replacing signs.
+- `npm run test:placards` checks every code resolves — currently 24/24.
+- Manager and supervisor only.
+
 ### Triage moved into Supabase — it no longer needs the web app at all
 The real problem was not a missing URL: the core loop depended on the web host
 being reachable *and* on a deployment URL being configured before anything worked.

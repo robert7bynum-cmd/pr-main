@@ -33,9 +33,14 @@ export default async function DashboardPage() {
             <h1 className="text-[1.5rem] font-semibold tracking-tight">Course status</h1>
             <p className="mt-1 text-[13px] text-ink-muted">{me.course_name} · last 30 days</p>
           </div>
-          <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">
-            Open reports
-          </a>
+          <div className="flex items-center gap-4">
+            <a href="/app/placards" className="text-[14px] text-ink-muted underline underline-offset-4">
+              Placards
+            </a>
+            <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">
+              Open reports
+            </a>
+          </div>
         </header>
 
         {/* Headline figures are numbers, not charts — four values do not need

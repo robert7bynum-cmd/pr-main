@@ -105,3 +105,68 @@ body {
     Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ---------------------------------------------------------------------------
+   Placards
+   ---------------------------------------------------------------------------
+   These get printed, mounted on a tee box, and read at arm's length in
+   sunlight. On screen they show as a grid for review; on paper each one is its
+   own page so a club can reprint a single damaged sign.
+--------------------------------------------------------------------------- */
+.placards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.placard {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 1.5rem 1.25rem 1.25rem;
+  text-align: center;
+  break-inside: avoid;
+}
+
+.placard .club {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.placard .rule { width: 1.75rem; height: 2px; margin: 0.6rem auto 0; }
+.placard .where {
+  margin-top: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.placard .qr { margin: 1rem auto 0.9rem; width: 8.5rem; height: 8.5rem; }
+.placard .qr svg { width: 100%; height: 100%; }
+.placard .cta { font-size: 0.9rem; font-weight: 500; }
+.placard .sub { margin-top: 0.15rem; font-size: 0.72rem; color: var(--ink-muted); }
+.placard .retired {
+  margin-top: 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--urgent);
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  .placards { display: block; }
+  .placard {
+    border: none;
+    /* One per page: a club reprints a single damaged sign, not a whole sheet. */
+    break-after: page;
+    padding: 0;
+    /* Sized for a tee marker rather than filling A4. */
+    width: 4in;
+    margin: 1in auto;
+  }
+  .placard .where { font-size: 2rem; }
+  .placard .qr { width: 2.6in; height: 2.6in; }
+}

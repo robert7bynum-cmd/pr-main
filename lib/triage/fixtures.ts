@@ -69,7 +69,7 @@ export const TRIAGE_FIXTURES: TriageFixture[] = [
   // restroom_facilities
   // ---------------------------------------------------------------------
   { text: "restroom out of paper on the back nine", expectedCategory: "restroom_facilities", expectedUrgency: "normal" },
-  { text: "no towels on the ball washer by 6 tee", expectedCategory: "restroom_facilities", expectedUrgency: "low" },
+  { text: "no towels on the ball washer by 6 tee", expectedCategory: "course_maintenance", expectedUrgency: "low" },
   { text: "restroom by 13 is locked cant get in", expectedCategory: "restroom_facilities", expectedUrgency: "normal" },
   { text: "toliet wont flush in the mens room", expectedCategory: "restroom_facilities", expectedUrgency: "normal" },
 
@@ -239,7 +239,7 @@ export const TRIAGE_FIXTURES: TriageFixture[] = [
   },
   {
     text: "just a heads up the ball washer by 11 has been empty and out of towels for like two weeks now, not a big deal but figured id mention it",
-    expectedCategory: "restroom_facilities",
+    expectedCategory: "course_maintenance",
     expectedUrgency: "low",
   },
   {

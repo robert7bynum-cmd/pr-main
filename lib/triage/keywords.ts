@@ -261,6 +261,20 @@ const PACE_OF_PLAY_RULES: Rule[] = [
   { phrase: "course is backed up", category: "pace_of_play", urgency: "normal", confidence: 0.87 },
   { phrase: "long wait on every hole", category: "pace_of_play", urgency: "normal", confidence: 0.86 },
   { phrase: "no one behind or ahead moving", category: "pace_of_play", urgency: "low", confidence: 0.6 },
+  // Added after adversarial probing: the rule table covered "group ahead is
+  // slow" but not the equally common "playing slow" phrasing, so one of the
+  // most frequent complaints at any club fell through.
+  { phrase: "playing slow", category: "pace_of_play", urgency: "normal", confidence: 0.88 },
+  { phrase: "playing slowly", category: "pace_of_play", urgency: "normal", confidence: 0.88 },
+  { phrase: "group ahead is playing slow", category: "pace_of_play", urgency: "normal", confidence: 0.95 },
+  { phrase: "group ahead", category: "pace_of_play", urgency: "normal", confidence: 0.7 },
+  { phrase: "group in front", category: "pace_of_play", urgency: "normal", confidence: 0.7 },
+  { phrase: "slow round", category: "pace_of_play", urgency: "normal", confidence: 0.82 },
+  { phrase: "waiting on every tee", category: "pace_of_play", urgency: "normal", confidence: 0.9 },
+  { phrase: "waiting on every hole", category: "pace_of_play", urgency: "normal", confidence: 0.9 },
+  { phrase: "waiting on every green", category: "pace_of_play", urgency: "normal", confidence: 0.9 },
+  { phrase: "holding everyone up", category: "pace_of_play", urgency: "normal", confidence: 0.85 },
+  { phrase: "we keep waiting", category: "pace_of_play", urgency: "normal", confidence: 0.8 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -309,6 +323,19 @@ const COURSE_MAINTENANCE_RULES: Rule[] = [
   { phrase: "yardage marker missing", category: "course_maintenance", urgency: "low", confidence: 0.85 },
   { phrase: "tee marker missing", category: "course_maintenance", urgency: "low", confidence: 0.85 },
   { phrase: "sand trap", category: "course_maintenance", urgency: "low", confidence: 0.6 },
+  // Cart PATH is grounds work, not a cart-fleet problem. Kept specific so it
+  // outranks any bare "cart" rule via the longer-phrase-wins ordering.
+  { phrase: "cart path is washed out", category: "course_maintenance", urgency: "normal", confidence: 0.9 },
+  { phrase: "cart path is a mess", category: "course_maintenance", urgency: "low", confidence: 0.85 },
+  { phrase: "cart path", category: "course_maintenance", urgency: "low", confidence: 0.78 },
+  { phrase: "path is washed out", category: "course_maintenance", urgency: "normal", confidence: 0.85 },
+  { phrase: "washed out", category: "course_maintenance", urgency: "normal", confidence: 0.7 },
+  { phrase: "yardage marker", category: "course_maintenance", urgency: "low", confidence: 0.75 },
+  { phrase: "tee marker", category: "course_maintenance", urgency: "low", confidence: 0.75 },
+  { phrase: "divot mix", category: "course_maintenance", urgency: "low", confidence: 0.8 },
+  { phrase: "limb down", category: "course_maintenance", urgency: "normal", confidence: 0.85 },
+  { phrase: "branch down", category: "course_maintenance", urgency: "normal", confidence: 0.85 },
+  { phrase: "tree down", category: "course_maintenance", urgency: "high", confidence: 0.85 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -411,15 +438,15 @@ const F_AND_B_RULES: Rule[] = [
 // ---------------------------------------------------------------------------
 
 const RESTROOM_RULES: Rule[] = [
-  { phrase: "no towels on the ball washer", category: "restroom_facilities", urgency: "low", confidence: 0.9 },
+  { phrase: "no towels on the ball washer", category: "course_maintenance", urgency: "low", confidence: 0.9 },
   // Ball washer is course-side hygiene, grouped with restroom facilities
   // per taxonomy routing (both -> maintenance).
-  { phrase: "ball washer is empty", category: "restroom_facilities", urgency: "low", confidence: 0.85 },
-  { phrase: "ball washer is broken", category: "restroom_facilities", urgency: "low", confidence: 0.85 },
+  { phrase: "ball washer is empty", category: "course_maintenance", urgency: "low", confidence: 0.85 },
+  { phrase: "ball washer is broken", category: "course_maintenance", urgency: "low", confidence: 0.85 },
   // Bare fallback: real complaints rarely land exactly on "is empty" /
   // "is broken" ("been empty for weeks", "out of towels on it") — this
   // two-word phrase still clears the bar on its own.
-  { phrase: "ball washer", category: "restroom_facilities", urgency: "low", confidence: 0.65 },
+  { phrase: "ball washer", category: "course_maintenance", urgency: "low", confidence: 0.65 },
   { phrase: "restroom out of paper", category: "restroom_facilities", urgency: "normal", confidence: 0.94 },
   { phrase: "restroom is out of toilet paper", category: "restroom_facilities", urgency: "normal", confidence: 0.95 },
   { phrase: "restroom is locked", category: "restroom_facilities", urgency: "normal", confidence: 0.9 },
@@ -433,6 +460,19 @@ const RESTROOM_RULES: Rule[] = [
   { phrase: "toilet wont flush", category: "restroom_facilities", urgency: "normal", confidence: 0.9 },
   { phrase: "toilet is clogged", category: "restroom_facilities", urgency: "normal", confidence: 0.9 },
   { phrase: "sink is broken", category: "restroom_facilities", urgency: "low", confidence: 0.65 },
+  // Members rarely say "restroom" — they say "mens room" or just "out of paper".
+  { phrase: "mens room", category: "restroom_facilities", urgency: "normal", confidence: 0.88 },
+  { phrase: "men's room", category: "restroom_facilities", urgency: "normal", confidence: 0.88 },
+  { phrase: "ladies room", category: "restroom_facilities", urgency: "normal", confidence: 0.88 },
+  { phrase: "ladies' room", category: "restroom_facilities", urgency: "normal", confidence: 0.88 },
+  { phrase: "womens room", category: "restroom_facilities", urgency: "normal", confidence: 0.88 },
+  { phrase: "out of paper", category: "restroom_facilities", urgency: "normal", confidence: 0.8,
+    exclude: ["ball washer", "scorecard", "pin sheet"] },
+  { phrase: "no toilet paper", category: "restroom_facilities", urgency: "normal", confidence: 0.92 },
+  { phrase: "out of toilet paper", category: "restroom_facilities", urgency: "normal", confidence: 0.92 },
+  { phrase: "out of soap", category: "restroom_facilities", urgency: "low", confidence: 0.85 },
+  { phrase: "no hand soap", category: "restroom_facilities", urgency: "low", confidence: 0.85 },
+  { phrase: "urinal", category: "restroom_facilities", urgency: "normal", confidence: 0.85 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -452,6 +492,11 @@ const PRACTICE_FACILITY_RULES: Rule[] = [
   { phrase: "ball machine is broken", category: "practice_facility", urgency: "low", confidence: 0.8 },
   { phrase: "driving range", category: "practice_facility", urgency: "low", confidence: 0.6 },
   { phrase: "practice green", category: "practice_facility", urgency: "low", confidence: 0.6 },
+  { phrase: "range balls are gone", category: "practice_facility", urgency: "normal", confidence: 0.9 },
+  { phrase: "no range balls", category: "practice_facility", urgency: "normal", confidence: 0.9 },
+  { phrase: "range is out of balls", category: "practice_facility", urgency: "normal", confidence: 0.9 },
+  { phrase: "out of balls on the range", category: "practice_facility", urgency: "normal", confidence: 0.9 },
+  { phrase: "range balls", category: "practice_facility", urgency: "low", confidence: 0.72 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -565,13 +610,25 @@ export function matchKeywords(text: string): KeywordMatch | null {
       matched: rule.phrase,
     };
 
-    // Selection precedence: more words (more specific) wins; ties broken
-    // by higher confidence.
-    if (
+    // Selection precedence:
+    //   1. Safety outranks everything. A safety rule that survived the idiom
+    //      guard wins even against a longer non-safety phrase, because the two
+    //      errors are not symmetric: mistakenly flagging a hazard costs someone
+    //      a glance, missing one costs far more. Without this, "snake near the
+    //      cart path" was routed to grounds as a cart-path issue.
+    //   2. Otherwise more words (more specific) wins.
+    //   3. Ties broken by higher confidence.
+    const bestIsSafety = best?.category === "safety";
+    const candIsSafety = candidate.category === "safety";
+
+    const wins =
       !best ||
-      words > bestWordCount ||
-      (words === bestWordCount && candidate.confidence > best.confidence)
-    ) {
+      (candIsSafety && !bestIsSafety) ||
+      (candIsSafety === bestIsSafety &&
+        (words > bestWordCount ||
+          (words === bestWordCount && candidate.confidence > best.confidence)));
+
+    if (wins) {
       best = candidate;
       bestWordCount = words;
     }

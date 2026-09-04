@@ -5,6 +5,38 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Triage moved into Supabase — it no longer needs the web app at all
+The real problem was not a missing URL: the core loop depended on the web host
+being reachable *and* on a deployment URL being configured before anything worked.
+- Triage is now a Supabase Edge Function beside the database, with a stable
+  address from the moment the project exists. Vercel can be down; triage runs.
+- **Verified autonomously twice**: filed a report as a member, waited, and cron had
+  classified, routed and notified with nothing invoked by hand.
+- The Next worker, its API route and its duplicate classifier are deleted. Two
+  implementations of the same logic is how every drift bug here started.
+
+### Keyword rules moved into the database
+Shipping a 36KB copy of the rules to the function would have been a second source
+of truth — exactly what broke the auth stub. Instead the rules are a table and the
+matcher is one SQL function, exercised by both production and the test suite.
+`npm run test:matcher` asserts it agrees with the TypeScript rules on all 75
+fixtures.
+
+**[bug] The SQL matcher scrambled word order.** `string_agg` over `unnest` has no
+guaranteed ordering, so repairing misspellings turned "cart wont start at all on
+hole 2" into "on hole 2 all at start wont cart". Single-word rules still matched,
+so it looked healthy at 74/75 agreement — every *multi-word* phrase, the specific
+high-confidence ones doing the real work, had silently stopped matching. Fixed with
+`WITH ORDINALITY`; now 75/75.
+
+**[bug] The confidence floor was missing.** TypeScript rejects matches below 0.6 and
+defers to the model; SQL had no floor, so a 0.40 bare "cart" routed "the guy in the
+cart next to us keeps yelling" to the cart fleet.
+
+**[bug] Removing the worker orphaned push delivery.** Nothing called it. Delivery
+moved into the same function, so one invocation carries a report from filed to
+somebody's phone.
+
 ### The queue could lose work **[bug x3]**
 Asking "is triage actually running?" exposed three defects in the one component
 whose entire purpose is that work cannot be silently dropped:

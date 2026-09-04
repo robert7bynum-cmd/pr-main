@@ -126,7 +126,7 @@ export function normalize(text: string): string {
 // Rule model
 // ---------------------------------------------------------------------------
 
-interface Rule {
+export interface Rule {
   /** Phrase to look for. Matched as a substring against normalized, space-padded text. */
   phrase: string;
   category: Category;
@@ -539,7 +539,7 @@ const PLAY_INTERFERENCE_RULES: Rule[] = [
 // first for readability since it's the highest-stakes category.
 // ---------------------------------------------------------------------------
 
-const ALL_RULES: Rule[] = [
+export const ALL_RULES: Rule[] = [
   ...SAFETY_RULES,
   ...PACE_OF_PLAY_RULES,
   ...COURSE_MAINTENANCE_RULES,

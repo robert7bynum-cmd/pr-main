@@ -38,6 +38,40 @@ export async function sendTestPush(): Promise<{ ok: boolean; error?: string }> {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { ok: false, error: "not signed in" };
 
-  const { sendTestToProfile } = await import("@/lib/notify/push-test");
-  return sendTestToProfile(data.user.id);
+  // Delivery lives in the Supabase function; queue a notification and let the
+  // same code path that handles real alerts deliver it. Testing a different
+  // path would prove nothing about the one that matters.
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
+  const { data: recent } = await admin
+    .from("reports").select("id, course_id")
+    .order("created_at", { ascending: false }).limit(1);
+  if (!recent?.length) return { ok: false, error: "no reports to test with yet" };
+
+  await admin.from("notifications").insert({
+    report_id: recent[0].id,
+    course_id: recent[0].course_id,
+    profile_id: data.user.id,
+    channel: "push",
+    status: "queued",
+  });
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/triage`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    },
+  );
+  if (!res.ok) return { ok: false, error: "could not reach the alert service" };
+
+  const out = (await res.json()) as { pushSent?: number };
+  return out.pushSent
+    ? { ok: true }
+    : { ok: false, error: "this device is not subscribed, or the browser rejected it" };
 }

@@ -13,7 +13,6 @@
     "db:validate": "node scripts/validate-sql.ts",
     "db:check": "node scripts/check-seed.ts",
     "triage:coverage": "node scripts/triage-coverage.ts",
-    "triage:model": "tsx --conditions=react-server --env-file=.env.local scripts/triage-model-test.mts",
     "test:routing": "tsx scripts/test-routing.mts",
     "test:actions": "tsx scripts/test-actions.mts",
     "db:apply": "tsx --env-file=.env.local scripts/apply-migrations.mts",
@@ -23,7 +22,10 @@
     "db:demo-users": "tsx --env-file=.env.local scripts/demo-users.mts",
     "db:reset-demo": "npm run db:apply -- --seed && npm run db:demo-users && npm run db:freshen",
     "test:rls": "tsx --env-file=.env.local scripts/test-rls.mts",
-    "test:escalation": "tsx scripts/test-escalation.mts"
+    "test:escalation": "tsx scripts/test-escalation.mts",
+    "db:keywords": "tsx --env-file=.env.local scripts/seed-keywords.mts",
+    "triage:run": "tsx --env-file=.env.local scripts/run-triage.mts",
+    "test:matcher": "tsx --env-file=.env.local scripts/test-sql-matcher.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

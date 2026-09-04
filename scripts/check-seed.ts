@@ -4,11 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const db = await PGlite.create({ extensions: { pgcrypto } });
-await db.exec(`create role anon; create role authenticated; create role service_role;
-  create schema if not exists auth;
-  create table auth.users (id uuid primary key, instance_id uuid, email text,
-    aud text, role text, created_at timestamptz default now(), updated_at timestamptz default now());
-  create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;`);
+await db.exec(readFileSync("supabase/test-bootstrap.sql", "utf8"));
 for (const f of readdirSync("supabase/migrations").filter(f=>f.endsWith(".sql")).sort())
   await db.exec(readFileSync(join("supabase/migrations", f), "utf8"));
 await db.exec(readFileSync("supabase/seed.sql", "utf8"));

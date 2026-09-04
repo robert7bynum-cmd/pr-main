@@ -59,7 +59,10 @@ export function QueueLive({
     if (newestId === lastAlertedId) return;
     lastAlertedId = newestId;
     if (soundEnabled) playChime();
-    setBanner(newestBody?.slice(0, 90) ?? "New report");
+    // Deferred a tick: setting state synchronously inside an effect cascades
+    // renders, and this effect runs on every server refresh.
+    const id = setTimeout(() => setBanner(newestBody?.slice(0, 90) ?? "New report"), 0);
+    return () => clearTimeout(id);
   }, [newestId, newestBody]);
 
   useEffect(() => {

@@ -11,24 +11,7 @@ import { join } from "node:path";
 
 const db = await PGlite.create({ extensions: { pgcrypto } });
 
-// Supabase provides auth.users; stub the columns our schema references.
-await db.exec(`
-  create role anon;
-  create role authenticated;
-  create role service_role;
-  create schema if not exists auth;
-  create table auth.users (
-    id uuid primary key,
-    instance_id uuid,
-    email text,
-    aud text,
-    role text,
-    created_at timestamptz default now(),
-    updated_at timestamptz default now()
-  );
-  create or replace function auth.uid() returns uuid language sql stable as $$
-    select null::uuid $$;
-`);
+await db.exec(readFileSync("supabase/test-bootstrap.sql", "utf8"));
 
 const dir = "supabase/migrations";
 const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();

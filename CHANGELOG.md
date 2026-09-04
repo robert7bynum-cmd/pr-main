@@ -5,6 +5,30 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Audit: three bugs, one of them serious
+
+**[bug — critical] Every dashboard view was world-readable.** A Postgres view runs
+with its *owner's* privileges by default, so RLS on the underlying tables was
+bypassed for anyone selecting from the view. With the publishable key — which ships
+in the client bundle and is therefore public — an anonymous caller could read the
+whole staff queue, member wording, staff names, and per-person performance data.
+Fixed with `security_invoker = on` on all six views. `npm run test:rls` now checks
+every table and view for anonymous access and fails the run on any leak.
+
+**[bug] The realtime migration silently broke the entire local test harness.** It
+ran fine against Supabase, but PGlite has no `supabase_realtime` publication, so all
+three SQL suites started failing — and I had not re-run them after adding it. Now
+guarded on the publication existing.
+
+**[bug] The auth stub was copy-pasted into five files and drifted.** Hardening the
+seed's `auth.users` insert broke every local suite because the stub lacked the new
+columns. Extracted to `supabase/test-bootstrap.sql` as the single source of truth.
+
+Also: fixed all lint errors, moved the `shadcn` CLI out of runtime dependencies,
+confirmed every runtime dependency is actually imported, and confirmed the
+service-role key appears only in a `server-only` module. `npm audit`: 0
+vulnerabilities.
+
 ### Live queue + station alerts
 - Realtime subscription refreshes the queue within a second of a report landing;
   a 20-second poll is the guarantee behind it. Same fast-path/guaranteed-path shape

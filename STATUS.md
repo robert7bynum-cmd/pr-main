@@ -19,6 +19,8 @@ npm run dev            # http://localhost:3000/r/beacon-hill/bh-h07
 | `npm run triage:eval` | Keyword regression suite (75 fixtures, free) | nothing |
 | `npm run triage:coverage` | Per-category coverage + adversarial probes (free) | nothing |
 | `npm run triage:model` | Live model triage test — **costs ~$0.025** | `ANTHROPIC_API_KEY` |
+| `npm run test:rls` | **Anonymous-access check on every table and view** | Supabase |
+| `npm run test:routing` / `test:actions` | SQL logic suites (36 cases) | nothing |
 | `npm run db:apply` | Apply new migrations to Supabase (tracked, so safe to re-run) | Supabase |
 | `npm run db:freshen` | **Re-anchor demo data to now — run before any demo** | Supabase |
 | `npm run db:audit` | Check how the demo data currently reads | Supabase |

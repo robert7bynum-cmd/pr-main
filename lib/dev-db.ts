@@ -12,17 +12,12 @@ import "server-only";
  * Development only. Guarded twice: the module refuses to load in production,
  * and every caller checks for Supabase credentials first.
  */
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+
 import type { PGlite } from "@electric-sql/pglite";
 
-const BOOTSTRAP = `
-  create role anon; create role authenticated; create role service_role;
-  create schema if not exists auth;
-  create table auth.users (
-    id uuid primary key, instance_id uuid, email text, aud text, role text,
-    created_at timestamptz default now(), updated_at timestamptz default now());
-  create or replace function auth.uid() returns uuid language sql stable as $$
-    select null::uuid $$;
-`;
+
 
 // Survives Next's dev hot-reload; otherwise every edit reseeds 220 reports.
 // Keyed by a fingerprint of the SQL so that editing a migration reboots the
@@ -34,8 +29,6 @@ const globalForDb = globalThis as unknown as {
 };
 
 function sqlFingerprint(): string {
-  const { readFileSync, readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
-  const { join } = require("node:path") as typeof import("node:path");
   const dir = join(process.cwd(), "supabase/migrations");
   const parts = readdirSync(dir)
     .filter((f) => f.endsWith(".sql"))
@@ -48,11 +41,10 @@ function sqlFingerprint(): string {
 async function boot(): Promise<PGlite> {
   const { PGlite } = await import("@electric-sql/pglite");
   const { pgcrypto } = await import("@electric-sql/pglite/contrib/pgcrypto");
-  const { readFileSync, readdirSync } = await import("node:fs");
-  const { join } = await import("node:path");
 
   const db = await PGlite.create({ extensions: { pgcrypto } });
-  await db.exec(BOOTSTRAP);
+  // Shared with the test scripts so the app and the suites never diverge.
+  await db.exec(readFileSync(join(process.cwd(), "supabase/test-bootstrap.sql"), "utf8"));
 
   const dir = join(process.cwd(), "supabase/migrations");
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {

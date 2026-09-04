@@ -18,6 +18,7 @@ export interface Recurring {
   location: string; category: string; occurrences: number; most_recent: string;
 }
 export interface ByPerson {
+  profile_id: string;
   full_name: string; resolved_30d: number; median_handling_minutes: number | null;
 }
 

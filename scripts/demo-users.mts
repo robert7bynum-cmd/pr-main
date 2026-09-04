@@ -20,7 +20,7 @@ const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
 
 const PERSONAS = [
   { email: "gm@beaconhilldemo.com",   name: "Katherine Ellis",   role: "manager",    all: true },
-  { email: "supt@beaconhilldemo.com", name: "Efrain Reyes",      role: "supervisor", dept: "maintenance" },
+  { email: "supt@beaconhilldemo.com", name: "Marcus Feldt",       role: "supervisor", dept: "maintenance" },
   { email: "shop@beaconhilldemo.com", name: "Danny Whitfield",   role: "staff",      dept: "pro_shop" },
 ];
 

@@ -5,7 +5,7 @@ import { demoSignIn } from "@/app/actions/demo-signin";
 
 const PERSONAS = [
   { email: "gm@beaconhilldemo.com",   name: "Katherine Ellis", role: "General Manager — sees every department" },
-  { email: "supt@beaconhilldemo.com", name: "Efrain Reyes",    role: "Superintendent — course maintenance" },
+  { email: "supt@beaconhilldemo.com", name: "Marcus Feldt",    role: "Superintendent — course maintenance" },
   { email: "shop@beaconhilldemo.com", name: "Danny Whitfield", role: "Pro shop" },
 ];
 

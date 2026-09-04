@@ -110,7 +110,7 @@ export default async function DashboardPage() {
             </thead>
             <tbody>
               {byPerson.map((p) => (
-                <tr key={p.full_name} className="border-t border-line">
+                <tr key={p.profile_id} className="border-t border-line">
                   <td className="py-2.5">{p.full_name}</td>
                   <td className="py-2.5 text-right tabular-nums font-medium">{p.resolved_30d}</td>
                   <td className="py-2.5 text-right tabular-nums text-ink-muted">

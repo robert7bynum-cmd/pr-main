@@ -5,6 +5,15 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Duplicate React key on the dashboard **[bug]**
+- The team table was keyed by `full_name`, and two people were called Efrain Reyes
+  — a seeded staff member and a demo persona. React warned about duplicate keys,
+  which can silently duplicate or omit rows. Keyed by `profile_id` instead; two
+  people at one club can genuinely share a name.
+- Renamed the demo superintendent to Marcus Feldt so the team list does not look
+  duplicated to anyone reading it.
+- Found by the Next dev overlay while looking at the page, not by any test.
+
 ### Silent-success class, scoped and closed **[bug x3]**
 The worker counting skipped reports as routed was a shape, not a one-off. Scoped
 the codebase for operations that report success for work that did not happen:

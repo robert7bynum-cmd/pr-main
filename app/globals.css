@@ -3,6 +3,21 @@
 /* ---------------------------------------------------------------------------
    Design tokens
    ---------------------------------------------------------------------------
+
+   PROVISIONAL — colour, type and spacing are placeholders pending real design
+   decisions. They were derived from Beacon Hill's website (gold #E2AF47 on
+   white) plus neutral greys, not from a chosen system.
+
+   Changing them should be a one-file job: every component references the
+   SEMANTIC tokens below and nothing hardcodes a colour. If a redesign ever
+   requires editing components, something has leaked out of this file and the
+   leak is the bug.
+
+   Still to decide: typeface (currently the system stack — the club's own
+   area-extended/astoria are Adobe Fonts and need licensing), dark mode (none
+   yet, deliberately: the staff app is used outdoors in daylight), and a
+   validated categorical chart palette (only a single-series hue exists today).
+   ---------------------------------------------------------------------------
    Two layers, deliberately:
 
    1. PRIMITIVES — raw values. Never referenced by a component.

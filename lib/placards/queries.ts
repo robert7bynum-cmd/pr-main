@@ -3,6 +3,12 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { brandingFrom, type Branding } from "@/lib/branding";
 
+/**
+ * PLANNED — self-serve placards. This reads the fixed set of locations a club
+ * was set up with. Clubs will want to mint a code for anything: a named piece
+ * of equipment, a rental cart, a temporary sign. That needs a create flow that
+ * adds a location and its qr_code together, which the schema already supports.
+ */
 export interface Placard {
   token: string;
   locationName: string;

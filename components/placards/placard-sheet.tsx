@@ -10,6 +10,18 @@ import type { PlacardSet } from "@/lib/placards/queries";
  *
  * QR codes are generated server-side as SVG: they stay sharp at any size, which
  * matters because these get printed large and mounted outdoors.
+ *
+ * PROVISIONAL DESIGN — the layout, type scale and print dimensions here are a
+ * working default, not a designed placard. These are physical signs on a
+ * high-end club's tee boxes, so they will want real design work: proper
+ * typography, the club's mark, materials-aware sizing and bleed.
+ *
+ * PLANNED — self-serve generation. Today placards exist only for locations
+ * seeded in the database. Clubs will want to create a code for anything they
+ * choose: a specific piece of equipment, a rental cart, a function room, a
+ * temporary sign during construction. That means a "create a placard" flow
+ * that mints a location plus a QR code on demand, rather than the fixed set a
+ * course is set up with.
  */
 export async function PlacardSheet({ set }: { set: PlacardSet }) {
   const codes = await Promise.all(

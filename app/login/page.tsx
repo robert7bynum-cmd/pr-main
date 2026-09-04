@@ -1,4 +1,6 @@
 import { LoginForm } from "@/components/staff/login-form";
+import { DemoSignIn } from "@/components/staff/demo-signin";
+import { demoEnabled } from "@/app/actions/demo-signin";
 
 export const metadata = { title: "Sign in — ProResponse" };
 
@@ -8,6 +10,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const showDemo = await demoEnabled();
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#f6f6f5] px-6">
@@ -28,6 +31,7 @@ export default async function LoginPage({
         <div className="mt-6">
           <LoginForm />
         </div>
+        {showDemo && <DemoSignIn />}
       </div>
     </main>
   );

@@ -19,7 +19,8 @@
     "db:apply": "tsx --env-file=.env.local scripts/apply-migrations.mts",
     "invite": "tsx --env-file=.env.local scripts/invite.mts",
     "db:freshen": "tsx --env-file=.env.local scripts/freshen-demo.mts",
-    "db:audit": "tsx --env-file=.env.local scripts/demo-audit.mts"
+    "db:audit": "tsx --env-file=.env.local scripts/demo-audit.mts",
+    "db:demo-users": "tsx --env-file=.env.local scripts/demo-users.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

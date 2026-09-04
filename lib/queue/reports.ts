@@ -28,10 +28,13 @@ export interface QueueRow {
   ack_overdue: boolean;
 }
 
-// Urgent first, then whatever has been waiting longest. Deliberately not
-// "newest first" — the oldest unhandled report is the one that embarrasses
-// the club, and a queue that buries it is worse than no queue.
+// Scheduled work sinks to the bottom: it is handled, just not today, and it
+// should never outrank something happening on the course right now. Within
+// each group: urgent first, then whatever has been waiting longest —
+// deliberately not "newest first", because the oldest unhandled report is the
+// one that embarrasses the club and a queue that buries it is worse than none.
 const ORDER = `order by
+  case when status = 'scheduled' then 1 else 0 end,
   case urgency when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end,
   minutes_open desc`;
 
@@ -73,8 +76,12 @@ export async function getQueue(departmentKey?: string): Promise<QueueRow[]> {
   if (error) throw new Error(error.message);
 
   const rank = { urgent: 0, high: 1, normal: 2, low: 3 } as const;
+  const sched = (r: QueueRow) => (r.status === "scheduled" ? 1 : 0);
   return ((data ?? []) as Record<string, unknown>[]).map(normalise).sort(
-    (a, b) => rank[a.urgency] - rank[b.urgency] || b.minutes_open - a.minutes_open,
+    (a, b) =>
+      sched(a) - sched(b) ||
+      rank[a.urgency] - rank[b.urgency] ||
+      b.minutes_open - a.minutes_open,
   );
 }
 

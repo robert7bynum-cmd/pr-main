@@ -33,6 +33,19 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
           Our team has been notified about {ctx.locationName.toLowerCase()}.
           Someone is looking at it now.
         </p>
+        {/* The tracking link is the member's only way back to this report —
+            no account, nothing to remember. It is also where the club's reply
+            appears once staff resolve it. */}
+        {result.trackingToken && result.trackingToken !== "dev-preview" && (
+          <a
+            href={`/s/${result.trackingToken}`}
+            className="mt-7 inline-block rounded-xl border border-black/15 px-5 py-3
+                       text-[15px] font-medium text-black/75"
+          >
+            Check on this later
+          </a>
+        )}
+
         <p className="mt-8 text-xs uppercase tracking-[0.14em] text-black/35">
           {ctx.courseName}
         </p>

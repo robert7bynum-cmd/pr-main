@@ -15,6 +15,20 @@ const TABLES = ["reports", "profiles", "courses", "report_events", "notification
 const VIEWS = ["staff_queue", "dashboard_today", "dashboard_daily",
   "dashboard_by_department", "dashboard_recurring", "dashboard_by_person"];
 
+// Grants are the second line: RLS should block anyway, but anon holding CRUD on
+// every table left the database one policy mistake from exposure.
+let grantLeaks = 0;
+async function checkGrants() {
+  const res = await fetch(`${URL_}/rest/v1/reports`, {
+    method: "POST",
+    headers: { apikey: PUB, Authorization: `Bearer ${PUB}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ body: "should be refused" }),
+  });
+  const refused = res.status === 401 || res.status === 403 || res.status === 404;
+  if (!refused) grantLeaks++;
+  console.log(`  ${refused ? "ok  " : "LEAK"}  anon cannot write directly to reports (HTTP ${res.status})`);
+}
+
 let leaks = 0;
 async function check(name: string) {
   const res = await fetch(`${URL_}/rest/v1/${name}?select=*&limit=1`, {
@@ -30,5 +44,8 @@ async function check(name: string) {
 console.log("anonymous read access (rows returned = leak):\n");
 for (const t of [...TABLES, ...VIEWS]) await check(t);
 
-console.log(`\n${leaks} leak(s)`);
-process.exit(leaks ? 1 : 0);
+console.log("\ndirect write attempt:");
+await checkGrants();
+
+console.log(`\n${leaks + grantLeaks} leak(s)`);
+process.exit(leaks + grantLeaks ? 1 : 0);

@@ -5,6 +5,27 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Anon held CRUD grants on every table **[bug]**
+Supabase's "automatically expose new tables" grants anon full SELECT/INSERT/
+UPDATE/DELETE on everything, and RLS was the only thing stopping it. That works,
+but it left the database one mistake from exposure: any table created without RLS,
+or a policy written slightly too loosely, would have been immediately
+world-accessible because the grant was already there.
+
+Members never touch a table — the entire member surface is three SECURITY DEFINER
+functions — so anon now holds **no table privileges at all**, and default
+privileges are revoked so new tables inherit the same posture. Exposure now
+requires two independent failures.
+
+Also revoked the RLS helper functions (`auth_course_id`, `auth_role`,
+`auth_is_management`) from anon; policies are declared `to authenticated` and
+never needed them.
+
+`npm run test:rls` now also attempts a direct anonymous write, not just reads.
+
+Enum types in `public` are schema metadata, not data, and are not a concern —
+PostgREST publishes the schema shape regardless.
+
 ### QR placard generator
 - `/app/placards` — every code for the club, holes in play order then facilities.
 - QR is server-rendered **SVG** so it stays sharp printed large, at high error

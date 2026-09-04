@@ -222,6 +222,20 @@ on conflict (id) do nothing;
 select setseed(0.42);
 set local max_parallel_workers_per_gather = 0;
 
+
+-- Deterministic per-row randomness.
+--
+-- random() cannot be used inside an uncorrelated subquery or LATERAL here:
+-- Postgres evaluates such a subquery ONCE for the whole statement, so every
+-- generated row receives the identical draw. That silently collapsed the first
+-- version of this seed to a single status and one hole per category.
+-- Hashing a row-specific key keeps each draw independent, per-row, and
+-- reproducible across machines.
+create or replace function pg_temp.demo_rand(k text) returns float8
+language sql immutable as $$
+  select (abs(hashtextextended(k, 0)) % 1000000)::float8 / 1000000.0
+$$;
+
 create temp table seed_reports as
 with
 -- One row per report we're about to synthesize. 220 lands in the
@@ -281,28 +295,28 @@ loc_pick as materialized (
           when rnd.r2 < 0.35 then 'a0000000-0000-0000-0000-000000000004'::uuid   -- hole 4, irrigation
           when rnd.r2 < 0.55 then 'a0000000-0000-0000-0000-000000000012'::uuid   -- hole 12, irrigation
           when rnd.r2 < 0.72 then 'a0000000-0000-0000-0000-000000000007'::uuid   -- hole 7, cart path
-          else (select h.arr[1 + floor(random() * 18)::int] from hole_ids h)
+          else (select h.arr[1 + floor(pg_temp.demo_rand(cp.n::text || 'p1') * 18)::int] from hole_ids h)
         end
       when 'restroom_facilities' then
         (select r.arr[1 + floor(rnd.r2 * 2)::int] from restroom_ids r)
       when 'cart_issue' then
         case when rnd.r2 < 0.6 then 'a0000000-0000-0000-0000-000000000021'::uuid  -- cart barn
-             else (select h.arr[1 + floor(random() * 18)::int] from hole_ids h) end
+             else (select h.arr[1 + floor(pg_temp.demo_rand(cp.n::text || 'p2') * 18)::int] from hole_ids h) end
       when 'f_and_b' then
         case when rnd.r2 < 0.5 then 'a0000000-0000-0000-0000-000000000022'::uuid  -- halfway house
              when rnd.r2 < 0.75 then 'a0000000-0000-0000-0000-000000000020'::uuid -- clubhouse
-             else (select h.arr[1 + floor(random() * 18)::int] from hole_ids h) end
+             else (select h.arr[1 + floor(pg_temp.demo_rand(cp.n::text || 'p3') * 18)::int] from hole_ids h) end
       when 'caddie_valet' then
         case when rnd.r2 < 0.7 then 'a0000000-0000-0000-0000-000000000020'::uuid  -- clubhouse
              else 'a0000000-0000-0000-0000-000000000021'::uuid end                -- cart barn
       when 'safety' then
-        case when rnd.r2 < 0.8 then (select h.arr[1 + floor(random() * 18)::int] from hole_ids h)
+        case when rnd.r2 < 0.8 then (select h.arr[1 + floor(pg_temp.demo_rand(cp.n::text || 'p4') * 18)::int] from hole_ids h)
              else 'a0000000-0000-0000-0000-000000000021'::uuid end
       when 'practice_facility' then 'a0000000-0000-0000-0000-000000000019'::uuid  -- range
       when 'pro_shop' then 'a0000000-0000-0000-0000-000000000020'::uuid           -- clubhouse
-      else (select h.arr[1 + floor(random() * 18)::int] from hole_ids h)          -- pace_of_play, needs_review
+      else (select h.arr[1 + floor(pg_temp.demo_rand(cp.n::text || 'p5') * 18)::int] from hole_ids h)          -- pace_of_play, needs_review
     end as location_id
-  from cat_pick cp, lateral (select random() as r2) rnd
+  from cat_pick cp, lateral (select pg_temp.demo_rand(cp.n::text || 'loc') as r2) rnd
 ),
 -- qr_code_id mirrors location_id: same trailing two digits, 'b' prefix
 -- instead of 'a' — matches the numbering used for the qr_codes insert
@@ -318,8 +332,8 @@ loc_pick2 as materialized (
 when_pick as materialized (
   select lp.*,
     case when rnd.r_wk < 0.55
-         then (select w.arr[1 + floor(random() * array_length(w.arr, 1))::int] from weekend_pool w)
-         else (select d.arr[1 + floor(random() * array_length(d.arr, 1))::int] from weekday_pool d)
+         then (select w.arr[1 + floor(pg_temp.demo_rand(lp.n::text || 'd1') * array_length(w.arr, 1))::int] from weekend_pool w)
+         else (select d.arr[1 + floor(pg_temp.demo_rand(lp.n::text || 'd2') * array_length(d.arr, 1))::int] from weekday_pool d)
     end as report_date,
     case
       when rnd.r_tod < 0.48 then 7  + floor(rnd.r_h * 5)::int   -- 7-11am wave
@@ -330,7 +344,9 @@ when_pick as materialized (
     floor(random() * 60)::int as report_minute,
     floor(random() * 60)::int as report_second
   from loc_pick2 lp,
-       lateral (select random() as r_wk, random() as r_tod, random() as r_h) rnd
+       lateral (select pg_temp.demo_rand(lp.n::text || 'wk')  as r_wk,
+                       pg_temp.demo_rand(lp.n::text || 'tod') as r_tod,
+                       pg_temp.demo_rand(lp.n::text || 'hr')  as r_h) rnd
 ),
 
 -- ---- SLA + department: hardcoded from docs/taxonomy.md, keyed by category.
@@ -387,7 +403,10 @@ status_pick as materialized (
     ) at time zone 'America/New_York' as created_at_raw,
     rnd.r_status, rnd.r_ack, rnd.r_resolve, rnd.r_close
   from sla_pick sp,
-       lateral (select random() as r_status, random() as r_ack, random() as r_resolve, random() as r_close) rnd
+       lateral (select pg_temp.demo_rand(sp.n::text || 'st')  as r_status,
+                       pg_temp.demo_rand(sp.n::text || 'ack') as r_ack,
+                       pg_temp.demo_rand(sp.n::text || 'res') as r_resolve,
+                       pg_temp.demo_rand(sp.n::text || 'cls') as r_close) rnd
 ),
 status_pick2 as materialized (
   select sp.*,

@@ -1,0 +1,542 @@
+<title>ProResponse Build Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* ---------- tokens: light is the base, both dark states redefine ---------- */
+  :root{
+    --paper:#F6F8F4; --surface:#FFFFFF; --surface-2:#EFF2EC;
+    --ink:#151A16; --ink-soft:#3B4640; --muted:#6E7C73;
+    --line:#D8DED6; --line-strong:#BCC5B9;
+    --gold:#B98A22; --gold-bright:#E2AF47; --gold-wash:#FBF3DF;
+    --pine:#1E3A2F;
+    --good:#3E7A5A; --warn:#B0791F; --crit:#A8422F;
+    --shadow:0 1px 2px rgba(21,26,22,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0E1310; --surface:#151C17; --surface-2:#1B241E;
+      --ink:#E7EDE7; --ink-soft:#BAC5BC; --muted:#8B9A90;
+      --line:#28332B; --line-strong:#3A4840;
+      --gold:#E2AF47; --gold-bright:#EFC468; --gold-wash:#241D0F;
+      --pine:#9BC4AC;
+      --good:#6FB68C; --warn:#D8A54A; --crit:#D97A65;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0E1310; --surface:#151C17; --surface-2:#1B241E;
+    --ink:#E7EDE7; --ink-soft:#BAC5BC; --muted:#8B9A90;
+    --line:#28332B; --line-strong:#3A4840;
+    --gold:#E2AF47; --gold-bright:#EFC468; --gold-wash:#241D0F;
+    --pine:#9BC4AC;
+    --good:#6FB68C; --warn:#D8A54A; --crit:#D97A65;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+
+  *,*::before,*::after{box-sizing:border-box}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:Spectral,Georgia,"Times New Roman",serif; text-wrap:balance; margin:0}
+  p{margin:0}
+  a{color:var(--gold)}
+  :focus-visible{outline:2px solid var(--gold-bright); outline-offset:3px; border-radius:2px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  .wrap{max-width:74rem; margin-inline:auto; padding:0 clamp(1.25rem,4vw,3rem)}
+  .prose{max-width:64ch}
+  .stack{display:flex; flex-direction:column}
+
+  /* ---------- masthead ---------- */
+  .mast{border-bottom:1px solid var(--line); background:var(--surface)}
+  .mast-in{display:flex; flex-direction:column; gap:1.75rem; padding:clamp(2.5rem,6vw,4rem) 0}
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.72rem; font-weight:500;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--gold); margin:0;
+  }
+  h1{font-size:clamp(2.4rem,6vw,3.6rem); font-weight:600; line-height:1.05; letter-spacing:-.015em}
+  .dek{font-size:clamp(1.05rem,2vw,1.2rem); color:var(--ink-soft); max-width:60ch}
+
+  .facts{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));
+    gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;
+  }
+  .fact{background:var(--surface); padding:1rem 1.15rem; display:flex; flex-direction:column; gap:.3rem}
+  .fact dt{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.68rem; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--muted); margin:0;
+  }
+  .fact dd{margin:0; font-size:1rem; font-weight:500; font-variant-numeric:tabular-nums}
+
+  /* ---------- sections ---------- */
+  main{display:flex; flex-direction:column; gap:clamp(3rem,7vw,5rem); padding:clamp(3rem,7vw,5rem) 0}
+  section{display:flex; flex-direction:column; gap:1.5rem}
+  .sec-head{display:flex; flex-direction:column; gap:.6rem}
+  h2{font-size:clamp(1.5rem,3.2vw,2rem); font-weight:600; letter-spacing:-.01em}
+  h3{font-size:1.08rem; font-weight:600}
+  .lede{color:var(--ink-soft); max-width:64ch}
+
+  /* ---------- tier diagram: grid only, so nothing can overlap ---------- */
+  .diagram{
+    border:1px solid var(--line); border-radius:8px; background:var(--surface-2);
+    padding:clamp(1.25rem,3vw,2rem); overflow-x:auto;
+  }
+  .tiers{display:flex; flex-direction:column; gap:0; min-width:34rem}
+  .tier-label{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.68rem; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--muted); padding-bottom:.6rem;
+  }
+  .row{display:grid; grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr)); gap:.75rem}
+  .node{
+    background:var(--surface); border:1px solid var(--line-strong); border-radius:6px;
+    padding:.85rem .95rem; display:flex; flex-direction:column; gap:.3rem; box-shadow:var(--shadow);
+  }
+  .node.core{border-color:var(--gold); background:var(--gold-wash)}
+  .node b{font-size:.92rem; font-weight:600; line-height:1.3}
+  .node span{font-size:.78rem; color:var(--muted); line-height:1.45}
+  .flow{
+    display:flex; align-items:center; justify-content:center; gap:.6rem;
+    padding:.85rem 0; color:var(--muted);
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.72rem; letter-spacing:.08em;
+  }
+  .flow::before,.flow::after{content:""; height:1px; flex:1; background:var(--line-strong)}
+
+  /* ---------- lifecycle rail ---------- */
+  .steps{display:flex; flex-direction:column}
+  .step{display:grid; grid-template-columns:auto 1fr; column-gap:1.25rem}
+  .rail{display:flex; flex-direction:column; align-items:center; gap:.4rem}
+  .dot{
+    width:1.9rem; height:1.9rem; border-radius:50%; flex:none;
+    display:grid; place-items:center; background:var(--surface); border:1px solid var(--line-strong);
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.72rem; font-weight:600; color:var(--ink-soft);
+  }
+  .step.key .dot{background:var(--gold-wash); border-color:var(--gold); color:var(--gold)}
+  .thread{flex:1; width:1px; background:var(--line-strong); min-height:.75rem}
+  .step:last-child .thread{background:transparent}
+  .step-body{padding-bottom:1.6rem; display:flex; flex-direction:column; gap:.35rem}
+  .step-body h3{font-size:1rem}
+  .step-body p{font-size:.92rem; color:var(--ink-soft); max-width:60ch}
+  .tag{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.66rem; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted);
+  }
+
+  /* ---------- tables ---------- */
+  .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; min-width:36rem; font-size:.9rem}
+  caption{
+    text-align:left; padding:.9rem 1.1rem; color:var(--muted); font-size:.82rem;
+    border-bottom:1px solid var(--line);
+  }
+  th,td{text-align:left; padding:.7rem 1.1rem; border-bottom:1px solid var(--line); vertical-align:top}
+  thead th{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.68rem; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--muted); font-weight:500; background:var(--surface-2);
+    white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:none}
+  .num{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .band th{
+    background:var(--surface-2); font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.68rem; letter-spacing:.13em; text-transform:uppercase; color:var(--gold); font-weight:600;
+  }
+  .band.ship th{background:var(--gold-wash); color:var(--gold)}
+
+  .pill{
+    display:inline-block; padding:.14rem .5rem; border-radius:999px; font-size:.7rem; font-weight:500;
+    font-family:"IBM Plex Mono",ui-monospace,monospace; letter-spacing:.05em; white-space:nowrap;
+    border:1px solid currentColor;
+  }
+  .pill.done{color:var(--good)} .pill.now{color:var(--gold)} .pill.block{color:var(--crit)}
+
+  /* ---------- cards / callouts ---------- */
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(17rem,1fr)); gap:1rem}
+  .card{
+    border:1px solid var(--line); border-radius:8px; background:var(--surface);
+    padding:1.25rem 1.35rem; display:flex; flex-direction:column; gap:.55rem;
+  }
+  .card h3{font-size:1rem}
+  .card p{font-size:.9rem; color:var(--ink-soft)}
+  .card ul{margin:0; padding-left:1.1rem; display:flex; flex-direction:column; gap:.35rem;
+           font-size:.9rem; color:var(--ink-soft)}
+
+  .note{
+    border-left:3px solid var(--gold); background:var(--gold-wash);
+    padding:1.1rem 1.35rem; border-radius:0 6px 6px 0; display:flex; flex-direction:column; gap:.5rem;
+  }
+  .note p{font-size:.94rem; color:var(--ink-soft)}
+  .note strong{color:var(--ink)}
+
+  .list{display:flex; flex-direction:column; gap:1rem; margin:0; padding:0; list-style:none}
+  .list li{display:grid; grid-template-columns:auto 1fr; column-gap:1rem; align-items:start}
+  .marker{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.72rem; font-weight:600;
+    color:var(--gold); padding-top:.18rem; white-space:nowrap;
+  }
+  .list p{font-size:.94rem; color:var(--ink-soft); max-width:62ch}
+  .list b{color:var(--ink); font-weight:600}
+
+  footer{border-top:1px solid var(--line); background:var(--surface)}
+  .foot-in{padding:2rem 0 2.5rem; display:flex; flex-direction:column; gap:.4rem}
+  .foot-in p{font-size:.85rem; color:var(--muted)}
+</style>
+
+<header class="mast">
+  <div class="wrap mast-in">
+    <p class="eyebrow">Build plan &middot; Revision 3 &middot; 3 September 2026</p>
+    <h1>ProResponse</h1>
+    <p class="dek">
+      A member scans a code on the tee, types what&rsquo;s wrong, and the right person&rsquo;s
+      phone buzzes before the group reaches the green. Nothing closes until someone
+      says it&rsquo;s done.
+    </p>
+    <dl class="facts">
+      <div class="fact"><dt>First client</dt><dd>Beacon Hill Golf Club</dd></div>
+      <div class="fact"><dt>Demo date</dt><dd>11 Sep 2026</dd></div>
+      <div class="fact"><dt>Build window</dt><dd>8 days</dd></div>
+      <div class="fact"><dt>Chunks to launch</dt><dd>1&ndash;9 of 14</dd></div>
+    </dl>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">The product</p>
+      <h2>Accountability, not another app</h2>
+    </div>
+    <div class="prose stack" style="gap:1rem">
+      <p>Golf clubs run on radios and memory. An issue gets called in, someone says they&rsquo;ll
+      handle it, and no record survives to say whether they did. ProResponse replaces the memory
+      with a timestamped trail and a clock that won&rsquo;t let a problem sit.</p>
+      <p>Members need no app, no account, and no phone call &mdash; a QR placard opens a form that
+      already knows which hole they&rsquo;re standing on. Staff get the report on the phone
+      they&rsquo;re already carrying. Management gets the one thing a radio never produced:
+      evidence.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>The database owns the work</h3>
+        <p>A report and its queue item commit in one transaction. A webhook is only a fast path,
+        so nothing can be silently skipped when it fails.</p>
+      </div>
+      <div class="card">
+        <h3>The model classifies, data routes</h3>
+        <p>AI picks a category. An editable rules table decides who gets paged. Swapping models
+        can never reroute a single person.</p>
+      </div>
+      <div class="card">
+        <h3>Events are the truth</h3>
+        <p>Status columns serve the screen. Every metric, escalation and performance claim is
+        computed from the event trail instead.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Architecture</p>
+      <h2>How the system fits together</h2>
+      <p class="lede">Three audiences on three very different devices, one database, and a work
+      queue that survives its own plumbing failing.</p>
+    </div>
+    <div class="diagram">
+      <div class="tiers">
+        <p class="tier-label">Who touches it</p>
+        <div class="row">
+          <div class="node"><b>Member</b><span>Own phone, mid-round. A form and nothing else.</span></div>
+          <div class="node"><b>Field staff</b><span>Own phone, outdoors, one-handed.</span></div>
+          <div class="node"><b>Station</b><span>Pro shop browser, open all day, chimes.</span></div>
+          <div class="node"><b>Management</b><span>Desktop console and reporting.</span></div>
+        </div>
+        <div class="flow">scan &middot; tap &middot; configure</div>
+        <div class="row">
+          <div class="node core"><b>Next.js on Vercel</b><span>Reporter &middot; staff queue &middot; admin console</span></div>
+        </div>
+        <div class="flow">reads and writes</div>
+        <p class="tier-label">Postgres, with row-level security on every table</p>
+        <div class="row">
+          <div class="node"><b>reports</b><span>Verbatim member text, kept separate from the AI summary.</span></div>
+          <div class="node"><b>report_events</b><span>The audit trail every metric is derived from.</span></div>
+          <div class="node"><b>routing_rules</b><span>Category &rarr; department &rarr; SLA, editable by a manager.</span></div>
+          <div class="node"><b>triage_queue</b><span>Written in the report&rsquo;s own transaction.</span></div>
+        </div>
+        <div class="flow">dispatches to</div>
+        <div class="row">
+          <div class="node"><b>Claude Haiku</b><span>Classifies only. Never decides who is paged.</span></div>
+          <div class="node"><b>Web push</b><span>Convenience layer for phones.</span></div>
+          <div class="node"><b>Twilio SMS</b><span>The reliable path once carrier registration clears.</span></div>
+          <div class="node"><b>pg_cron sweeper</b><span>Claims anything the webhook missed, every 30&ndash;60s.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Lifecycle</p>
+      <h2>One report, end to end</h2>
+      <p class="lede">The member waits on none of this. Triage never runs inside their request.</p>
+    </div>
+    <div class="steps">
+      <div class="step key">
+        <div class="rail"><div class="dot">1</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">t = 0 &middot; one transaction</span>
+          <h3>Member submits</h3>
+          <p>The report row and its queue item commit together. If the report exists, the work
+          item exists &mdash; they cannot drift apart.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="rail"><div class="dot">2</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">t + 0.2s</span>
+          <h3>&ldquo;Got it &mdash; the cart barn has been notified&rdquo;</h3>
+          <p>Confirmation is immediate and unconditional. The member&rsquo;s job is finished here.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="rail"><div class="dot">3</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">t + 1s, or within 60s if the webhook fails</span>
+          <h3>Triage</h3>
+          <p>A free keyword pass resolves the obvious cases. Anything unmatched goes to Claude
+          Haiku for a category, urgency and confidence. Below 0.6 confidence it becomes
+          <em>needs review</em> and goes to management rather than being guessed.</p>
+        </div>
+      </div>
+      <div class="step key">
+        <div class="rail"><div class="dot">4</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">deterministic</span>
+          <h3>Route</h3>
+          <p>The rules table maps category to department to on-duty staff. If nobody is clocked in,
+          it climbs a leadership chain and records why it skipped each level. Silence is never a
+          valid outcome.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="rail"><div class="dot">5</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">every attempt recorded</span>
+          <h3>Notify</h3>
+          <p>Station chime, web push, and SMS as the fallback when push fails. Retries back off;
+          repeated failure raises an alert rather than disappearing.</p>
+        </div>
+      </div>
+      <div class="step key">
+        <div class="rail"><div class="dot">6</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">the staff clock starts here, not at submit</span>
+          <h3>Acknowledge &rarr; in progress &rarr; done</h3>
+          <p>The first acknowledgement claims ownership so two people don&rsquo;t drive to the same
+          bunker. Marking done takes one tap and an optional comment. Work that genuinely can&rsquo;t
+          happen today gets scheduled instead &mdash; the honest alternative to a false resolve.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="rail"><div class="dot">7</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">quiet hours excluded from the clock</span>
+          <h3>Escalate, if it sits</h3>
+          <p>Past the acknowledge SLA it goes to the supervisor; past the resolve SLA, to
+          management. Nobody is paged at 4am about a bunker rake.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="rail"><div class="dot">8</div><div class="thread"></div></div>
+        <div class="step-body">
+          <span class="tag">what the member sees</span>
+          <h3>The loop closes</h3>
+          <p>Staff choose a club-approved message for the member, separate from their candid
+          internal note. The member&rsquo;s status page updates; they never see the internal text.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Sequence</p>
+      <h2>Fourteen chunks</h2>
+      <p class="lede">Each ends deployed and demonstrable. If work stops after any chunk, what
+      exists still runs.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <caption>Chunks 3 and 5 run in parallel once the schema lands. Everything through 9 is the launch MVP.</caption>
+        <thead>
+          <tr><th scope="col" class="num">#</th><th scope="col">Chunk</th><th scope="col">What it delivers</th><th scope="col">Needs</th></tr>
+        </thead>
+        <tbody>
+          <tr class="band"><th scope="colgroup" colspan="4">Launch MVP</th></tr>
+          <tr><td class="num">1</td><td>Infrastructure &amp; repo</td><td>A deployed empty app with CI on every push</td><td class="num">&mdash;</td></tr>
+          <tr><td class="num">2</td><td>Schema, RLS, seed</td><td>Full data model with tenant isolation proven by a test that fails the build</td><td class="num">1</td></tr>
+          <tr><td class="num">3</td><td>Member reporter</td><td>Scan to submitted report in under 20 seconds, no app, no account</td><td class="num">2</td></tr>
+          <tr><td class="num">4</td><td>Triage &amp; routing</td><td>Correct person notified in seconds, and no report droppable</td><td class="num">3</td></tr>
+          <tr><td class="num">5</td><td>Staff accounts</td><td>Admin creates a profile; staff sign in on iOS or Android</td><td class="num">2</td></tr>
+          <tr><td class="num">6</td><td>Staff queue &amp; response</td><td>Claim, resolve, schedule, re-route, and the full timeline</td><td class="num">4, 5</td></tr>
+          <tr><td class="num">7</td><td>Station mode</td><td>Counter board that chimes without depending on mobile push</td><td class="num">6</td></tr>
+          <tr><td class="num">8</td><td>Escalation &amp; watchdog</td><td>Nothing sits silently; nothing fails silently</td><td class="num">6</td></tr>
+          <tr><td class="num">9</td><td>Admin &amp; QR sheets</td><td>A club configurable without a developer</td><td class="num">5, 8</td></tr>
+          <tr class="band ship"><th scope="colgroup" colspan="4">&#9654; Live at the club</th></tr>
+          <tr><td class="num">10</td><td>SLA document upload</td><td>Their service standards parsed into rules, reviewed before applying</td><td class="num">9</td></tr>
+          <tr><td class="num">11</td><td>Analytics &amp; monthly report</td><td>The retention story, built on real data</td><td class="num">real data</td></tr>
+          <tr><td class="num">12</td><td>Duplicate clustering</td><td>Four reports of one sprinkler become one incident</td><td class="num">real volume</td></tr>
+          <tr><td class="num">13</td><td>Demo club data</td><td>A club you can show a GM without apologising for the data</td><td class="num">2</td></tr>
+          <tr><td class="num">14</td><td>Native iOS &amp; Android</td><td>Alerts that break through silent mode</td><td class="num">6</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Sprint &middot; 8 days</p>
+      <h2>What ships by 11 September</h2>
+      <p class="lede">The near-term target is a demo that closes the deal, not an installation.
+      A demo needs the story flawless and the edges thin &mdash; the opposite of a launch.</p>
+    </div>
+    <div class="note">
+      <p><strong>SMS cannot be ready.</strong> US carrier registration takes one to three weeks and
+      can be rejected. That is a carrier process, not a schedule. Staff sign in with email magic
+      links instead, and the registration gets filed this week so it has cleared by the real
+      go-live.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>In, and polished</h3>
+        <ul>
+          <li>Club-branded reporter page on a real phone</li>
+          <li>Triage, routing and the durable queue</li>
+          <li>Staff queue: claim, comment, done, schedule</li>
+          <li>Station chime and a demonstrable escalation</li>
+          <li>Six weeks of seeded history behind a GM dashboard</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Deliberately cut</h3>
+        <ul>
+          <li>All SMS, on the carrier constraint above</li>
+          <li>Spanish translation of the staff app</li>
+          <li>Full offline sync &mdash; replaced by honest retry states</li>
+          <li>Watchdog and heartbeat, invisible in a demo</li>
+          <li>Duplicate clustering, monthly PDF, native apps</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Data integrity</p>
+      <h2>Knowing the work was actually done</h2>
+      <p class="lede">Marked done is a claim, not a fact. Sell a GM accountability while the
+      dashboard reports 98% resolved and members still see the same broken ball washer, and the
+      product is worse than useless &mdash; it is lying to management.</p>
+    </div>
+    <ol class="list">
+      <li>
+        <span class="marker">01</span>
+        <p><b>The assignee marks it done, with an optional comment.</b> That is the whole staff
+        interaction. Process added to the resolve step is exactly what makes a crew stop using
+        the app.</p>
+      </li>
+      <li>
+        <span class="marker">02</span>
+        <p><b>A photo is offered, never required.</b> A picture of the repaired sprinkler is
+        self-verifying and takes five seconds &mdash; but mandating one on every bunker rake turns
+        the fast path into a chore.</p>
+      </li>
+      <li>
+        <span class="marker">03</span>
+        <p><b>Scheduling is a legitimate answer.</b> Without it, SLA pressure forces a choice
+        between a false resolve and an undeserved escalation, and most people pick the false
+        resolve.</p>
+      </li>
+      <li>
+        <span class="marker">04</span>
+        <p><b>Recurrence costs staff nothing.</b> The same problem returning to the same hole
+        shortly after being closed is evidence the fix didn&rsquo;t hold &mdash; derived
+        automatically, with no extra tap by anyone.</p>
+      </li>
+    </ol>
+    <div class="note">
+      <p><strong>Reopen rate is the number that matters to a GM.</strong> Near zero means the
+      response-time charts can be believed. At twenty percent it means they are fiction &mdash;
+      and that single figure is worth more than any average on the page.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Risk</p>
+      <h2>What could actually go wrong</h2>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>The competition is the radio</h3>
+        <p>Radios are instant, free and habitual. If this becomes a second system staff update
+        <em>after</em> handling something, it degrades into data entry and gets abandoned by week
+        three. Watch for unprompted use in week three &mdash; that signal beats any feature list.</p>
+      </div>
+      <div class="card">
+        <h3>Pace of play is a trap</h3>
+        <p>The loudest complaint and the weakest fit: by the time a report routes, the group has
+        moved on. Sell maintenance, carts and facilities. Pace of play earns its keep as a
+        pattern over time, not a live alert.</p>
+      </div>
+      <div class="card">
+        <h3>Silent triage failure</h3>
+        <p>Reports stop routing, every screen looks healthy, and the club finds out from an angry
+        member. This is why the queue and sweeper are architecture rather than a feature.</p>
+      </div>
+      <div class="card">
+        <h3>Cross-club data leakage</h3>
+        <p>Unrecoverable reputationally. Row-level security ships in the same migration as each
+        table, with an isolation test that fails the build rather than a manual check.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Status &middot; 3 September</p>
+      <h2>Where the build stands today</h2>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th scope="col">Item</th><th scope="col">State</th><th scope="col">Detail</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Database schema</td><td><span class="pill done">Written</span></td><td class="num">501 lines &middot; 4 migrations, RLS included</td></tr>
+          <tr><td>Demo club data</td><td><span class="pill done">Written</span></td><td class="num">220 reports &middot; ~1,500 events &middot; 6 weeks</td></tr>
+          <tr><td>Triage keyword pass</td><td><span class="pill done">Written</span></td><td class="num">187 rules &middot; 75 fixtures, all passing</td></tr>
+          <tr><td>Next.js app shell</td><td><span class="pill done">Scaffolded</span></td><td>TypeScript, Tailwind, App Router</td></tr>
+          <tr><td>Reporter &amp; staff queue</td><td><span class="pill now">Next</span></td><td>Chunks 3 and 6</td></tr>
+          <tr><td>Supabase project</td><td><span class="pill block">Blocked</span></td><td>No database exists yet &mdash; nothing has been executed</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p><strong>Nothing above has ever run.</strong> The schema and the seed have been reviewed
+      by reading, not by executing, because no database exists to apply them to. Eight hundred
+      lines of generated SQL will contain real errors that only surface on first execution. That
+      debugging is unavoidable, and it is far cheaper today than on day six.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <p>ProResponse &middot; build plan revision 3 &middot; prepared 3 September 2026</p>
+    <p>First client: Beacon Hill Golf Club, Leesburg, Virginia. Demo 11 September 2026.</p>
+  </div>
+</footer>

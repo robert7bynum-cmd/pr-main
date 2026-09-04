@@ -20,8 +20,7 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
     return (
       <div className="text-center py-10">
         <div
-          className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full"
-          style={{ backgroundColor: ctx.branding.primary }}
+          className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent"
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5"
@@ -29,7 +28,7 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
           </svg>
         </div>
         <h2 className="text-xl font-medium tracking-tight">Thank you — we&apos;re on it.</h2>
-        <p className="mt-3 text-[15px] leading-relaxed text-black/60">
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-secondary">
           Our team has been notified about {ctx.locationName.toLowerCase()}.
           Someone is looking at it now.
         </p>
@@ -39,14 +38,14 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
         {result.trackingToken && result.trackingToken !== "dev-preview" && (
           <a
             href={`/s/${result.trackingToken}`}
-            className="mt-7 inline-block rounded-xl border border-black/15 px-5 py-3
-                       text-[15px] font-medium text-black/75"
+            className="mt-7 inline-block rounded-xl border border-line px-5 py-3
+                       text-[15px] font-medium text-ink-secondary"
           >
             Check on this later
           </a>
         )}
 
-        <p className="mt-8 text-xs uppercase tracking-[0.14em] text-black/35">
+        <p className="mt-8 text-xs uppercase tracking-[0.14em] text-ink-subtle">
           {ctx.courseName}
         </p>
       </div>
@@ -62,7 +61,7 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
       className="space-y-5"
     >
       <div>
-        <label htmlFor="body" className="block text-sm font-medium text-black/80">
+        <label htmlFor="body" className="block text-sm font-medium text-ink">
           What did you notice?
         </label>
         <textarea
@@ -74,10 +73,10 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Tell us what's wrong — a sentence is plenty."
-          className="mt-2 w-full resize-none rounded-xl border border-black/15 bg-white
+          className="mt-2 w-full resize-none rounded-xl border border-line bg-surface-raised
                      px-4 py-3.5 text-[17px] leading-relaxed outline-none
-                     placeholder:text-black/30
-                     focus:border-black/30 focus:ring-4 focus:ring-black/5"
+                     placeholder:text-ink-subtle
+                     focus:border-line-strong focus:ring-4 focus:ring-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
         />
       </div>
 
@@ -85,26 +84,26 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
         <button
           type="button"
           onClick={() => setShowOptional(true)}
-          className="text-sm text-black/45 underline underline-offset-4 hover:text-black/70"
+          className="text-sm text-ink-muted underline underline-offset-4 hover:text-ink-secondary"
         >
           Add your name or number (optional)
         </button>
       ) : (
-        <div className="space-y-3 rounded-xl bg-black/[0.025] p-4">
-          <p className="text-xs text-black/50">
+        <div className="space-y-3 rounded-xl bg-surface-sunken p-4">
+          <p className="text-xs text-ink-muted">
             Only used if the team needs to follow up on this report.
           </p>
           <input name="name" placeholder="Name" autoComplete="name"
-            className="w-full rounded-lg border border-black/12 px-3.5 py-2.5 text-[16px]
-                       outline-none focus:border-black/30" />
+            className="w-full rounded-lg border border-line px-3.5 py-2.5 text-[16px]
+                       outline-none focus:border-line-strong" />
           <input name="memberNo" placeholder="Member number"
-            className="w-full rounded-lg border border-black/12 px-3.5 py-2.5 text-[16px]
-                       outline-none focus:border-black/30" />
+            className="w-full rounded-lg border border-line px-3.5 py-2.5 text-[16px]
+                       outline-none focus:border-line-strong" />
           <input name="phone" type="tel" placeholder="Mobile number" autoComplete="tel"
-            className="w-full rounded-lg border border-black/12 px-3.5 py-2.5 text-[16px]
-                       outline-none focus:border-black/30" />
-          <label className="flex items-start gap-2.5 pt-1 text-xs leading-relaxed text-black/55">
-            <input type="checkbox" name="smsOptIn" className="mt-0.5 h-4 w-4 accent-black" />
+            className="w-full rounded-lg border border-line px-3.5 py-2.5 text-[16px]
+                       outline-none focus:border-line-strong" />
+          <label className="flex items-start gap-2.5 pt-1 text-xs leading-relaxed text-ink-muted">
+            <input type="checkbox" name="smsOptIn" className="mt-0.5 h-4 w-4 accent-[var(--ink)]" />
             <span>
               Text me when this is resolved. Message and data rates may apply;
               reply STOP to opt out.
@@ -114,20 +113,19 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
       )}
 
       {result?.error && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{result.error}</p>
+        <p className="rounded-lg bg-urgent-surface px-4 py-3 text-sm text-urgent">{result.error}</p>
       )}
 
       <button
         type="submit"
         disabled={pending || body.trim().length < 3}
-        className="w-full rounded-xl px-6 py-4 text-[17px] font-medium text-black
-                   transition disabled:cursor-not-allowed disabled:opacity-35"
-        style={{ backgroundColor: ctx.branding.primary }}
+        className="w-full rounded-xl bg-accent px-6 py-4 text-[17px] font-medium
+                   text-ink-on-accent transition disabled:cursor-not-allowed disabled:opacity-35"
       >
         {pending ? "Sending…" : "Send to the club"}
       </button>
 
-      <p className="text-center text-xs text-black/35">
+      <p className="text-center text-xs text-ink-subtle">
         No app, no account. Goes straight to the team on duty.
       </p>
     </form>

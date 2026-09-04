@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Design tokens
+   ---------------------------------------------------------------------------
+   Two layers, deliberately:
+
+   1. PRIMITIVES — raw values. Never referenced by a component.
+   2. SEMANTIC   — named by the job they do (surface, ink, accent, urgent).
+                   Components only ever use these.
+
+   A club is rebranded by overriding semantic tokens on a wrapper element —
+   see lib/branding.ts, which turns a course's settings row into exactly these
+   custom properties. No component changes, no find-and-replace.
+
+   The rule that keeps this honest: if a component hardcodes a colour, the next
+   club needs a code change. Reach for a token, or add one.
+--------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* --- primitives ------------------------------------------------------- */
+  --c-white:      #ffffff;
+  --c-black:      #111111;
+  --c-stone-50:   #f6f6f5;
+  --c-stone-100:  #efefee;
+  --c-gold:       #e2af47;
+  --c-red-600:    #dc2626;
+  --c-red-50:     #fef2f2;
+  --c-amber-500:  #f59e0b;
+  --c-slate-600:  #4b5563;
+  --c-slate-800:  #1f2937;
+
+  /* --- semantic: surfaces ----------------------------------------------- */
+  /* Member-facing pages sit on white; staff tools sit on stone so the two are
+     distinguishable at a glance. */
+  --surface:            var(--c-white);
+  --surface-app:        var(--c-stone-50);
+  --surface-raised:     var(--c-white);
+  --surface-sunken:     color-mix(in srgb, var(--c-black) 3%, transparent);
+
+  /* --- semantic: ink ---------------------------------------------------- */
+  --ink:                var(--c-black);
+  --ink-secondary:      color-mix(in srgb, var(--c-black) 62%, transparent);
+  --ink-muted:          color-mix(in srgb, var(--c-black) 45%, transparent);
+  --ink-subtle:         color-mix(in srgb, var(--c-black) 32%, transparent);
+  --ink-on-accent:      var(--c-black);
+
+  /* --- semantic: lines -------------------------------------------------- */
+  --line:               color-mix(in srgb, var(--c-black) 10%, transparent);
+  --line-strong:        color-mix(in srgb, var(--c-black) 22%, transparent);
+
+  /* --- semantic: brand -------------------------------------------------- */
+  /* Overridden per club at runtime. Used on member-facing surfaces only —
+     at small sizes on the staff app it fails contrast in daylight. */
+  --accent:             var(--c-gold);
+
+  /* --- semantic: status ------------------------------------------------- */
+  /* Reserved. Never reused as a chart series or decoration. Always paired with
+     a text label, because colour alone is unreadable in direct sun. */
+  --urgent:             var(--c-red-600);
+  --urgent-surface:     var(--c-red-50);
+  --high:               var(--c-amber-500);
+  --neutral-bar:        var(--line-strong);
+
+  /* --- semantic: data --------------------------------------------------- */
+  /* One series, so one hue. A categorical palette gets added when something
+     actually needs one — and gets validated before it ships. */
+  --chart-series-1:     var(--c-slate-600);
+  --chart-series-1-hover: var(--c-slate-800);
+
+  /* --- shape ------------------------------------------------------------ */
+  --radius-card:        0.875rem;
+  --radius-control:     0.75rem;
+  --radius-pill:        9999px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-surface:          var(--surface);
+  --color-surface-app:      var(--surface-app);
+  --color-surface-raised:   var(--surface-raised);
+  --color-surface-sunken:   var(--surface-sunken);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink:              var(--ink);
+  --color-ink-secondary:    var(--ink-secondary);
+  --color-ink-muted:        var(--ink-muted);
+  --color-ink-subtle:       var(--ink-subtle);
+  --color-ink-on-accent:    var(--ink-on-accent);
+
+  --color-line:             var(--line);
+  --color-line-strong:      var(--line-strong);
+
+  --color-accent:           var(--accent);
+  --color-urgent:           var(--urgent);
+  --color-urgent-surface:   var(--urgent-surface);
+  --color-high:             var(--high);
+
+  --radius-card:            var(--radius-card);
+  --radius-control:         var(--radius-control);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }

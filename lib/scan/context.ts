@@ -19,19 +19,9 @@ export interface ScanContext {
   branding: Branding;
 }
 
-export interface Branding {
-  primary: string;
-  ink: string;
-  surface: string;
-  logoUrl: string | null;
-}
+import { DEFAULT_BRANDING, type Branding } from "@/lib/branding";
 
-const FALLBACK_BRANDING: Branding = {
-  primary: "#E2AF47",
-  ink: "#111111",
-  surface: "#FFFFFF",
-  logoUrl: null,
-};
+export type { Branding };
 
 function fallback(token: string): ScanContext | null {
   if (process.env.NODE_ENV === "production") return null;
@@ -66,7 +56,7 @@ function fallback(token: string): ScanContext | null {
     locationId: `demo-${token}`,
     locationName,
     holeNumber,
-    branding: FALLBACK_BRANDING,
+    branding: DEFAULT_BRANDING,
   };
 }
 
@@ -90,6 +80,6 @@ export async function getScanContext(token: string): Promise<ScanContext | null>
     locationId: row.location_id,
     locationName: row.location_name,
     holeNumber: row.hole_number,
-    branding: { ...FALLBACK_BRANDING, ...branding },
+    branding: { ...DEFAULT_BRANDING, ...branding },
   };
 }

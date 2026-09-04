@@ -24,7 +24,7 @@ export function VolumeChart({ data }: { data: Daily[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img"
            aria-label="Reports filed per day over the last 30 days">
         {/* Recessive baseline only — no gridlines competing with the marks. */}
-        <line x1="0" y1={H - PAD_B} x2={W} y2={H - PAD_B} stroke="#00000018" strokeWidth="1" />
+        <line x1="0" y1={H - PAD_B} x2={W} y2={H - PAD_B} stroke="var(--line)" strokeWidth="1" />
         {data.map((d, i) => {
           const h = Math.max(2, ((H - PAD_B - 8) * d.filed) / max);
           return (
@@ -35,14 +35,14 @@ export function VolumeChart({ data }: { data: Daily[] }) {
                 x={i * bw + 1.5} y={H - PAD_B - h}
                 width={Math.max(2, bw - 3)} height={h}
                 rx="2"
-                fill={hover === i ? "#1f2937" : "#4b5563"}
+                fill={hover === i ? "var(--chart-series-1-hover)" : "var(--chart-series-1)"}
               />
               <title>{`${label(d.day)}: ${d.filed} reports`}</title>
             </g>
           );
         })}
-        <text x="0" y={H - 6} fontSize="10" fill="#00000066">{label(data[0].day)}</text>
-        <text x={W} y={H - 6} fontSize="10" fill="#00000066" textAnchor="end">
+        <text x="0" y={H - 6} fontSize="10" fill="var(--ink-muted)">{label(data[0].day)}</text>
+        <text x={W} y={H - 6} fontSize="10" fill="var(--ink-muted)" textAnchor="end">
           {label(data[data.length - 1].day)}
         </text>
       </svg>

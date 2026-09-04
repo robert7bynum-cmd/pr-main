@@ -9,10 +9,10 @@ import { CardActions } from "./card-actions";
  */
 
 const URGENCY: Record<string, { label: string; bar: string; chip: string }> = {
-  urgent: { label: "Urgent", bar: "bg-red-600",    chip: "bg-red-600 text-white" },
-  high:   { label: "High",   bar: "bg-amber-500",  chip: "bg-amber-500 text-black" },
-  normal: { label: "",       bar: "bg-black/15",   chip: "" },
-  low:    { label: "",       bar: "bg-black/10",   chip: "" },
+  urgent: { label: "Urgent", bar: "bg-urgent",    chip: "bg-urgent text-surface" },
+  high:   { label: "High",   bar: "bg-high",  chip: "bg-high text-ink" },
+  normal: { label: "",       bar: "bg-line-strong",   chip: "" },
+  low:    { label: "",       bar: "bg-line",   chip: "" },
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -35,7 +35,7 @@ export function QueueCard({ row }: { row: QueueRow }) {
   const unclaimed = !row.claimed_by;
 
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-black/10 bg-white">
+    <article className="relative overflow-hidden rounded-2xl border border-line bg-surface-raised">
       <div className={`absolute inset-y-0 left-0 w-1.5 ${u.bar}`} />
 
       <div className="pl-5 pr-4 py-4">
@@ -46,7 +46,7 @@ export function QueueCard({ row }: { row: QueueRow }) {
                 {row.hole_number ? `Hole ${row.hole_number}` : row.location_name}
               </h2>
             </a>
-            <p className="mt-1.5 text-[13px] text-black/50">
+            <p className="mt-1.5 text-[13px] text-ink-muted">
               {row.department_name ?? "Unrouted"}
               {row.claimed_by_name ? ` · ${row.claimed_by_name}` : ""}
             </p>
@@ -60,26 +60,26 @@ export function QueueCard({ row }: { row: QueueRow }) {
             )}
             {/* Overdue is stated plainly rather than colour-coded alone —
                 colour is unreliable in bright sun. */}
-            <span className={`text-[13px] tabular-nums ${row.ack_overdue ? "font-semibold text-red-600" : "text-black/45"}`}>
+            <span className={`text-[13px] tabular-nums ${row.ack_overdue ? "font-semibold text-urgent" : "text-ink-muted"}`}>
               {age(row.minutes_open)}{row.ack_overdue ? " overdue" : ""}
             </span>
           </div>
         </div>
 
         {/* The member's own words, never the AI summary. */}
-        <p className="mt-3 text-[16px] leading-snug text-black/85">{row.body}</p>
+        <p className="mt-3 text-[16px] leading-snug text-ink">{row.body}</p>
 
         <div className="mt-3.5 flex items-center gap-2">
-          <span className="rounded-md bg-black/[0.05] px-2 py-1 text-[12px] text-black/60">
+          <span className="rounded-md bg-surface-sunken px-2 py-1 text-[12px] text-ink-secondary">
             {STATUS_LABEL[row.status] ?? row.status}
           </span>
           {row.scheduled_for && (
-            <span className="rounded-md bg-black/[0.05] px-2 py-1 text-[12px] text-black/60">
+            <span className="rounded-md bg-surface-sunken px-2 py-1 text-[12px] text-ink-secondary">
               Scheduled {row.scheduled_for}
             </span>
           )}
           {unclaimed && (
-            <span className="ml-auto text-[12px] font-medium text-black/40">
+            <span className="ml-auto text-[12px] font-medium text-ink-subtle">
               Nobody has this
             </span>
           )}

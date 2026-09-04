@@ -5,6 +5,26 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Design system — tokens instead of find-and-replace
+- Two layers in `app/globals.css`: primitives (raw values, never referenced by a
+  component) and semantic tokens named by their job — `surface`, `ink`,
+  `ink-muted`, `line`, `accent`, `urgent`. Components only use semantic ones.
+- **Zero hardcoded colours remain** outside the token file and vendored shadcn
+  components. Verified by grep, not by eye.
+- `lib/branding.ts` turns a course's `settings.branding` row into token overrides,
+  applied once at each member page root. Every child just uses tokens and knows
+  nothing about which club it is rendering.
+- **Proved it**: changed Beacon Hill's branding row to a dark green and the whole
+  member surface followed — accent rule, button, everything. Reverted to gold.
+- Status colours are reserved and always paired with a text label, because colour
+  alone is unreadable in direct sun.
+- Charts read `--chart-series-1`; one series, one hue, no categorical palette until
+  something genuinely needs one.
+- **[bug]** My first attempt wired the brand onto `<main>` by matching a class
+  string the token migration had already renamed, so the edit silently did nothing
+  and the rebrand test showed no change. Caught by checking the computed CSS
+  variable in the browser rather than trusting the screenshot.
+
 ### Per-report timeline
 - `/app/report/[id]` — the member's words, the internal note, what the member was
   told, and the full event history with names and times. Queue cards link to it.

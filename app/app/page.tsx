@@ -27,17 +27,17 @@ export default async function StaffQueuePage({
   const overdue = rows.filter((r) => r.ack_overdue).length;
 
   return (
-    <main className="min-h-dvh bg-[#f6f6f5] text-black antialiased">
+    <main className="min-h-dvh bg-surface-app text-ink antialiased">
       <div className="mx-auto max-w-[34rem] px-4 pb-24">
         <header className="pt-8 pb-4">
           <div className="flex items-baseline justify-between">
             <div>
               <h1 className="text-[1.35rem] font-semibold tracking-tight">Open reports</h1>
-              <p className="mt-0.5 text-[12px] text-black/45">
+              <p className="mt-0.5 text-[12px] text-ink-muted">
                 {me.course_name} · {me.full_name}
               </p>
             </div>
-            <span className="text-[13px] tabular-nums text-black/50">
+            <span className="text-[13px] tabular-nums text-ink-muted">
               {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}
             </span>
           </div>
@@ -59,7 +59,7 @@ export default async function StaffQueuePage({
         </header>
 
         {rows.length === 0 ? (
-          <p className="rounded-2xl border border-black/10 bg-white px-5 py-10 text-center text-[15px] text-black/45">
+          <p className="rounded-2xl border border-line bg-surface-raised px-5 py-10 text-center text-[15px] text-ink-muted">
             Nothing open here. The course is quiet.
           </p>
         ) : (
@@ -81,7 +81,7 @@ function FilterChip({
     <a
       href={href}
       className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-medium transition ${
-        active ? "bg-black text-white" : "bg-white text-black/65 border border-black/10"
+        active ? "bg-ink text-surface" : "bg-surface-raised text-ink-secondary border border-line"
       }`}
     >
       {label}

@@ -47,69 +47,69 @@ export default async function ReportPage({
   if (!r) notFound();
 
   return (
-    <main className="min-h-dvh bg-[#f6f6f5] text-black antialiased">
+    <main className="min-h-dvh bg-surface-app text-ink antialiased">
       <div className="mx-auto max-w-[34rem] px-4 pb-20">
         <div className="pt-6 pb-4">
-          <a href="/app" className="text-[14px] text-black/50 underline underline-offset-4">
+          <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">
             ← Queue
           </a>
         </div>
 
-        <div className="rounded-2xl border border-black/10 bg-white px-5 py-5">
+        <div className="rounded-2xl border border-line bg-surface-raised px-5 py-5">
           <h1 className="text-[1.6rem] font-semibold leading-none tracking-tight">
             {r.hole_number ? `Hole ${r.hole_number}` : r.location_name}
           </h1>
-          <p className="mt-1.5 text-[13px] text-black/50">
+          <p className="mt-1.5 text-[13px] text-ink-muted">
             {r.department_name ?? "Unrouted"} · {time(r.created_at)}
           </p>
-          <p className="mt-4 text-[16px] leading-snug text-black/85">{r.body}</p>
+          <p className="mt-4 text-[16px] leading-snug text-ink">{r.body}</p>
         </div>
 
         {r.resolution_note && (
-          <div className="mt-3 rounded-2xl border border-black/10 bg-white px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-black/40">
+          <div className="mt-3 rounded-2xl border border-line bg-surface-raised px-5 py-4">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-subtle">
               Internal note
             </p>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-black/80">
+            <p className="mt-1.5 text-[15px] leading-relaxed text-ink">
               {r.resolution_note}
             </p>
             {r.resolved_by_name && (
-              <p className="mt-2 text-[12px] text-black/45">{r.resolved_by_name}</p>
+              <p className="mt-2 text-[12px] text-ink-muted">{r.resolved_by_name}</p>
             )}
           </div>
         )}
 
         {r.member_message && (
-          <div className="mt-3 rounded-2xl border border-black/10 bg-white px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-black/40">
+          <div className="mt-3 rounded-2xl border border-line bg-surface-raised px-5 py-4">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-subtle">
               What the member was told
             </p>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-black/80">
+            <p className="mt-1.5 text-[15px] leading-relaxed text-ink">
               {r.member_message}
             </p>
           </div>
         )}
 
-        <div className="mt-3 rounded-2xl border border-black/10 bg-white px-5 py-5">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-black/40">History</p>
+        <div className="mt-3 rounded-2xl border border-line bg-surface-raised px-5 py-5">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-subtle">History</p>
           <ol className="mt-4 space-y-0">
             {r.events.map((e, i) => (
               <li key={i} className="relative flex gap-3.5 pb-5 last:pb-0">
                 {/* Connector line, stopping at the last entry. */}
                 {i < r.events.length - 1 && (
-                  <span className="absolute left-[5px] top-3 h-full w-px bg-black/10" />
+                  <span className="absolute left-[5px] top-3 h-full w-px bg-line" />
                 )}
-                <span className="relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-black/25" />
+                <span className="relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-line-strong" />
                 <div className="min-w-0">
                   <p className="text-[14px] leading-tight">
                     {EVENT_LABEL[e.type] ?? e.type}
                     {e.actor_name && (
-                      <span className="text-black/50"> · {e.actor_name}</span>
+                      <span className="text-ink-muted"> · {e.actor_name}</span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-[12px] text-black/45">{time(e.created_at)}</p>
+                  <p className="mt-0.5 text-[12px] text-ink-muted">{time(e.created_at)}</p>
                   {e.type === "routed" && e.payload?.recipients != null && (
-                    <p className="mt-0.5 text-[12px] text-black/45">
+                    <p className="mt-0.5 text-[12px] text-ink-muted">
                       {String(e.payload.recipients)} notified
                       {e.payload.reason === "unstaffed_all_leadership"
                         ? " — nobody was on duty"

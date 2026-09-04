@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { brandingFrom, brandStyle } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your report" };
@@ -50,44 +51,43 @@ export default async function StatusPage({
   const row = (Array.isArray(data) ? data[0] : data) as Status | undefined;
   if (error || !row) notFound();
 
-  const gold = row.settings?.branding?.primary ?? "#E2AF47";
+  const branding = brandingFrom(row.settings);
   const stage = STAGE[row.status] ?? STAGE.new;
   const done = ["resolved", "verified", "closed_no_action"].includes(row.status);
 
   return (
-    <main className="min-h-dvh bg-white text-black antialiased">
+    <main className="min-h-dvh bg-surface-raised text-ink antialiased" style={brandStyle(branding)}>
       <div className="mx-auto max-w-[30rem] px-6 py-10">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-black/45">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
           {row.course_name}
         </p>
-        <div className="mt-4 h-px w-10" style={{ backgroundColor: gold }} />
+        <div className="mt-4 h-px w-10 bg-accent" />
 
         <h1 className="mt-6 text-[1.8rem] font-medium leading-tight tracking-tight">
           {stage.label}
         </h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-black/60">{stage.note}</p>
+        <p className="mt-2 text-[15px] leading-relaxed text-ink-secondary">{stage.note}</p>
 
         {/* What staff chose to tell them. Never the internal note. */}
         {row.member_message && (
           <div
-            className="mt-6 rounded-xl border-l-2 bg-black/[0.025] px-5 py-4"
-            style={{ borderColor: gold }}
+            className="mt-6 rounded-xl border-l-2 border-accent bg-surface-sunken px-5 py-4"
           >
-            <p className="text-[15px] leading-relaxed text-black/80">
+            <p className="text-[15px] leading-relaxed text-ink">
               {row.member_message}
             </p>
-            <p className="mt-2 text-[12px] text-black/45">
+            <p className="mt-2 text-[12px] text-ink-muted">
               — {row.course_name}
             </p>
           </div>
         )}
 
-        <div className="mt-8 rounded-xl border border-black/10 px-5 py-4">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-black/40">
+        <div className="mt-8 rounded-xl border border-line px-5 py-4">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-subtle">
             What you reported
           </p>
-          <p className="mt-2 text-[15px] leading-relaxed text-black/75">{row.body}</p>
-          <p className="mt-3 text-[12px] text-black/45">
+          <p className="mt-2 text-[15px] leading-relaxed text-ink-secondary">{row.body}</p>
+          <p className="mt-3 text-[12px] text-ink-muted">
             {row.hole_number ? `Hole ${row.hole_number}` : row.location_name} ·{" "}
             {new Date(row.created_at).toLocaleString("en-US", {
               month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
@@ -96,7 +96,7 @@ export default async function StatusPage({
         </div>
 
         {!done && (
-          <p className="mt-6 text-center text-[13px] text-black/40">
+          <p className="mt-6 text-center text-[13px] text-ink-subtle">
             Keep this page — it updates as our team works on it.
           </p>
         )}

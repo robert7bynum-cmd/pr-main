@@ -11,10 +11,10 @@ export function LoginForm() {
 
   if (sent) {
     return (
-      <div className="rounded-xl border border-black/10 bg-white px-5 py-6 text-center">
+      <div className="rounded-xl border border-line bg-surface-raised px-5 py-6 text-center">
         <p className="text-[15px] font-medium">Check your email</p>
-        <p className="mt-2 text-[14px] leading-relaxed text-black/55">
-          We sent a sign-in link to <span className="text-black/80">{email}</span>.
+        <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
+          We sent a sign-in link to <span className="text-ink">{email}</span>.
           Open it on this device.
         </p>
       </div>
@@ -46,13 +46,13 @@ export function LoginForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@club.com"
-        className="w-full rounded-xl border border-black/15 bg-white px-4 py-3.5 text-[16px]
-                   outline-none focus:border-black/35"
+        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5 text-[16px]
+                   outline-none focus:border-line-strong"
       />
-      {error && <p className="text-[13px] text-red-600">{error}</p>}
+      {error && <p className="text-[13px] text-urgent">{error}</p>}
       <button
         disabled={busy || !email}
-        className="w-full rounded-xl bg-black px-4 py-3.5 text-[16px] font-medium text-white
+        className="w-full rounded-xl bg-ink px-4 py-3.5 text-[16px] font-medium text-surface
                    disabled:opacity-40"
       >
         {busy ? "Sending…" : "Send me a link"}

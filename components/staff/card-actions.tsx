@@ -49,10 +49,10 @@ export function CardActions({
 
   if (mode === "resolve") {
     return (
-      <div className="mt-4 space-y-3 border-t border-black/8 pt-4">
+      <div className="mt-4 space-y-3 border-t border-line pt-4">
         <div>
-          <label className="text-[13px] font-medium text-black/70">
-            What did you do? <span className="text-black/40">(internal)</span>
+          <label className="text-[13px] font-medium text-ink-secondary">
+            What did you do? <span className="text-ink-subtle">(internal)</span>
           </label>
           <textarea
             autoFocus
@@ -60,17 +60,17 @@ export function CardActions({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Swapped the valve, tested twice"
-            className="mt-1.5 w-full resize-none rounded-lg border border-black/15 px-3 py-2.5
-                       text-[16px] outline-none focus:border-black/35"
+            className="mt-1.5 w-full resize-none rounded-lg border border-line px-3 py-2.5
+                       text-[16px] outline-none focus:border-line-strong"
           />
-          <p className="mt-1 text-[11px] text-black/40">
+          <p className="mt-1 text-[11px] text-ink-subtle">
             Only staff see this. The member sees the line you pick below.
           </p>
         </div>
 
         <div>
-          <label className="text-[13px] font-medium text-black/70">
-            Tell the member <span className="text-black/40">(optional)</span>
+          <label className="text-[13px] font-medium text-ink-secondary">
+            Tell the member <span className="text-ink-subtle">(optional)</span>
           </label>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {MEMBER_REPLIES.map((r) => (
@@ -80,8 +80,8 @@ export function CardActions({
                 onClick={() => setReply(reply === r ? null : r)}
                 className={`rounded-full border px-3 py-1.5 text-[12px] transition ${
                   reply === r
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 text-black/65"
+                    ? "border-ink bg-ink text-surface"
+                    : "border-line text-ink-secondary"
                 }`}
               >
                 {r}
@@ -90,19 +90,19 @@ export function CardActions({
           </div>
         </div>
 
-        {error && <p className="text-[13px] text-red-600">{error}</p>}
+        {error && <p className="text-[13px] text-urgent">{error}</p>}
 
         <div className="flex gap-2">
           <button
             disabled={pending}
             onClick={() => run(() => resolveAction(reportId, note, reply))}
-            className="flex-1 rounded-xl bg-black px-4 py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
           >
             {pending ? "Saving…" : "Mark resolved"}
           </button>
           <button
             onClick={() => setMode("idle")}
-            className="rounded-xl border border-black/15 px-4 py-3.5 text-[15px] text-black/60"
+            className="rounded-xl border border-line px-4 py-3.5 text-[15px] text-ink-secondary"
           >
             Cancel
           </button>
@@ -113,28 +113,28 @@ export function CardActions({
 
   if (mode === "schedule") {
     return (
-      <div className="mt-4 space-y-3 border-t border-black/8 pt-4">
-        <label className="text-[13px] font-medium text-black/70">
+      <div className="mt-4 space-y-3 border-t border-line pt-4">
+        <label className="text-[13px] font-medium text-ink-secondary">
           When will this be handled?
         </label>
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="w-full rounded-lg border border-black/15 px-3 py-2.5 text-[16px]"
+          className="w-full rounded-lg border border-line px-3 py-2.5 text-[16px]"
         />
-        {error && <p className="text-[13px] text-red-600">{error}</p>}
+        {error && <p className="text-[13px] text-urgent">{error}</p>}
         <div className="flex gap-2">
           <button
             disabled={pending}
             onClick={() => run(() => scheduleAction(reportId, date))}
-            className="flex-1 rounded-xl bg-black px-4 py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
           >
             {pending ? "Saving…" : "Schedule"}
           </button>
           <button
             onClick={() => setMode("idle")}
-            className="rounded-xl border border-black/15 px-4 py-3.5 text-[15px] text-black/60"
+            className="rounded-xl border border-line px-4 py-3.5 text-[15px] text-ink-secondary"
           >
             Cancel
           </button>
@@ -144,21 +144,21 @@ export function CardActions({
   }
 
   return (
-    <div className="mt-4 border-t border-black/8 pt-3">
-      {error && <p className="mb-2 text-[13px] text-red-600">{error}</p>}
+    <div className="mt-4 border-t border-line pt-3">
+      {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
       <div className="flex gap-2">
         {!claimed && (
           <button
             disabled={pending}
             onClick={() => run(() => acknowledgeAction(reportId))}
-            className="flex-1 rounded-xl bg-black px-4 py-3.5 text-[15px] font-medium text-white disabled:opacity-40"
+            className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
           >
             {pending ? "…" : "I've got this"}
           </button>
         )}
         <button
           onClick={() => setMode("resolve")}
-          className={`rounded-xl border border-black/15 px-4 py-3.5 text-[15px] font-medium text-black/75 ${
+          className={`rounded-xl border border-line px-4 py-3.5 text-[15px] font-medium text-ink-secondary ${
             claimed ? "flex-1" : ""
           }`}
         >
@@ -166,7 +166,7 @@ export function CardActions({
         </button>
         <button
           onClick={() => setMode("schedule")}
-          className="rounded-xl border border-black/15 px-4 py-3.5 text-[15px] text-black/60"
+          className="rounded-xl border border-line px-4 py-3.5 text-[15px] text-ink-secondary"
         >
           Later
         </button>

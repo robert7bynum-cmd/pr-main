@@ -15,9 +15,9 @@ export function DemoSignIn() {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="mt-8 border-t border-black/10 pt-6">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-black/40">Demo</p>
-      <p className="mt-2 text-[13px] leading-relaxed text-black/50">
+    <div className="mt-8 border-t border-line pt-6">
+      <p className="text-[11px] uppercase tracking-[0.16em] text-ink-subtle">Demo</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-ink-muted">
         Sign in as a Beacon Hill staff member. No email needed.
       </p>
       <div className="mt-3 space-y-2">
@@ -38,17 +38,17 @@ export function DemoSignIn() {
                 }
               });
             }}
-            className="w-full rounded-xl border border-black/12 bg-white px-4 py-3 text-left
-                       transition hover:border-black/30 disabled:opacity-50"
+            className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3 text-left
+                       transition hover:border-line-strong disabled:opacity-50"
           >
             <span className="block text-[15px] font-medium">
               {busy === p.email && pending ? "Signing in…" : p.name}
             </span>
-            <span className="block text-[12px] text-black/50">{p.role}</span>
+            <span className="block text-[12px] text-ink-muted">{p.role}</span>
           </button>
         ))}
       </div>
-      {error && <p className="mt-3 text-[13px] text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-[13px] text-urgent">{error}</p>}
     </div>
   );
 }

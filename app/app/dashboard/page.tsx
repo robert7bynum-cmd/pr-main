@@ -26,14 +26,14 @@ export default async function DashboardPage() {
   const { today, daily, byDept, recurring, byPerson } = await getDashboard();
 
   return (
-    <main className="min-h-dvh bg-[#f6f6f5] text-black antialiased">
+    <main className="min-h-dvh bg-surface-app text-ink antialiased">
       <div className="mx-auto max-w-[62rem] px-6 pb-20">
         <header className="flex items-baseline justify-between pt-9 pb-6">
           <div>
             <h1 className="text-[1.5rem] font-semibold tracking-tight">Course status</h1>
-            <p className="mt-1 text-[13px] text-black/50">{me.course_name} · last 30 days</p>
+            <p className="mt-1 text-[13px] text-ink-muted">{me.course_name} · last 30 days</p>
           </div>
-          <a href="/app" className="text-[14px] text-black/55 underline underline-offset-4">
+          <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">
             Open reports
           </a>
         </header>
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
           <Section title="By department" sub="Open now, and how fast they close">
             <table className="w-full text-[14px]">
               <thead>
-                <tr className="text-left text-[12px] uppercase tracking-wide text-black/40">
+                <tr className="text-left text-[12px] uppercase tracking-wide text-ink-subtle">
                   <th className="pb-2 font-medium">Department</th>
                   <th className="pb-2 text-right font-medium">Open</th>
                   <th className="pb-2 text-right font-medium">30 days</th>
@@ -64,11 +64,11 @@ export default async function DashboardPage() {
               </thead>
               <tbody>
                 {byDept.map((d) => (
-                  <tr key={d.key} className="border-t border-black/8">
+                  <tr key={d.key} className="border-t border-line">
                     <td className="py-2.5">{d.name}</td>
                     <td className="py-2.5 text-right tabular-nums font-medium">{d.open_now}</td>
-                    <td className="py-2.5 text-right tabular-nums text-black/55">{d.total_30d}</td>
-                    <td className="py-2.5 text-right tabular-nums text-black/55">
+                    <td className="py-2.5 text-right tabular-nums text-ink-muted">{d.total_30d}</td>
+                    <td className="py-2.5 text-right tabular-nums text-ink-muted">
                       {mins(d.median_resolve_minutes)}
                     </td>
                   </tr>
@@ -87,13 +87,13 @@ export default async function DashboardPage() {
                     {r.occurrences}×
                   </span>
                   <span className="text-[14px]">{r.location}</span>
-                  <span className="text-[13px] text-black/45">
+                  <span className="text-[13px] text-ink-muted">
                     {CATEGORY_LABEL[r.category] ?? r.category}
                   </span>
                 </li>
               ))}
               {!recurring.length && (
-                <li className="text-[14px] text-black/45">Nothing recurring — a good sign.</li>
+                <li className="text-[14px] text-ink-muted">Nothing recurring — a good sign.</li>
               )}
             </ul>
           </Section>
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
         <Section title="Team" sub="Resolved in the last 30 days, and typical handling time">
           <table className="w-full text-[14px]">
             <thead>
-              <tr className="text-left text-[12px] uppercase tracking-wide text-black/40">
+              <tr className="text-left text-[12px] uppercase tracking-wide text-ink-subtle">
                 <th className="pb-2 font-medium">Name</th>
                 <th className="pb-2 text-right font-medium">Resolved</th>
                 <th className="pb-2 text-right font-medium">Median handling</th>
@@ -110,10 +110,10 @@ export default async function DashboardPage() {
             </thead>
             <tbody>
               {byPerson.map((p) => (
-                <tr key={p.full_name} className="border-t border-black/8">
+                <tr key={p.full_name} className="border-t border-line">
                   <td className="py-2.5">{p.full_name}</td>
                   <td className="py-2.5 text-right tabular-nums font-medium">{p.resolved_30d}</td>
-                  <td className="py-2.5 text-right tabular-nums text-black/55">
+                  <td className="py-2.5 text-right tabular-nums text-ink-muted">
                     {mins(p.median_handling_minutes)}
                   </td>
                 </tr>
@@ -122,7 +122,7 @@ export default async function DashboardPage() {
           </table>
           {/* Stated plainly, because the fairness of this number is the reason
               staff will or won't trust the whole system. */}
-          <p className="mt-3 text-[12px] leading-relaxed text-black/40">
+          <p className="mt-3 text-[12px] leading-relaxed text-ink-subtle">
             Handling time runs from when someone picked the report up, not when the
             member filed it — nobody is charged for routing delay.
           </p>
@@ -134,8 +134,8 @@ export default async function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white px-4 py-4">
-      <p className="text-[12px] leading-tight text-black/45">{label}</p>
+    <div className="rounded-xl border border-line bg-surface-raised px-4 py-4">
+      <p className="text-[12px] leading-tight text-ink-muted">{label}</p>
       <p className="mt-1.5 text-[1.75rem] font-semibold leading-none tabular-nums">{value}</p>
     </div>
   );
@@ -145,10 +145,10 @@ function Section({ title, sub, children }: {
   title: string; sub?: string; children: React.ReactNode;
 }) {
   return (
-    <section className="mt-4 rounded-xl border border-black/10 bg-white px-5 py-5">
+    <section className="mt-4 rounded-xl border border-line bg-surface-raised px-5 py-5">
       <div className="mb-4">
         <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
-        {sub && <p className="mt-0.5 text-[12px] text-black/45">{sub}</p>}
+        {sub && <p className="mt-0.5 text-[12px] text-ink-muted">{sub}</p>}
       </div>
       {children}
     </section>

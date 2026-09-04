@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "triage:eval": "node scripts/triage-eval.ts",
+    "db:push": "supabase db push",
+    "db:types": "supabase gen types typescript --linked > lib/supabase/types.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

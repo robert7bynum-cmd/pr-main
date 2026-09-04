@@ -5,6 +5,25 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Escalation — it did not exist **[gap]**
+Reports never climbed to anyone; the SLA columns were decorative. Now pure SQL,
+scheduled inside the database so it keeps working even if the web app is down:
+- Level 1 when nothing is acknowledged inside the SLA → supervisors and management
+- Level 2 when still unresolved past the resolve SLA → management
+- Idempotent per level, so a minutely cron does not re-page anyone
+- Quiet hours suppress it entirely, in the club's own timezone
+- 8 tests (`npm run test:escalation`)
+
+### Nothing was invoking triage **[gap]**
+The worker endpoint existed and nothing called it. Deployed as-is, a filed report
+would have sat in `new` forever — the exact silent failure the queue design exists
+to prevent. `pg_cron` now runs escalation directly and POSTs the triage sweeper
+every minute, gated on there actually being pending work.
+
+**Verified operationally, not just in tests**: watched cron escalate two overdue
+reports on the real database with no manual invocation — 6 leadership notified at
+level 1, 3 managers at level 2, events written, 4 successful cron runs.
+
 ### Duplicate React key on the dashboard **[bug]**
 - The team table was keyed by `full_name`, and two people were called Efrain Reyes
   — a seeded staff member and a demo persona. React warned about duplicate keys,

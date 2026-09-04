@@ -22,7 +22,8 @@
     "db:audit": "tsx --env-file=.env.local scripts/demo-audit.mts",
     "db:demo-users": "tsx --env-file=.env.local scripts/demo-users.mts",
     "db:reset-demo": "npm run db:apply -- --seed && npm run db:demo-users && npm run db:freshen",
-    "test:rls": "tsx --env-file=.env.local scripts/test-rls.mts"
+    "test:rls": "tsx --env-file=.env.local scripts/test-rls.mts",
+    "test:escalation": "tsx scripts/test-escalation.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

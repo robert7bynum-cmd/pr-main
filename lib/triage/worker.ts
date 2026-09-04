@@ -66,6 +66,9 @@ export async function runTriage(limit = 10): Promise<TriageRunResult> {
       // success for work that never happened, which is exactly the kind of
       // number an operator would trust and should not.
       if (row?.reason === "already_triaged") {
+        // Genuinely finished, just not by us. Say so, or the stale-lock reclaim
+        // picks this item up again every five minutes forever.
+        await db.rpc("complete_triage", { p_report_id: item.report_id });
         result.skipped++;
       } else {
         result.routed++;

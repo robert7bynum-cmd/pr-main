@@ -826,3 +826,12 @@ on conflict (report_id) do nothing;
 drop table if exists seed_reports;
 
 commit;
+
+
+-- Reports still in 'new' have not been triaged yet, so their queue item must be
+-- pending. Marking every seeded row 'done' left them permanently unroutable —
+-- a card with no department that nobody would ever be told about.
+update triage_queue q
+   set status = 'pending', next_attempt_at = now()
+  from reports r
+ where r.id = q.report_id and r.status = 'new';

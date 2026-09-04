@@ -5,6 +5,29 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### The queue could lose work **[bug x3]**
+Asking "is triage actually running?" exposed three defects in the one component
+whose entire purpose is that work cannot be silently dropped:
+
+- **Orphaned locks.** `claim_triage_batch` marked items `processing`, and the
+  sweeper only looked at `pending`. Anything claimed by a worker that then crashed
+  sat there forever — ten items already had. Stale locks older than five minutes
+  are now reclaimed, which is safe because routing is idempotent.
+- **Infinite loop.** A report already handled came back as `already_triaged` and
+  the item was never marked done, so the new reclaim picked it up every five
+  minutes forever. Work that is genuinely finished now says so.
+- **Seed stranded reports.** Every seeded queue row was marked `done`, including
+  for reports left in `new` — permanently unroutable, a card with no department
+  that nobody would ever be told about.
+
+Two regression tests: a stale lock is reclaimed, a fresh one is left alone.
+Routing suite is 20.
+
+**Answering the original question:** triage is *not* running automatically yet.
+The cron job is scheduled and fires every minute, but it is deliberately gated on
+`app_settings.worker_url`, which cannot be set until there is a deployed URL.
+Escalation runs now because it is pure SQL and needs no app.
+
 ### Escalation — it did not exist **[gap]**
 Reports never climbed to anyone; the SLA columns were decorative. Now pure SQL,
 scheduled inside the database so it keeps working even if the web app is down:

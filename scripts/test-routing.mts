@@ -128,5 +128,17 @@ try {
 }
 check("unknown id raises instead of silently doing nothing", threw);
 
+console.log("\n10. work orphaned by a dead worker is reclaimed");
+const orphan = await newReport("worker died holding this one");
+await db.query(`select * from claim_triage_batch(50)`);           // claim it
+await db.query(`update triage_queue set locked_at = now() - interval '10 minutes'
+                 where report_id = $1`, [orphan]);                 // simulate a crash
+const reclaimed = await db.query<{ report_id: string }>(`select * from claim_triage_batch(50)`);
+check("stale lock is picked back up", reclaimed.rows.some(r => r.report_id === orphan));
+const fresh = await newReport("still being worked on");
+await db.query(`select * from claim_triage_batch(50)`);
+const secondPass = await db.query<{ report_id: string }>(`select * from claim_triage_batch(50)`);
+check("a fresh lock is left alone", !secondPass.rows.some(r => r.report_id === fresh));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

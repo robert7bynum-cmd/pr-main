@@ -58,6 +58,7 @@ export interface Me {
   profile_id: string;
   full_name: string;
   role: string;
+  course_id: string;
   course_name: string;
   on_duty: boolean;
 }
@@ -68,7 +69,7 @@ export async function getMe(): Promise<Me | null> {
     const db = await devDb();
     const res = await db.query<Me>(
       `select p.id as profile_id, p.full_name, p.role::text as role,
-              c.name as course_name, p.on_duty
+              p.course_id, c.name as course_name, p.on_duty
          from profiles p join courses c on c.id = p.course_id
         where p.account_kind = 'individual' and p.active
         order by case p.role when 'supervisor' then 0 else 1 end limit 1`,

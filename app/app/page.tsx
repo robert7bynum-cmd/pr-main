@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getQueue, getDepartmentCounts } from "@/lib/queue/reports";
 import { getMe } from "@/lib/queue/actions-db";
 import { QueueCard } from "@/components/staff/queue-card";
+import { QueueLive } from "@/components/staff/queue-live";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Queue — ProResponse" };
@@ -9,9 +10,9 @@ export const metadata = { title: "Queue — ProResponse" };
 export default async function StaffQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ dept?: string }>;
+  searchParams: Promise<{ dept?: string; station?: string }>;
 }) {
-  const { dept } = await searchParams;
+  const { dept, station } = await searchParams;
 
   // No profile means either not signed in, or signed in with an address the
   // club never invited. Both land on the sign-in page; neither is told which,
@@ -26,6 +27,10 @@ export default async function StaffQueuePage({
 
   const overdue = rows.filter((r) => r.ack_overdue).length;
 
+  // Newest by filing time, not queue position: the queue is ordered by urgency,
+  // so its first card is usually not the most recent arrival.
+  const newest = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+
   return (
     <main className="min-h-dvh bg-surface-app text-ink antialiased">
       <div className="mx-auto max-w-[34rem] px-4 pb-24">
@@ -37,9 +42,17 @@ export default async function StaffQueuePage({
                 {me.course_name} · {me.full_name}
               </p>
             </div>
-            <span className="text-[13px] tabular-nums text-ink-muted">
-              {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[13px] tabular-nums text-ink-muted">
+                {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}
+              </span>
+              <QueueLive
+                courseId={me.course_id}
+                station={station === "1"}
+                newestId={newest?.id ?? null}
+                newestBody={newest?.body ?? null}
+              />
+            </div>
           </div>
 
           {/* Department filter. Staff see their own departments in the real

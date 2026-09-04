@@ -5,6 +5,30 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Live queue + station alerts
+- Realtime subscription refreshes the queue within a second of a report landing;
+  a 20-second poll is the guarantee behind it. Same fast-path/guaranteed-path shape
+  as triage.
+- Connection state is always on screen. A board left open since 6am that has
+  silently stopped listening is worse than one that admits it.
+- Station mode (`/app?station=1`) adds an audible chime, synthesised in code rather
+  than shipped as an audio file. Turning sound on plays it immediately — a station
+  muted at the OS level is the likeliest way this fails with nobody noticing.
+- The chime is two soft notes, not an alarm. It fires all day in a pro shop; an
+  aggressive sound gets muted within a week, which kills the feature silently.
+
+### The banner that would not appear **[bug, took three attempts]**
+- Firing the alert from inside the realtime callback did nothing. The handler
+  belonged to a component instance React had already unmounted, so every setState
+  was a silent no-op — while `router.refresh()` kept working, because the router is
+  stable across instances. The queue looked perfectly healthy.
+- Moving the alert to a prop derived from the server still failed: `router.refresh()`
+  **remounts** the component, resetting the "last seen" marker to the very report
+  that had just arrived.
+- Fixed by keeping the last-alerted id in module scope, which survives remounts.
+  Verified end to end: filed a report from outside the browser and the banner
+  appeared with its text.
+
 ### Design system — tokens instead of find-and-replace
 - Two layers in `app/globals.css`: primitives (raw values, never referenced by a
   component) and semantic tokens named by their job — `surface`, `ink`,

@@ -26,7 +26,6 @@ const EVENT_LABEL: Record<string, string> = {
   resolved: "Resolved",
   verified: "Verified",
   reopened: "Reopened",
-  member_notified: "Member told",
 };
 
 const time = (iso: string) =>
@@ -76,17 +75,6 @@ export default async function ReportPage({
             {r.resolved_by_name && (
               <p className="mt-2 text-[12px] text-ink-muted">{r.resolved_by_name}</p>
             )}
-          </div>
-        )}
-
-        {r.member_message && (
-          <div className="mt-3 rounded-2xl border border-line bg-surface-raised px-5 py-4">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-subtle">
-              What the member was told
-            </p>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-ink">
-              {r.member_message}
-            </p>
           </div>
         )}
 

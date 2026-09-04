@@ -5,6 +5,29 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Locked down: staff behind passwords, member surface reduced to one form
+- **Staff sign in with a password**, admin-issued. No magic link, no email
+  dependency. New accounts get a temporary password and must replace it on first
+  sign-in. Failed sign-in is deliberately vague so nobody can enumerate which
+  addresses belong to a club's staff.
+- **The demo buttons now use the ordinary password path** rather than minting a
+  magic-link token, so the demo cannot succeed where the real path would fail.
+- **One scan, one report.** Loading the reporter page mints a single-use nonce
+  that submission consumes. Copying a placard URL and replaying it gets one
+  report, not a flood. Verified: replay refused, missing nonce refused.
+- **The member status page is gone**, along with its RPC. ProResponse is an
+  operations tool; members file and hear nothing back, so there is no longer any
+  anonymous *read* path in the system at all.
+- Contact details stay optional and are labelled as being for staff follow-up only.
+- Resolve now captures one internal note. The member-facing message picker is gone.
+
+### Audit **[bug]**
+- `claim_profile` and `me` answered 200 to anonymous callers. Both returned nothing
+  (they key off `auth.uid()`), but Postgres grants EXECUTE to PUBLIC by default, so
+  they were reachable. Revoked, along with every staff action function.
+- The remaining anonymous surface is exactly two functions: `get_scan_context` and
+  `issue_scan_nonce`, plus `submit_report`. Nothing else.
+
 ### Audit: three bugs, one of them serious
 
 **[bug — critical] Every dashboard view was world-readable.** A Postgres view runs

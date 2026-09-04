@@ -10,17 +10,17 @@
  */
 export interface SubmitResult {
   ok: boolean;
-  trackingToken?: string;
   error?: string;
 }
 
 export async function submitReport(formData: FormData): Promise<SubmitResult> {
   const token = String(formData.get("token") ?? "");
+  const nonce = String(formData.get("nonce") ?? "");
   const body = String(formData.get("body") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const memberNo = String(formData.get("memberNo") ?? "").trim();
-  const smsOptIn = formData.get("smsOptIn") === "on";
+  const email = String(formData.get("email") ?? "").trim();
 
   if (body.length < 3) {
     return { ok: false, error: "Please describe the issue." };
@@ -32,19 +32,20 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
     if (process.env.NODE_ENV === "production") {
       return { ok: false, error: "Reporting is temporarily unavailable." };
     }
-    return { ok: true, trackingToken: "dev-preview" };
+    return { ok: true };
   }
 
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc("submit_report", {
+  const { error } = await supabase.rpc("submit_report", {
     p_token: token,
+    p_nonce: nonce,
     p_body: body,
     p_name: name || null,
     p_phone: phone || null,
+    p_email: email || null,
     p_member_no: memberNo || null,
-    p_sms_opt_in: smsOptIn,
     p_language: "en",
   });
 
@@ -54,5 +55,5 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
     return { ok: false, error: error.message || "Something went wrong. Please try again." };
   }
 
-  return { ok: true, trackingToken: data?.[0]?.tracking_token };
+  return { ok: true };
 }

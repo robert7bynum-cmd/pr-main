@@ -6,6 +6,8 @@
  *   npm run invite -- someone@club.com "Full Name" manager
  */
 import { Client } from "pg";
+import { createClient } from "@supabase/supabase-js";
+import { randomBytes } from "node:crypto";
 
 const [email, fullName, role = "staff"] = process.argv.slice(2);
 if (!email || !fullName) {
@@ -34,6 +36,19 @@ await c.query(
   [course.rows[0].id, email, fullName, role, depts.rows.map((d) => d.id)],
 );
 
-console.log(`invited ${email} as ${role} at ${course.rows[0].name}`);
-console.log(`they can now sign in at /login with that address`);
+// Create the auth account with a temporary password they must replace.
+const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+const temp = randomBytes(9).toString("base64url");
+const { error } = await admin.auth.admin.createUser({
+  email, password: temp, email_confirm: true,
+  user_metadata: { must_change_password: true },
+});
+if (error && !/already been registered/i.test(error.message)) {
+  console.error("could not create account:", error.message);
+} else {
+  console.log(`invited ${email} as ${role} at ${course.rows[0].name}`);
+  console.log(`temporary password: ${temp}`);
+  console.log("they must change it on first sign-in");
+}
 await c.end();

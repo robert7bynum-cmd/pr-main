@@ -1,18 +1,15 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createClient as createServer } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { signIn } from "./auth";
 
 /**
  * One-click sign-in for the demo personas.
  *
- * Issues an ordinary Supabase session — it generates a magic-link token
- * server-side and verifies it immediately, so there is no email round-trip and
- * no password anywhere. The app itself has no special demo path; these are
- * normal users with normal RLS.
+ * Calls the same password sign-in a real staff member uses, with the shared
+ * demo password — so the demo cannot pass where the real path would fail.
  *
- * Gated by DEMO_SIGNIN. Leave it unset and this refuses, so the button cannot
+ * Gated by DEMO_SIGNIN. Leave it unset and this refuses, so the buttons cannot
  * become a way into a real club's data.
  */
 export async function demoSignIn(email: string) {
@@ -20,23 +17,10 @@ export async function demoSignIn(email: string) {
     throw new Error("demo sign-in is disabled");
   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
-  if (error || !data.properties?.hashed_token) {
-    throw new Error(error?.message ?? "could not generate a demo session");
-  }
-
-  const supabase = await createServer();
-  const { error: verifyError } = await supabase.auth.verifyOtp({
-    type: "magiclink",
-    token_hash: data.properties.hashed_token,
-  });
-  if (verifyError) throw new Error(verifyError.message);
-
-  await supabase.rpc("claim_profile");
+  // Goes through the ordinary password sign-in, so the demo exercises exactly
+  // the path a real staff member uses rather than a privileged shortcut.
+  const res = await signIn(email, process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026");
+  if (!res.ok) throw new Error(res.error ?? "demo sign-in failed");
   redirect("/app");
 }
 

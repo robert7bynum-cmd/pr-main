@@ -14,6 +14,10 @@ const admin = createClient(
   { auth: { persistSession: false } },
 );
 
+// Demo accounts sign in through the ordinary password path — there is no
+// special-cased demo authentication in the app.
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
+
 const PERSONAS = [
   { email: "gm@beaconhilldemo.com",   name: "Katherine Ellis",   role: "manager",    all: true },
   { email: "supt@beaconhilldemo.com", name: "Efrain Reyes",      role: "supervisor", dept: "maintenance" },
@@ -33,6 +37,7 @@ for (const p of PERSONAS) {
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({
       email: p.email,
+      password: DEMO_PASSWORD,
       email_confirm: true,
     });
     if (error) { console.error(`  FAIL ${p.email}: ${error.message}`); continue; }
@@ -57,8 +62,10 @@ for (const p of PERSONAS) {
     p.all ? [user.id, course.id] : [user.id, course.id, p.dept],
   );
 
+  // Keep existing accounts usable if the password policy changed.
+  await admin.auth.admin.updateUserById(user.id, { password: DEMO_PASSWORD });
   console.log(`  ok  ${p.name.padEnd(18)} ${p.role.padEnd(11)} ${p.email}`);
 }
 
 await pg.end();
-console.log("\nOpen /login and use the demo buttons — no email needed.");
+console.log(`\nSign in at /login with any of the above and password: ${DEMO_PASSWORD}`);

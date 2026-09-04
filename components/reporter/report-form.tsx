@@ -32,19 +32,6 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
           Our team has been notified about {ctx.locationName.toLowerCase()}.
           Someone is looking at it now.
         </p>
-        {/* The tracking link is the member's only way back to this report —
-            no account, nothing to remember. It is also where the club's reply
-            appears once staff resolve it. */}
-        {result.trackingToken && result.trackingToken !== "dev-preview" && (
-          <a
-            href={`/s/${result.trackingToken}`}
-            className="mt-7 inline-block rounded-xl border border-line px-5 py-3
-                       text-[15px] font-medium text-ink-secondary"
-          >
-            Check on this later
-          </a>
-        )}
-
         <p className="mt-8 text-xs uppercase tracking-[0.14em] text-ink-subtle">
           {ctx.courseName}
         </p>
@@ -56,6 +43,7 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
     <form
       action={(fd) => {
         fd.set("token", token);
+        fd.set("nonce", ctx.nonce);
         startTransition(async () => setResult(await submitReport(fd)));
       }}
       className="space-y-5"
@@ -91,7 +79,7 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
       ) : (
         <div className="space-y-3 rounded-xl bg-surface-sunken p-4">
           <p className="text-xs text-ink-muted">
-            Only used if the team needs to follow up on this report.
+            Only used if the team needs to ask you something about this report.
           </p>
           <input name="name" placeholder="Name" autoComplete="name"
             className="w-full rounded-lg border border-line px-3.5 py-2.5 text-[16px]
@@ -102,13 +90,9 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
           <input name="phone" type="tel" placeholder="Mobile number" autoComplete="tel"
             className="w-full rounded-lg border border-line px-3.5 py-2.5 text-[16px]
                        outline-none focus:border-line-strong" />
-          <label className="flex items-start gap-2.5 pt-1 text-xs leading-relaxed text-ink-muted">
-            <input type="checkbox" name="smsOptIn" className="mt-0.5 h-4 w-4 accent-[var(--ink)]" />
-            <span>
-              Text me when this is resolved. Message and data rates may apply;
-              reply STOP to opt out.
-            </span>
-          </label>
+          <input name="email" type="email" placeholder="Email" autoComplete="email"
+            className="w-full rounded-lg border border-line px-3.5 py-2.5 text-[16px]
+                       outline-none focus:border-line-strong" />
         </div>
       )}
 

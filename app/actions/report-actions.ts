@@ -27,7 +27,6 @@ export async function acknowledgeAction(reportId: string): Promise<ActionResult>
 export async function resolveAction(
   reportId: string,
   internalNote: string,
-  memberMessage: string | null,
 ): Promise<ActionResult> {
   if (!internalNote.trim()) {
     return { ok: false, message: "Add a short note about what you did." };
@@ -37,8 +36,8 @@ export async function resolveAction(
     p_report_id: reportId,
     p_actor: await currentStaffId(),
     p_internal_note: internalNote.trim(),
-    // Empty means the member hears nothing — an explicit choice, not a default.
-    p_member_message: memberMessage?.trim() ? memberMessage.trim() : null,
+    // ProResponse is an operations tool: nothing goes back to the member.
+    p_member_message: null,
   });
 
   revalidatePath("/app");

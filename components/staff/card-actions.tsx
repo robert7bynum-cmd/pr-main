@@ -16,15 +16,6 @@ import {
  * free text by default.
  */
 
-// Club-approved lines. Staff pick one rather than composing a member-facing
-// message under time pressure, and the internal note stays internal.
-const MEMBER_REPLIES = [
-  "Repaired — thank you for letting us know.",
-  "Our team took a look and everything is in good order.",
-  "Scheduled with our maintenance team.",
-  "Taken care of — we appreciate you flagging it.",
-];
-
 export function CardActions({
   reportId,
   claimed,
@@ -34,7 +25,6 @@ export function CardActions({
 }) {
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
-  const [reply, setReply] = useState<string | null>(null);
   const [mode, setMode] = useState<"idle" | "resolve" | "schedule">("idle");
   const [date, setDate] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +42,7 @@ export function CardActions({
       <div className="mt-4 space-y-3 border-t border-line pt-4">
         <div>
           <label className="text-[13px] font-medium text-ink-secondary">
-            What did you do? <span className="text-ink-subtle">(internal)</span>
+            What did you do?
           </label>
           <textarea
             autoFocus
@@ -64,30 +54,8 @@ export function CardActions({
                        text-[16px] outline-none focus:border-line-strong"
           />
           <p className="mt-1 text-[11px] text-ink-subtle">
-            Only staff see this. The member sees the line you pick below.
+            Internal record. Nothing is sent to the member.
           </p>
-        </div>
-
-        <div>
-          <label className="text-[13px] font-medium text-ink-secondary">
-            Tell the member <span className="text-ink-subtle">(optional)</span>
-          </label>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {MEMBER_REPLIES.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setReply(reply === r ? null : r)}
-                className={`rounded-full border px-3 py-1.5 text-[12px] transition ${
-                  reply === r
-                    ? "border-ink bg-ink text-surface"
-                    : "border-line text-ink-secondary"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
         </div>
 
         {error && <p className="text-[13px] text-urgent">{error}</p>}
@@ -95,7 +63,7 @@ export function CardActions({
         <div className="flex gap-2">
           <button
             disabled={pending}
-            onClick={() => run(() => resolveAction(reportId, note, reply))}
+            onClick={() => run(() => resolveAction(reportId, note))}
             className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
           >
             {pending ? "Saving…" : "Mark resolved"}

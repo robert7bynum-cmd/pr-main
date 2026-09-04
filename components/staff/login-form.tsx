@@ -1,40 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { signIn } from "@/app/actions/auth";
 
 export function LoginForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  if (sent) {
-    return (
-      <div className="rounded-xl border border-line bg-surface-raised px-5 py-6 text-center">
-        <p className="text-[15px] font-medium">Check your email</p>
-        <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
-          We sent a sign-in link to <span className="text-ink">{email}</span>.
-          Open it on this device.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setBusy(true);
         setError(null);
-        const supabase = createClient();
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        start(async () => {
+          const res = await signIn(email, password);
+          if (!res.ok) setError(res.error ?? "Sign-in failed");
+          else router.push(res.mustChangePassword ? "/account/password" : "/app");
         });
-        setBusy(false);
-        if (error) setError(error.message);
-        else setSent(true);
       }}
       className="space-y-3"
     >
@@ -42,21 +28,35 @@ export function LoginForm() {
         type="email"
         required
         autoFocus
-        autoComplete="email"
+        autoComplete="username"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@club.com"
-        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5 text-[16px]
-                   outline-none focus:border-line-strong"
+        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5
+                   text-[16px] outline-none focus:border-line-strong"
+      />
+      <input
+        type="password"
+        required
+        autoComplete="current-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5
+                   text-[16px] outline-none focus:border-line-strong"
       />
       {error && <p className="text-[13px] text-urgent">{error}</p>}
       <button
-        disabled={busy || !email}
-        className="w-full rounded-xl bg-ink px-4 py-3.5 text-[16px] font-medium text-surface
-                   disabled:opacity-40"
+        disabled={pending || !email || !password}
+        className="w-full rounded-xl bg-ink px-4 py-3.5 text-[16px] font-medium
+                   text-surface disabled:opacity-40"
       >
-        {busy ? "Sending…" : "Send me a link"}
+        {pending ? "Signing in…" : "Sign in"}
       </button>
+      <p className="pt-1 text-center text-[12px] text-ink-muted">
+        Your club creates your account. Forgotten your password? Ask your manager
+        to reset it.
+      </p>
     </form>
   );
 }

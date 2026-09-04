@@ -10,6 +10,8 @@ import "server-only";
  * serving fake club data to a real member.
  */
 export interface ScanContext {
+  /** Single-use token for this scan; submitting consumes it. */
+  nonce: string;
   courseId: string;
   courseName: string;
   courseSlug: string;
@@ -50,6 +52,7 @@ function fallback(token: string): ScanContext | null {
   }
 
   return {
+    nonce: "dev-nonce",
     courseId: "demo",
     courseName: "Beacon Hill Golf Club",
     courseSlug: "beacon-hill",
@@ -66,14 +69,18 @@ export async function getScanContext(token: string): Promise<ScanContext | null>
 
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_scan_context", { p_token: token });
+  const [{ data, error }, { data: nonce, error: nonceError }] = await Promise.all([
+    supabase.rpc("get_scan_context", { p_token: token }),
+    supabase.rpc("issue_scan_nonce", { p_token: token }),
+  ]);
 
-  if (error || !data?.length) return null;
+  if (error || !data?.length || nonceError || !nonce) return null;
 
   const row = data[0];
   const branding = (row.settings?.branding ?? {}) as Partial<Branding>;
 
   return {
+    nonce: nonce as string,
     courseId: row.course_id,
     courseName: row.course_name,
     courseSlug: row.course_slug,

@@ -1,0 +1,48 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { changePassword } from "@/app/actions/auth";
+
+export function ChangePasswordForm() {
+  const router = useRouter();
+  const [pw, setPw] = useState("");
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        start(async () => {
+          const res = await changePassword(pw);
+          if (!res.ok) setError(res.error ?? "Could not set password");
+          else router.push("/app");
+        });
+      }}
+      className="space-y-3"
+    >
+      <input
+        type="password"
+        required
+        autoFocus
+        autoComplete="new-password"
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+        placeholder="New password"
+        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5
+                   text-[16px] outline-none focus:border-line-strong"
+      />
+      {error && <p className="text-[13px] text-urgent">{error}</p>}
+      <button
+        disabled={pending || pw.length < 10}
+        className="w-full rounded-xl bg-ink px-4 py-3.5 text-[16px] font-medium
+                   text-surface disabled:opacity-40"
+      >
+        {pending ? "Saving…" : "Save and continue"}
+      </button>
+      <p className="text-center text-[12px] text-ink-muted">At least 10 characters.</p>
+    </form>
+  );
+}

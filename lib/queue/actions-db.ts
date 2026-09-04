@@ -33,10 +33,9 @@ export async function callFn(
 /**
  * Who is acting.
  *
- * Real auth (magic link) is the next chunk. Until then the dev database picks a
- * supervisor so actions are attributable and the event trail is realistic.
- * Refuses to guess in production — an unattributed action would poison the
- * accountability data this product is sold on.
+ * The authenticated staff member, always. An action attributed to a guessed
+ * actor would poison exactly the accountability data this product is sold on,
+ * so this throws rather than falling back to anyone.
  */
 export async function currentStaffId(): Promise<string> {
   if (usingDevDb()) {
@@ -47,5 +46,40 @@ export async function currentStaffId(): Promise<string> {
     );
     return res.rows[0].id;
   }
-  throw new Error("staff authentication is not wired up yet");
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error("not signed in");
+  return data.user.id;
+}
+
+export interface Me {
+  profile_id: string;
+  full_name: string;
+  role: string;
+  course_name: string;
+  on_duty: boolean;
+}
+
+/** The signed-in staff member, or null if they have no profile at this club. */
+export async function getMe(): Promise<Me | null> {
+  if (usingDevDb()) {
+    const db = await devDb();
+    const res = await db.query<Me>(
+      `select p.id as profile_id, p.full_name, p.role::text as role,
+              c.name as course_name, p.on_duty
+         from profiles p join courses c on c.id = p.course_id
+        where p.account_kind = 'individual' and p.active
+        order by case p.role when 'supervisor' then 0 else 1 end limit 1`,
+    );
+    return res.rows[0] ?? null;
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("me");
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as Me) ?? null;
 }

@@ -21,12 +21,30 @@ const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: fa
 await client.connect();
 console.log("connected\n");
 
+// Track what has run, so re-invoking only applies new files. Without this the
+// second run replays 0001 and fails on "relation already exists".
+await client.query(`
+  create table if not exists schema_migrations (
+    filename text primary key,
+    applied_at timestamptz not null default now()
+  )`);
+const done = new Set(
+  (await client.query<{ filename: string }>("select filename from schema_migrations")).rows.map(
+    (r) => r.filename,
+  ),
+);
+
 const dir = "supabase/migrations";
 for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
+  if (done.has(f)) {
+    console.log(`  --   ${f} (already applied)`);
+    continue;
+  }
   const sql = readFileSync(join(dir, f), "utf8");
   try {
     await client.query("begin");
     await client.query(sql);
+    await client.query("insert into schema_migrations (filename) values ($1)", [f]);
     await client.query("commit");
     console.log(`  ok   ${f}`);
   } catch (e) {

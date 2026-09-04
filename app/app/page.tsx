@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { getQueue, getDepartmentCounts } from "@/lib/queue/reports";
+import { getMe } from "@/lib/queue/actions-db";
 import { QueueCard } from "@/components/staff/queue-card";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,13 @@ export default async function StaffQueuePage({
   searchParams: Promise<{ dept?: string }>;
 }) {
   const { dept } = await searchParams;
+
+  // No profile means either not signed in, or signed in with an address the
+  // club never invited. Both land on the sign-in page; neither is told which,
+  // so an outsider cannot probe for whether a club exists here.
+  const me = await getMe();
+  if (!me) redirect("/login");
+
   const [rows, departments] = await Promise.all([
     getQueue(dept),
     getDepartmentCounts(),
@@ -22,7 +31,12 @@ export default async function StaffQueuePage({
       <div className="mx-auto max-w-[34rem] px-4 pb-24">
         <header className="pt-8 pb-4">
           <div className="flex items-baseline justify-between">
-            <h1 className="text-[1.35rem] font-semibold tracking-tight">Open reports</h1>
+            <div>
+              <h1 className="text-[1.35rem] font-semibold tracking-tight">Open reports</h1>
+              <p className="mt-0.5 text-[12px] text-black/45">
+                {me.course_name} · {me.full_name}
+              </p>
+            </div>
             <span className="text-[13px] tabular-nums text-black/50">
               {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}
             </span>

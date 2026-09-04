@@ -30,6 +30,9 @@ create table auth.users (
   updated_at                 timestamptz default now()
 );
 
+-- Impersonation for tests: auth.uid() reads a session setting so a suite can
+-- act as a specific staff member and exercise the privilege guards, which is
+-- the only way to test them at all.
 create or replace function auth.uid() returns uuid language sql stable as $$
-  select null::uuid
+  select nullif(current_setting('test.uid', true), '')::uuid
 $$;

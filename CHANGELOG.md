@@ -5,6 +5,35 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Staff management — first admin console screen
+`/app/staff`, manager and owner only. Roster, invite, role, departments,
+activate/deactivate, password reset.
+
+Designed before building, because this touches auth, tenancy and privilege:
+- **Every mutation is a SECURITY DEFINER function**, not a table write, so the
+  guards live in one place and a different client cannot skip them. The UI hiding
+  a control is a courtesy; the function refusing it is the protection.
+- **Nobody can change their own role or deactivate themselves.** Self-escalation
+  is the obvious attack.
+- **Only an owner creates or alters an owner** — checked against both the current
+  and the new role, so a manager cannot demote one either.
+- **Club isolation is enforced inside the function**, not left to the caller,
+  including that department ids belong to the same club.
+- Temporary passwords are shown once and never retrievable.
+- "Invited, not signed in yet" is surfaced: a manager otherwise believes that
+  person is covered when they will receive no alerts.
+
+15 privilege tests (`npm run test:staff`), including a second club to prove
+isolation. The test harness can now impersonate a user, which is the only way to
+exercise these guards at all.
+
+### Admin actions are now audited
+`report_events` made every operational decision traceable; nothing did the same
+for configuration. Who added someone, who granted supervisor, who deactivated a
+person the week a dispute began — all invisible. `admin_events` records it, is
+readable only by management, and is written only by the definer functions, so it
+cannot be edited by the person it records.
+
 ### Anon held CRUD grants on every table **[bug]**
 Supabase's "automatically expose new tables" grants anon full SELECT/INSERT/
 UPDATE/DELETE on everything, and RLS was the only thing stopping it. That works,

@@ -26,7 +26,8 @@
     "db:keywords": "tsx --env-file=.env.local scripts/seed-keywords.mts",
     "triage:run": "tsx --env-file=.env.local scripts/run-triage.mts",
     "test:matcher": "tsx --env-file=.env.local scripts/test-sql-matcher.mts",
-    "test:placards": "tsx --env-file=.env.local scripts/test-placards.mts"
+    "test:placards": "tsx --env-file=.env.local scripts/test-placards.mts",
+    "test:staff": "tsx scripts/test-staff-admin.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

@@ -34,6 +34,9 @@ export default async function DashboardPage() {
             <p className="mt-1 text-[13px] text-ink-muted">{me.course_name} · last 30 days</p>
           </div>
           <div className="flex items-center gap-4">
+            <a href="/app/staff" className="text-[14px] text-ink-muted underline underline-offset-4">
+              Staff
+            </a>
             <a href="/app/placards" className="text-[14px] text-ink-muted underline underline-offset-4">
               Placards
             </a>

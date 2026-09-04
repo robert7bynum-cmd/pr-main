@@ -1,0 +1,60 @@
+import "server-only";
+
+/**
+ * A real Postgres for local development, running in-process via WASM.
+ *
+ * Supabase has not been provisioned yet, and this project has no Docker, so
+ * without this the staff surfaces could only be built against hand-written
+ * fixtures. Instead the app runs against the actual migrations and the actual
+ * Beacon Hill seed — 220 reports with real event trails — which means what we
+ * build is verified against the same SQL that will run in production.
+ *
+ * Development only. Guarded twice: the module refuses to load in production,
+ * and every caller checks for Supabase credentials first.
+ */
+import type { PGlite } from "@electric-sql/pglite";
+
+const BOOTSTRAP = `
+  create role anon; create role authenticated; create role service_role;
+  create schema if not exists auth;
+  create table auth.users (
+    id uuid primary key, instance_id uuid, email text, aud text, role text,
+    created_at timestamptz default now(), updated_at timestamptz default now());
+  create or replace function auth.uid() returns uuid language sql stable as $$
+    select null::uuid $$;
+`;
+
+// Survives Next's dev hot-reload; otherwise every edit reseeds 220 reports.
+const globalForDb = globalThis as unknown as { __devDb?: Promise<PGlite> };
+
+async function boot(): Promise<PGlite> {
+  const { PGlite } = await import("@electric-sql/pglite");
+  const { pgcrypto } = await import("@electric-sql/pglite/contrib/pgcrypto");
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const { join } = await import("node:path");
+
+  const db = await PGlite.create({ extensions: { pgcrypto } });
+  await db.exec(BOOTSTRAP);
+
+  const dir = join(process.cwd(), "supabase/migrations");
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
+    await db.exec(readFileSync(join(dir, f), "utf8"));
+  }
+  await db.exec(readFileSync(join(process.cwd(), "supabase/seed.sql"), "utf8"));
+
+  console.log("[dev-db] Beacon Hill seed loaded (in-process Postgres)");
+  return db;
+}
+
+export function devDb(): Promise<PGlite> {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("dev-db must never run in production");
+  }
+  globalForDb.__devDb ??= boot();
+  return globalForDb.__devDb;
+}
+
+/** True when we have no real database and should fall back to the dev one. */
+export function usingDevDb() {
+  return !process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NODE_ENV !== "production";
+}

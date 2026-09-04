@@ -5,6 +5,29 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### App shell — one navigation, one account menu
+Navigation was inline links that differed on every page, so where you could go
+depended on where you happened to be.
+- Left slide-out drawer with every destination, role-filtered, each with a line
+  saying what it is for. Closes on navigation and on Escape.
+- Account sits top-right where people look for it — name, role, change password,
+  sign out — rather than among the page links.
+- One layout checks the session, so every staff page is gated in one place.
+- Removed the club name and user name repeated in each page heading.
+
+### Routing & SLA editor
+`/app/rules`, manager and owner. Pill selection for department, pick-up time and
+resolve time, with an explicit **Save changes** button and a sticky bar so it is
+never below the fold. Unsaved state is shown.
+- Guards in the database, not the form: SLA bounds (a zero-minute SLA pages
+  everyone forever; a 30-day one means escalation never happens), resolve cannot
+  be shorter than acknowledge, and the department must belong to this club.
+- Every change is audited — "who shortened the safety SLA" is exactly what gets
+  asked after an incident.
+- The page states plainly that the model reads the words but this table decides
+  the team, because people assume it works the other way round.
+- 7 more guard tests; staff/rules suite is 22.
+
 ### Staff management — first admin console screen
 `/app/staff`, manager and owner only. Roster, invite, role, departments,
 activate/deactivate, password reset.

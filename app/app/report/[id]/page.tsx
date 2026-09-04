@@ -46,14 +46,8 @@ export default async function ReportPage({
   if (!r) notFound();
 
   return (
-    <main className="min-h-dvh bg-surface-app text-ink antialiased">
+    <main>
       <div className="mx-auto max-w-[34rem] px-4 pb-20">
-        <div className="pt-6 pb-4">
-          <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">
-            ← Queue
-          </a>
-        </div>
-
         <div className="rounded-2xl border border-line bg-surface-raised px-5 py-5">
           <h1 className="text-[1.6rem] font-semibold leading-none tracking-tight">
             {r.hole_number ? `Hole ${r.hole_number}` : r.location_name}

@@ -85,5 +85,38 @@ const roster = await db.query<{ full_name: string }>(`select * from staff_roster
 check("roster returns this club's staff", roster.rows.length > 0, String(roster.rows.length));
 check("and nobody from the other club", !roster.rows.some(r => r.full_name === "Other Person"));
 
+console.log("\n8. routing rules: guards on the table that decides who gets paged");
+await act(manager);
+const dept = (await one<{ id: string }>(`select id from departments where course_id=$1 limit 1`, [course]))!.id;
+const rules = (await db.query<{ category: string }>(`select * from routing_rules_for_club()`)).rows;
+check("management can read the rules", rules.length > 0, String(rules.length));
+
+const good = JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 20, resolve_sla_minutes: 120 }]);
+await db.query(`select update_routing_rules($1::jsonb)`, [good]);
+const after = await one<{ ack_sla_minutes: number }>(
+  `select ack_sla_minutes from routing_rules where course_id=$1 and category=$2`, [course, rules[0].category]);
+check("a valid change applies", after?.ack_sla_minutes === 20, String(after?.ack_sla_minutes));
+
+const audit = await one<{ n: number }>(
+  `select count(*)::int n from admin_events where type='routing_rule_changed'`);
+check("the change is audited", (audit?.n ?? 0) >= 1);
+
+check("resolve shorter than acknowledge is refused", await throws(
+  `select update_routing_rules($1::jsonb)`,
+  [JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 60, resolve_sla_minutes: 10 }])]));
+
+check("a zero-minute SLA is refused", await throws(
+  `select update_routing_rules($1::jsonb)`,
+  [JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 0, resolve_sla_minutes: 60 }])]));
+
+check("another club's department is refused", await throws(
+  `select update_routing_rules($1::jsonb)`,
+  [JSON.stringify([{ category: rules[0].category, department_id: otherDept, ack_sla_minutes: 15, resolve_sla_minutes: 60 }])]));
+
+await act(staff);
+check("a staff member cannot edit rules", await throws(
+  `select update_routing_rules($1::jsonb)`,
+  [JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 15, resolve_sla_minutes: 60 }])]));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

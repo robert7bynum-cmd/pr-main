@@ -33,16 +33,11 @@ export default async function StaffQueuePage({
   const newest = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 
   return (
-    <main className="min-h-dvh bg-surface-app text-ink antialiased">
+    <main>
       <div className="mx-auto max-w-[34rem] px-4 pb-24">
         <header className="pt-8 pb-4">
           <div className="flex items-baseline justify-between">
-            <div>
-              <h1 className="text-[1.35rem] font-semibold tracking-tight">Open reports</h1>
-              <p className="mt-0.5 text-[12px] text-ink-muted">
-                {me.course_name} · {me.full_name}
-              </p>
-            </div>
+            <h1 className="text-[1.35rem] font-semibold tracking-tight">Open reports</h1>
             <div className="flex flex-col items-end gap-1">
               <span className="text-[13px] tabular-nums text-ink-muted">
                 {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}

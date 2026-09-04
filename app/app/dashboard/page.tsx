@@ -26,23 +26,12 @@ export default async function DashboardPage() {
   const { today, daily, byDept, recurring, byPerson } = await getDashboard();
 
   return (
-    <main className="min-h-dvh bg-surface-app text-ink antialiased">
+    <main>
       <div className="mx-auto max-w-[62rem] px-6 pb-20">
         <header className="flex items-baseline justify-between pt-9 pb-6">
           <div>
             <h1 className="text-[1.5rem] font-semibold tracking-tight">Course status</h1>
-            <p className="mt-1 text-[13px] text-ink-muted">{me.course_name} · last 30 days</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <a href="/app/staff" className="text-[14px] text-ink-muted underline underline-offset-4">
-              Staff
-            </a>
-            <a href="/app/placards" className="text-[14px] text-ink-muted underline underline-offset-4">
-              Placards
-            </a>
-            <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">
-              Open reports
-            </a>
+            <p className="mt-1 text-[13px] text-ink-muted">Last 30 days</p>
           </div>
         </header>
 

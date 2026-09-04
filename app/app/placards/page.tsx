@@ -23,7 +23,7 @@ export default async function PlacardsPage() {
   if (!set) redirect("/app");
 
   return (
-    <main className="min-h-dvh bg-surface-app text-ink">
+    <main>
       <div className="no-print mx-auto max-w-[62rem] px-6 pt-9 pb-4">
         <div className="flex items-baseline justify-between">
           <div>
@@ -32,9 +32,6 @@ export default async function PlacardsPage() {
               {set.placards.length} codes for {set.courseName}
             </p>
           </div>
-          <a href="/app" className="text-[14px] text-ink-secondary underline underline-offset-4">
-            Open reports
-          </a>
         </div>
 
         {/* The single most expensive mistake here is printing against the wrong

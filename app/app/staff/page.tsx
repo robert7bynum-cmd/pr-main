@@ -16,18 +16,14 @@ export default async function StaffPage() {
   const active = roster.filter((r) => r.active).length;
 
   return (
-    <main className="min-h-dvh bg-surface-app text-ink antialiased">
+    <main>
       <div className="mx-auto max-w-[48rem] px-5 pb-20">
         <header className="flex items-baseline justify-between pt-9 pb-5">
           <div>
             <h1 className="text-[1.5rem] font-semibold tracking-tight">Staff</h1>
             <p className="mt-1 text-[13px] text-ink-muted">
-              {active} active at {me.course_name}
+              {active} active
             </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <a href="/app/placards" className="text-[14px] text-ink-muted underline underline-offset-4">Placards</a>
-            <a href="/app" className="text-[14px] text-ink-muted underline underline-offset-4">Open reports</a>
           </div>
         </header>
 

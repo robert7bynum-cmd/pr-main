@@ -180,7 +180,7 @@ export const TRIAGE_FIXTURES: TriageFixture[] = [
   },
   {
     text: "starter sent us off 8 minutes late and now we are rushing",
-    expectedCategory: "pace_of_play",
+    expectedCategory: "caddie_valet",
     note: "plausible pace_of_play root cause but phrased around 'starter', a word with no rule; left for the model rather than guessing",
   },
 

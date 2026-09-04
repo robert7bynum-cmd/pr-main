@@ -12,9 +12,11 @@
     "db:types": "supabase gen types typescript --linked > lib/supabase/types.ts",
     "db:validate": "node scripts/validate-sql.ts",
     "db:check": "node scripts/check-seed.ts",
-    "triage:coverage": "node scripts/triage-coverage.ts"
+    "triage:coverage": "node scripts/triage-coverage.ts",
+    "triage:model": "tsx --conditions=react-server --env-file=.env.local scripts/triage-model-test.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@base-ui/react": "^1.7.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.115.0",
@@ -41,6 +43,7 @@
     "eslint-config-next": "16.3.4",
     "supabase": "^2.116.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

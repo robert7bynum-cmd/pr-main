@@ -13,7 +13,8 @@
     "db:validate": "node scripts/validate-sql.ts",
     "db:check": "node scripts/check-seed.ts",
     "triage:coverage": "node scripts/triage-coverage.ts",
-    "triage:model": "tsx --conditions=react-server --env-file=.env.local scripts/triage-model-test.mts"
+    "triage:model": "tsx --conditions=react-server --env-file=.env.local scripts/triage-model-test.mts",
+    "test:routing": "tsx scripts/test-routing.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

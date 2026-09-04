@@ -1,4 +1,5 @@
 import type { QueueRow } from "@/lib/queue/reports";
+import { CardActions } from "./card-actions";
 
 /**
  * One report, sized for a phone held one-handed outdoors.
@@ -81,6 +82,8 @@ export function QueueCard({ row }: { row: QueueRow }) {
             </span>
           )}
         </div>
+
+        <CardActions reportId={row.id} claimed={!!row.claimed_by} />
       </div>
     </article>
   );

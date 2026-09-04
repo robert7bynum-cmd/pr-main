@@ -1,6 +1,6 @@
 # ProResponse — where we left off
 
-Last updated: 2026-09-03. Target: **demo to Beacon Hill Golf Club, Fri 11 Sep 2026.**
+Last updated: 2026-09-04. Target: **demo to Beacon Hill Golf Club, Fri 11 Sep 2026.**
 
 The full plan lives at `~/.claude/plans/i-want-to-create-velvety-valiant.md` (14 chunks,
 architecture, risks). This file is just the resume point.
@@ -34,20 +34,30 @@ npm run dev            # http://localhost:3000/r/beacon-hill/bh-h07
 - **Member reporter page** — `/r/[courseSlug]/[token]`, Beacon Hill branded, scan →
   branded form that already knows the hole → submit → confirmation. Verified in a
   375px viewport end to end.
+- **Routing engine** — leadership fallback when a department has nobody on duty,
+  idempotent routing, SKIP LOCKED claiming, exponential backoff to dead_letter.
+  15 tests (`npm run test:routing`).
+- **Staff actions** — claim-on-acknowledge, resolve with separate internal note and
+  member-facing message, schedule-for-later, re-route, close-no-action.
+  21 tests (`npm run test:actions`).
+- **Staff queue UI** — `/app`, urgent-first then oldest-waiting, department filter
+  chips with live counts, claim and resolve working end to end.
+- **Local dev database** — the app runs the real migrations and the real Beacon Hill
+  seed in-process via PGlite, so everything above is demonstrable without Supabase.
+  Rebuilds automatically when any migration or the seed changes.
 - Next.js 16, shadcn/ui (15 components), Supabase client wrappers.
 
 ## Not built yet
 
 In demo-priority order:
 
-1. **Staff auth** — magic link (SMS is impossible before the demo; see below)
-2. **Staff queue** — live list, claim on acknowledge, resolve with comment,
-   schedule-for-later, one-tap re-route, per-report timeline
-3. **Queue worker** — nothing currently calls `classifyReport`; needs the
-   `triage_queue` sweeper plus routing to a department
-4. **Notification delivery** — web push, and the station-mode chime
-5. **GM dashboard** — reads the seeded history that already exists
-6. **Vercel deploy** — required for the demo: a phone cannot reach localhost
+1. **Staff auth** — magic link. Actions currently attribute to a seeded supervisor
+   in dev and refuse to run in production, so this gates any real deployment.
+2. **Per-report timeline** — renders `report_events`, nearly free, settles every
+   "nobody told us" conversation
+3. **Notification delivery** — web push, and the station-mode chime
+4. **GM dashboard** — reads the seeded history that already exists
+5. **Vercel deploy** — required for the demo: a phone cannot reach localhost
 
 ## Blocked
 

@@ -25,7 +25,25 @@ const BOOTSTRAP = `
 `;
 
 // Survives Next's dev hot-reload; otherwise every edit reseeds 220 reports.
-const globalForDb = globalThis as unknown as { __devDb?: Promise<PGlite> };
+// Keyed by a fingerprint of the SQL so that editing a migration reboots the
+// database instead of silently serving the old schema — that trap cost a
+// debugging cycle: a newly added function appeared not to exist.
+const globalForDb = globalThis as unknown as {
+  __devDb?: Promise<PGlite>;
+  __devDbKey?: string;
+};
+
+function sqlFingerprint(): string {
+  const { readFileSync, readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+  const dir = join(process.cwd(), "supabase/migrations");
+  const parts = readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => `${f}:${statSync(join(dir, f)).mtimeMs}`);
+  parts.push(`seed:${statSync(join(process.cwd(), "supabase/seed.sql")).mtimeMs}`);
+  return parts.join("|");
+}
 
 async function boot(): Promise<PGlite> {
   const { PGlite } = await import("@electric-sql/pglite");
@@ -50,7 +68,12 @@ export function devDb(): Promise<PGlite> {
   if (process.env.NODE_ENV === "production") {
     throw new Error("dev-db must never run in production");
   }
-  globalForDb.__devDb ??= boot();
+  const key = sqlFingerprint();
+  if (globalForDb.__devDbKey !== key || !globalForDb.__devDb) {
+    if (globalForDb.__devDb) console.log("[dev-db] SQL changed — rebuilding");
+    globalForDb.__devDbKey = key;
+    globalForDb.__devDb = boot();
+  }
   return globalForDb.__devDb;
 }
 

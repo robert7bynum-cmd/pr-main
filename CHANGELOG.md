@@ -5,6 +5,24 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Per-report timeline
+- `/app/report/[id]` — the member's words, the internal note, what the member was
+  told, and the full event history with names and times. Queue cards link to it.
+
+### Seeded auth users broke Supabase's admin API **[bug]**
+- The seed inserts rows straight into `auth.users` and left its token columns NULL.
+  Supabase's auth service cannot scan NULL there, so **every** admin user lookup
+  failed with "Database error finding users" — which silently broke demo sign-in
+  and would have broken real staff invites too.
+- Seed now writes those columns explicitly; `scripts/repair-auth-users.mts` fixes an
+  existing database.
+
+### Reseeding wiped the demo logins **[bug]**
+- The seed drops the course, which cascade-deletes profiles — including the demo
+  personas, so sign-in succeeded and then found nothing.
+- `npm run db:reset-demo` now runs seed → demo users → freshen in the only order
+  that works.
+
 ### GM dashboard
 - `/app/dashboard`, manager-only. Stat tiles (open now, filed today, median respond,
   median resolve), a 30-day volume chart, department table, recurring-problem list,

@@ -41,9 +41,11 @@ export function QueueCard({ row }: { row: QueueRow }) {
       <div className="pl-5 pr-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[1.6rem] font-semibold leading-none tracking-tight">
-              {row.hole_number ? `Hole ${row.hole_number}` : row.location_name}
-            </h2>
+            <a href={`/app/report/${row.id}`} className="block">
+              <h2 className="text-[1.6rem] font-semibold leading-none tracking-tight underline-offset-4 hover:underline">
+                {row.hole_number ? `Hole ${row.hole_number}` : row.location_name}
+              </h2>
+            </a>
             <p className="mt-1.5 text-[13px] text-black/50">
               {row.department_name ?? "Unrouted"}
               {row.claimed_by_name ? ` · ${row.claimed_by_name}` : ""}

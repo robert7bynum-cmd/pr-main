@@ -137,17 +137,23 @@ on conflict (id) do nothing;
 -- profiles.id references auth.users(id), so each person needs a minimal
 -- auth.users row first. Only the columns the task calls for are
 -- populated; everything else on auth.users has a workable default.
-insert into auth.users (id, instance_id, email, created_at, updated_at, aud, role)
+-- Supabase's auth service cannot scan NULL into its token columns: a row with
+-- them left NULL makes every admin user lookup fail with "Database error
+-- finding users", which silently breaks sign-in and staff invites. Empty
+-- string is what GoTrue expects, so they are written explicitly.
+insert into auth.users (id, instance_id, email, created_at, updated_at, aud, role,
+                        email_confirmed_at, confirmation_token, recovery_token,
+                        email_change_token_new, email_change)
 values
-  ('e0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'swhitfield@beaconhillgolfva.com', now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'cdonnelly@beaconhillgolfva.com',  now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'malvarez@beaconhillgolfva.com',   now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'tsinclair@beaconhillgolfva.com',  now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'ereyes@beaconhillgolfva.com',     now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'jmartinez@beaconhillgolfva.com',  now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'dcarter@beaconhillgolfva.com',    now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'anguyen@beaconhillgolfva.com',    now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated'),
-  ('e0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000000', 'proshop@beaconhillgolfva.com',    now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated')
+  ('e0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'swhitfield@beaconhillgolfva.com', now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'cdonnelly@beaconhillgolfva.com',  now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'malvarez@beaconhillgolfva.com',   now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'tsinclair@beaconhillgolfva.com',  now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'ereyes@beaconhillgolfva.com',     now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'jmartinez@beaconhillgolfva.com',  now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'dcarter@beaconhillgolfva.com',    now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'anguyen@beaconhillgolfva.com',    now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', ''),
+  ('e0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000000', 'proshop@beaconhillgolfva.com',    now() - interval '380 days', now() - interval '380 days', 'authenticated', 'authenticated', now() - interval '380 days', '', '', '', '')
 on conflict (id) do nothing;
 
 -- Role mix: one manager (GM), one owner-level director, two supervisors

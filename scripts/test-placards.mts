@@ -4,7 +4,14 @@
  */
 import { Client } from "pg";
 
-const origin = "http://localhost:3000";
+/**
+ * Where the codes actually point. This defaulted to localhost, which meant it
+ * had been proving that a laptop could serve the placards long after the
+ * printed codes were pointing at production — a green result about the wrong
+ * machine. PLACARD_ORIGIN overrides it; the default is the deployment the QR
+ * codes carry, because that is the only thing a member's phone will ever load.
+ */
+const origin = process.env.PLACARD_ORIGIN ?? "https://pr-main-dun.vercel.app";
 const c = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
 await c.connect();
 const { rows } = await c.query<{ token: string; slug: string; name: string; active: boolean }>(

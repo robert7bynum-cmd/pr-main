@@ -35,7 +35,17 @@ export function AppShell({ user, children }: { user: ShellUser; children: React.
 
   // Close on navigation: a drawer left open over the page you just asked for is
   // the most common thing people complain about in drawer navigation.
-  useEffect(() => { setOpen(false); setMenu(false); }, [path]);
+  //
+  // Adjusted during render rather than in an effect. Doing it in an effect
+  // renders the new page with the drawer still open and then immediately
+  // renders it again closed, which is both a wasted pass and a visible flash of
+  // the old drawer over the new page on a slow phone.
+  const [lastPath, setLastPath] = useState(path);
+  if (lastPath !== path) {
+    setLastPath(path);
+    setOpen(false);
+    setMenu(false);
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); setMenu(false); } };

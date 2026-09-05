@@ -21,15 +21,23 @@ export default async function StaffQueuePage({
   const me = await getMe();
   if (!me) redirect("/login");
 
-  // Management can widen to the whole course; for everyone else the two views
-  // return the same rows, so the toggle is only shown where it means something.
-  const isManagement = ["manager", "owner"].includes(me.role);
   const view: "mine" | "all" = scope === "all" ? "all" : "mine";
 
   const [rows, departments] = await Promise.all([
     getQueue(dept, view),
     getDepartmentCounts(view),
   ]);
+
+  // An empty personal queue and a broken app look identical, and that is not a
+  // cosmetic problem: someone filed a report from a placard, watched the queue
+  // stay empty, and reasonably concluded nothing worked. It was working — the
+  // report had routed to a department they are not in.
+  //
+  // So when there is nothing for you, find out whether there is nothing at all,
+  // and say which. Only in that case: on a busy queue this second read is
+  // pointless, and the whole reason my_queue exists is that busy is normal.
+  const elsewhere =
+    rows.length === 0 && view === "mine" ? (await getQueue(undefined, "all")).length : 0;
 
   const overdue = rows.filter((r) => r.ack_overdue).length;
 
@@ -56,14 +64,17 @@ export default async function StaffQueuePage({
             </div>
           </div>
 
-          {/* Department filter. Staff see their own departments in the real
-              build; showing all of them is a demo affordance. */}
-          {isManagement && (
-            <div className="mt-3 flex gap-2">
-              <FilterChip href="/app" label="My departments" count={null} active={view === "mine"} />
-              <FilterChip href="/app?scope=all" label="Whole course" count={null} active={view === "all"} />
-            </div>
-          )}
+          {/* Offered to everyone, not just management. The default stays
+              scoped — a groundskeeper should not have to read pro shop items to
+              find their own — but being unable to look at all is what turned
+              "nothing routed to me" into "this app is broken". staff_queue is
+              already readable by any signed-in staff member and RLS still
+              confines it to their own club, so this shows nothing that was not
+              already theirs to see. */}
+          <div className="mt-3 flex gap-2">
+            <FilterChip href="/app" label="My departments" count={null} active={view === "mine"} />
+            <FilterChip href="/app?scope=all" label="Whole course" count={null} active={view === "all"} />
+          </div>
 
           <nav className="mt-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             <FilterChip
@@ -87,11 +98,21 @@ export default async function StaffQueuePage({
         </div>
 
         {rows.length === 0 ? (
-          <p className="rounded-2xl border border-line bg-surface-raised px-5 py-10 text-center text-[15px] text-ink-muted">
-            {view === "mine" && !isManagement
-              ? "Nothing for your team right now."
-              : "Nothing open here. The course is quiet."}
-          </p>
+          <div className="rounded-2xl border border-line bg-surface-raised px-5 py-10 text-center">
+            <p className="text-[15px] text-ink-muted">
+              {elsewhere > 0
+                ? "Nothing for your team right now."
+                : "Nothing open here. The course is quiet."}
+            </p>
+            {elsewhere > 0 && (
+              <p className="mt-2 text-[13px] text-ink-subtle">
+                {elsewhere} open {elsewhere === 1 ? "report" : "reports"} elsewhere on the course.{" "}
+                <a href="/app?scope=all" className="underline underline-offset-2">
+                  See the whole course
+                </a>
+              </p>
+            )}
+          </div>
         ) : (
           <div className="space-y-2.5">
             {rows.map((row) => (

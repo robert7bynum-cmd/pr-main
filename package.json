@@ -34,7 +34,8 @@
     "test:nonce": "tsx scripts/test-nonce.mts",
     "test:alerts": "tsx scripts/test-alerts.mts",
     "test:grants": "tsx scripts/test-grants.mts",
-    "test:realtime": "tsx scripts/test-realtime.mts"
+    "test:realtime": "tsx scripts/test-realtime.mts",
+    "test:accounts": "tsx scripts/test-accounts.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

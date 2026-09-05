@@ -27,25 +27,32 @@ export function PushSetup() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
+  // All of the detection runs inside one async pass, and the result is written
+  // once. The earlier version set state synchronously in the effect body for
+  // the device checks and again from a promise for the subscription, which
+  // cascaded renders and — because the promise had no cancellation — could
+  // write to a component that had already unmounted.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let cancelled = false;
 
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    void (async () => {
+      const decide = async (): Promise<State> => {
+        // Safari on iOS cannot receive web push in a tab. Rather than push
+        // people through a home-screen install they will not do, iPhones are
+        // pointed at the native app.
+        if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return "ios-app";
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
+        if (Notification.permission === "denied") return "blocked";
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager.getSubscription();
+        return sub ? "on" : "off";
+      };
+      const next = await decide();
+      if (!cancelled) setState(next);
+    })();
 
-    // Safari on iOS cannot receive web push in a tab. Rather than push people
-    // through a home-screen install they will not do, iPhones are pointed at
-    // the native app.
-    if (isIOS) return setState("ios-app");
-
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      return setState("unsupported");
-    }
-    if (Notification.permission === "denied") return setState("blocked");
-
-    navigator.serviceWorker.getRegistration().then(async (reg) => {
-      const sub = await reg?.pushManager.getSubscription();
-      setState(sub ? "on" : "off");
-    });
+    return () => { cancelled = true; };
   }, []);
 
   async function enable() {

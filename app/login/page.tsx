@@ -1,6 +1,4 @@
 import { LoginForm } from "@/components/staff/login-form";
-import { DemoSignIn } from "@/components/staff/demo-signin";
-import { demoEnabled } from "@/app/actions/demo-signin";
 
 export const metadata = { title: "Sign in — ProResponse" };
 
@@ -10,11 +8,6 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const showDemo = await demoEnabled();
-  // Visible while one-click sign-in is live on a public deployment. A build
-  // check alone is forgettable; a banner on the page people actually open is not.
-  const demoOnProd = showDemo && process.env.VERCEL_ENV === "production";
-
   return (
     <main className="app-ground flex min-h-dvh items-center justify-center px-6 py-12">
       <div className="w-full max-w-[25rem] rounded-card border border-line bg-surface-raised px-7 py-9 shadow-pop">
@@ -34,14 +27,6 @@ export default async function LoginPage({
         <div className="mt-6">
           <LoginForm />
         </div>
-        {demoOnProd && (
-          <p className="mt-7 rounded-control border border-tone-high-border bg-tone-high-fill px-4 py-3.5
-                        text-[12px] leading-relaxed text-tone-high-ink">
-            Demo mode: anyone with this link can sign in as staff. Fine for a
-            demonstration, not for a club&apos;s real reports.
-          </p>
-        )}
-        {showDemo && <DemoSignIn />}
       </div>
     </main>
   );

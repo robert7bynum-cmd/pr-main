@@ -7,6 +7,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
+import { requireDemoPassword } from "@/lib/dev/demo-password";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +17,7 @@ const admin = createClient(
 
 // Demo accounts sign in through the ordinary password path — there is no
 // special-cased demo authentication in the app.
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
+const DEMO_PASSWORD = requireDemoPassword();
 
 const PERSONAS = [
   { email: "gm@beaconhilldemo.com",   name: "Katherine Ellis",   role: "manager",    all: true },

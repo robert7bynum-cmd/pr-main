@@ -14,12 +14,13 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { requireDemoPassword } from "@/lib/dev/demo-password";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const EMAIL = process.env.REALTIME_TEST_EMAIL;
-const PASSWORD = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
+const PASSWORD = requireDemoPassword();
 
 if (!EMAIL) {
   console.log("REALTIME_TEST_EMAIL not set — pass a staff email to run this");

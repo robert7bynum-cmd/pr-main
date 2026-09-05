@@ -16,11 +16,12 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { requireDemoPassword } from "@/lib/dev/demo-password";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const PW = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
+const PW = requireDemoPassword();
 
 let pass = 0, fail = 0;
 const check = (n: string, ok: boolean, d = "") => { ok ? pass++ : fail++; console.log(`  ${ok ? "ok  " : "FAIL"} ${n}${ok ? "" : "  -> " + d}`); };

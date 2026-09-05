@@ -57,21 +57,13 @@ for (const [name, consequence] of REQUIRED) {
   if (!present(name)) problems.push(`${name} is not set — ${consequence}.`);
 }
 
-// Web push is one notification channel, not the app. This was a hard failure in
-// production and it blocked deployment for two hours over a feature that
-// degrades rather than breaks: without it the queue still updates live, the
-// station still chimes, and escalation still runs — staff just cannot subscribe
-// to background alerts.
+// Web push no longer needs a build variable at all. The public key is read
+// from app_settings at runtime (app/actions/push.ts), because a VAPID public
+// key is not a secret and one place for it to live beats two — this variable
+// was wrong twice, once blank and once missing, and the blank one silently
+// shadowed a perfectly good key.
 //
-// A guard should block what makes the deployment unusable and warn about what
-// makes it worse. Getting that boundary wrong is how a guard ends up deleted
-// instead of respected.
-if (!present("NEXT_PUBLIC_VAPID_PUBLIC_KEY")) {
-  warnings.push(
-    "NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set — staff cannot subscribe to push " +
-      "notifications. The queue, station alerts and escalation are unaffected.",
-  );
-}
+// Kept only as an optional override, so its absence is not worth a word.
 
 // --- Refusals ---------------------------------------------------------------
 
@@ -125,21 +117,19 @@ if (anon && service && anon === service) {
  * accident, and the running app shows a banner while it is on, so it cannot be
  * quietly forgotten before a club has real data in there.
  */
-const demoAck = present("DEMO_SIGNIN_ACK");
-if (present("DEMO_SIGNIN") === "true" && env === "production") {
-  if (demoAck !== "demo-deployment-no-real-club-data") {
-    problems.push(
-      "DEMO_SIGNIN=true in the production environment. Anyone reaching the login " +
-        "page could sign in as staff. If this deployment is a demo with no real " +
-        "club data, set DEMO_SIGNIN_ACK=demo-deployment-no-real-club-data to " +
-        "acknowledge it. Remove both before a club uses this for real.",
-    );
-  } else {
-    warnings.push(
-      "DEMO_SIGNIN is on in production, acknowledged. Anyone with the URL can " +
-        "sign in as staff. Remove it before a club has real data here.",
-    );
-  }
+/**
+ * One-click demo sign-in is gone from the codebase, not merely switched off.
+ * The variable therefore does nothing — but a stale DEMO_SIGNIN=true sitting in
+ * a deployment's settings reads like the door is still open, and somebody will
+ * eventually act on that belief in one direction or the other. Say plainly that
+ * it is inert and can be deleted.
+ */
+if (present("DEMO_SIGNIN") || present("DEMO_SIGNIN_ACK")) {
+  warnings.push(
+    "DEMO_SIGNIN / DEMO_SIGNIN_ACK are set but no longer do anything — one-click " +
+      "demo sign-in was removed from the code. Delete them from the deployment " +
+      "so nobody reads them as meaning the login page is still open.",
+  );
 }
 
 const url = present("NEXT_PUBLIC_SUPABASE_URL");

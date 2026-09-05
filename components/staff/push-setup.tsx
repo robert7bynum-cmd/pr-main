@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { savePushSubscription, sendTestPush } from "@/app/actions/push";
+import { savePushSubscription, sendTestPush, getPushPublicKey } from "@/app/actions/push";
 
 /**
  * Turning on alerts for this device.
@@ -65,14 +65,22 @@ export function PushSetup() {
         return;
       }
 
+      // Fetched, not inlined at build time — see getPushPublicKey. Asked for
+      // before registering the service worker so a club with no key configured
+      // says so plainly instead of failing inside the browser's subscribe call
+      // with something unreadable.
+      const vapidKey = await getPushPublicKey();
+      if (!vapidKey) {
+        setNote("Notifications are not configured for this club yet.");
+        return;
+      }
+
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
 
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-        ),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
       const json = sub.toJSON() as { keys?: { p256dh: string; auth: string } };

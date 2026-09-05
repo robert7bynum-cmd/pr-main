@@ -21,11 +21,12 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { requireDemoPassword } from "@/lib/dev/demo-password";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const PASSWORD = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
+const PASSWORD = requireDemoPassword();
 
 if (!URL_ || !PUB) {
   console.log("NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY missing from .env.local");

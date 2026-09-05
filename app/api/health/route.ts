@@ -15,6 +15,19 @@ import { deploymentRef } from "@/lib/deployment";
  */
 export const dynamic = "force-dynamic";
 
+async function pushConfigured(): Promise<boolean> {
+  if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim()) return true;
+  if (process.env.VAPID_PUBLIC_KEY?.trim()) return true;
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  try {
+    const { data } = await createAdminClient()
+      .from("app_settings").select("value").eq("key", "vapid_public_key").maybeSingle();
+    return Boolean(data?.value?.trim());
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const ref = deploymentRef();
 
@@ -40,8 +53,15 @@ export async function GET() {
       ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
       : null,
     // Both are preview-shaped footguns, so say plainly whether they are on.
-    demoSignIn: process.env.DEMO_SIGNIN === "true",
-    push: Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+    // One-click demo sign-in was removed outright rather than switched off.
+    // An environment variable that turns anyone with the URL into staff is a
+    // thing somebody flips back on; deleted code is not.
+    demoSignIn: false,
+    // Whether a browser can actually subscribe, which is no longer the same
+    // question as "is the build variable set" — the key is read from
+    // app_settings now, so reporting the variable would have said "no" while
+    // push worked perfectly well.
+    push: await pushConfigured(),
     /**
      * pg_cron calls one fixed URL held in app_settings, so triage and
      * escalation only ever run against whichever deployment that names —

@@ -2,6 +2,39 @@
 
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * The VAPID public key, read from the database rather than baked into the bundle.
+ *
+ * This used to come from NEXT_PUBLIC_VAPID_PUBLIC_KEY, which meant the same key
+ * had to be right in two places — app_settings for the worker that sends, and a
+ * Vercel build variable for the browser that subscribes. It was wrong in the
+ * second place twice: once defined as an empty string, which silently shadowed
+ * the perfectly good key underneath, and once simply missing, which failed the
+ * build and blocked an unrelated deploy for two hours.
+ *
+ * A VAPID public key is not a secret — it ships to every browser by design, and
+ * only the private half can sign. So there is nothing to protect by inlining it
+ * at build time, and one place for it to live is strictly better than two: a
+ * club that rotates its keys updates a row, and the next person to subscribe
+ * gets the new one without a redeploy.
+ *
+ * The environment variable still wins if it is set, so an operator can override
+ * without touching the database. `|| undefined` rather than `??`, because an
+ * empty string is not a key — that distinction is the whole bug.
+ */
+export async function getPushPublicKey(): Promise<string | null> {
+  const fromEnv = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim()
+    || process.env.VAPID_PUBLIC_KEY?.trim()
+    || undefined;
+  if (fromEnv) return fromEnv;
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const { data, error } = await createAdminClient()
+    .from("app_settings").select("value").eq("key", "vapid_public_key").maybeSingle();
+  if (error) return null;
+  return data?.value?.trim() || null;
+}
+
 /** Store a browser's push subscription against the signed-in staff member. */
 export async function savePushSubscription(sub: {
   endpoint: string;

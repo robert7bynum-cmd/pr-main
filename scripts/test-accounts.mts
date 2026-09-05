@@ -12,13 +12,14 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { requireDemoPassword } from "@/lib/dev/demo-password";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SVC = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const MANAGER = process.env.ACCOUNTS_TEST_MANAGER ?? "gm@beaconhilldemo.com";
-const MANAGER_PW = process.env.DEMO_PASSWORD ?? "beaconhill-demo-2026";
+const MANAGER_PW = requireDemoPassword();
 
 const stamp = Date.now();
 const EMAIL = `probe-${stamp}@beaconhilldemo.com`;

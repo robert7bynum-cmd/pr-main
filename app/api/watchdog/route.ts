@@ -15,7 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * process to deliver its own death notice is not monitoring.
  *
  * WHO CALLS IT. vercel.json schedules this once a day, which is the most
- * frequent cron Vercel's Hobby plan allows — a */5 schedule fails the
+ * frequent cron Vercel's Hobby plan allows — a five-minute schedule fails the
  * deployment outright rather than degrading, which is how this shipped broken
  * the first time. Once a day is a floor, not the intended cadence: it catches
  * "dead since yesterday", not "dead for ten minutes".

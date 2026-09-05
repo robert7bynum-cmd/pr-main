@@ -79,8 +79,31 @@ export async function GET(request: Request) {
     }
 
     const toSend = (alerts ?? []) as Alert[];
-    if (!toSend.length) {
+
+    // Everything still wrong, whether or not it is due to be shouted about
+    // again. Reporting only what was just sent made this endpoint answer
+    // "healthy: true" while an alert sat open inside its repeat window — the
+    // suppression working correctly and the summary lying about it. A monitor
+    // may go quiet; it must never say the word healthy when it is not.
+    const { data: openRows } = await db
+      .from("system_alerts")
+      .select("severity, issue, detail")
+      .eq("course_id", course.id)
+      .is("resolved_at", null);
+    const open = (openRows ?? []) as Alert[];
+
+    if (!open.length) {
       results.push({ course: course.name, healthy: true });
+      continue;
+    }
+
+    if (!toSend.length) {
+      results.push({
+        course: course.name,
+        healthy: false,
+        open: open.map((a) => `${a.severity}: ${a.issue}`),
+        note: "already notified; inside the repeat window",
+      });
       continue;
     }
 
@@ -90,7 +113,9 @@ export async function GET(request: Request) {
 
     results.push({
       course: course.name,
-      alerts: toSend.map((a) => `${a.severity}: ${a.issue}`),
+      healthy: false,
+      open: open.map((a) => `${a.severity}: ${a.issue}`),
+      notified: toSend.map((a) => `${a.severity}: ${a.issue}`),
       ...delivery,
     });
   }
@@ -98,7 +123,7 @@ export async function GET(request: Request) {
   // An alert that could not be delivered is itself a failure worth surfacing,
   // so this reports what happened rather than always answering 200 OK.
   const degraded = results.some(
-    (r) => r.error || (Array.isArray(r.alerts) && r.sent === 0),
+    (r) => r.error || (Array.isArray(r.notified) && r.sent === 0),
   );
 
   return Response.json(

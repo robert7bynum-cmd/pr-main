@@ -170,7 +170,10 @@ Deno.serve(async (req: Request) => {
       if (routeError) throw new Error(routeError.message);
 
       const row = (data as { reason: string }[] | null)?.[0];
-      if (row?.reason === "already_triaged") {
+      // Both are "nothing to do here", and neither reached anybody. Counting
+      // already_closed as routed would be the worker reporting success for
+      // work it did not do — the exact failure the skipped counter exists for.
+      if (row?.reason === "already_triaged" || row?.reason === "already_closed") {
         await db.rpc("complete_triage", { p_report_id: item.report_id });
         result.skipped++;
       } else {

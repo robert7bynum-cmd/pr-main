@@ -181,5 +181,44 @@ const good = await one<{ ok: boolean }>(
   `select * from acknowledge_report($1,$2)`, [fresh, alice.id]);
 check("the person themselves can still act", good?.ok === true);
 
+/**
+ * Picked up before triage reached it. This is what happened with the demo data
+ * cleared: file, see it on the phone within seconds, tap "I've got this" — all
+ * before the once-a-minute sweep. route_report used to answer already_triaged
+ * to anything past 'new', so the report was never classified, never routed, and
+ * nobody was paged. A fast acknowledgement is the product working well, not a
+ * reason to skip deciding who owns the problem.
+ */
+console.log("\n12. a report claimed before triage is still routed");
+const early = (await one<{ id: string }>(
+  `insert into reports (course_id, location_id, body, status)
+   values ($1,$2,'sprinkler stuck on 9, grabbed it straight away','new') returning id`,
+  [course, loc]))!.id;
+await act(alice.id);
+await db.query(`select acknowledge_report($1,$2)`, [early, alice.id]);
+const routedEarly = await one<{ department_id: string | null; recipients: number; reason: string }>(
+  `select * from route_report($1,'course_maintenance','normal','sprinkler',0.9,'keyword')`, [early]);
+check("routing still happens", routedEarly?.reason !== "already_triaged", routedEarly?.reason);
+check("and reaches somebody", (routedEarly?.recipients ?? 0) > 0, `${routedEarly?.recipients}`);
+const afterEarly = await one<{ status: string; department_id: string | null; category: string | null }>(
+  `select status::text, department_id, category from reports where id=$1`, [early]);
+check("a department is assigned", afterEarly?.department_id !== null);
+check("the category is set", afterEarly?.category === "course_maintenance", afterEarly?.category ?? "null");
+check("the claim is not lost — status stays acknowledged", afterEarly?.status === "acknowledged", afterEarly?.status);
+const secondPass = await one<{ reason: string }>(
+  `select reason from route_report($1,'course_maintenance','normal','sprinkler',0.9,'keyword')`, [early]);
+check("a second pass is still idempotent", secondPass?.reason === "already_triaged", secondPass?.reason);
+
+// Finished before triage: leave it alone, and say why.
+const done = await mk();
+await act(alice.id);
+await db.query(`update reports set triage_source = null, department_id = null where id=$1`, [done]);
+await db.query(`select resolve_report($1,$2,$3)`, [done, alice.id, "fixed on the spot"]);
+const closed = await one<{ reason: string; recipients: number }>(
+  `select reason, recipients from route_report($1,'course_maintenance','normal','x',0.9,'keyword')`, [done]);
+check("a report resolved before triage is not routed", closed?.reason === "already_closed", closed?.reason);
+const notesForDone = await one<{ n: number }>(`select count(*)::int n from notifications where report_id=$1`, [done]);
+check("and nobody is paged about finished work", (notesForDone?.n ?? -1) === 0, `${notesForDone?.n}`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

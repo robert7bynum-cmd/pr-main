@@ -67,7 +67,19 @@ export function QueueLive({
 
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    // The realtime socket authenticates separately from the REST client. Without
+    // handing it the session token it connects as `anon`, and since anon holds
+    // no table grants its RLS check fails — the channel reports SUBSCRIBED and
+    // then silently delivers nothing. That is exactly how this broke: the
+    // indicator said "Live" while no event ever arrived.
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) await supabase.realtime.setAuth(token);
+
+      channel = supabase
       .channel(`queue-${courseId}`)
       .on(
         "postgres_changes",
@@ -78,9 +90,10 @@ export function QueueLive({
         if (status === "SUBSCRIBED") setConn("live");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setConn("reconnecting");
       });
+    })();
 
     return () => {
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [courseId, router]);
 

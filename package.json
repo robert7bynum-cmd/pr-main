@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/check-env.mts && next build",
     "start": "next start",
     "lint": "eslint",
+    "check:env": "tsx scripts/check-env.mts",
     "triage:eval": "node scripts/triage-eval.ts",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked > lib/supabase/types.ts",

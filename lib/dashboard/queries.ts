@@ -34,6 +34,23 @@ async function all<T>(view: string, order = ""): Promise<T[]> {
   return (data ?? []) as T[];
 }
 
+export interface HealthIssue { severity: string; issue: string; detail: string }
+
+/**
+ * Conditions a human should act on. Empty means healthy — the panel only
+ * appears when something is wrong, so its presence is itself the signal.
+ */
+export async function getHealth(): Promise<HealthIssue[]> {
+  if (usingDevDb()) {
+    const db = await devDb();
+    return (await db.query<HealthIssue>(`select * from system_health()`)).rows;
+  }
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("system_health");
+  return (data ?? []) as HealthIssue[];
+}
+
 export async function getDashboard() {
   const [today, daily, byDept, recurring, byPerson] = await Promise.all([
     all<Today>("dashboard_today"),

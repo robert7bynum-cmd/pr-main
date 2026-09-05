@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/queue/actions-db";
-import { getDashboard } from "@/lib/dashboard/queries";
+import { getDashboard, getHealth } from "@/lib/dashboard/queries";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,10 @@ export default async function DashboardPage() {
   // place and this data is sensitive in it.
   if (!["manager", "owner"].includes(me.role)) redirect("/app");
 
-  const { today, daily, byDept, recurring, byPerson } = await getDashboard();
+  const [{ today, daily, byDept, recurring, byPerson }, health] = await Promise.all([
+    getDashboard(),
+    getHealth(),
+  ]);
 
   return (
     <main>
@@ -34,6 +37,30 @@ export default async function DashboardPage() {
             <p className="mt-1 text-[13px] text-ink-muted">Last 30 days</p>
           </div>
         </header>
+
+        {/* Only rendered when something is wrong, so its presence is the
+            signal. A permanent green tick teaches people to ignore it. */}
+        {health.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {health.map((h) => (
+              <div
+                key={h.issue}
+                className={`rounded-card border px-4 py-3 ${
+                  h.severity === "critical"
+                    ? "border-urgent/30 bg-urgent-surface"
+                    : "border-line bg-surface-raised"
+                }`}
+              >
+                <p className={`text-[14px] font-medium ${
+                  h.severity === "critical" ? "text-urgent" : "text-ink"
+                }`}>
+                  {h.issue}
+                </p>
+                <p className="mt-0.5 text-[13px] text-ink-secondary">{h.detail}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Headline figures are numbers, not charts — four values do not need
             axes to be understood. */}

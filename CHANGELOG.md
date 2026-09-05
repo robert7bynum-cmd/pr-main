@@ -5,6 +5,29 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### Watchdog — closing the largest operational gap
+Everything is scheduled inside the database, which is what makes it independent
+of the web app — and also meant that if `pg_cron` stopped, nothing would notice.
+Reports would pile up untriaged, escalation would never fire, and every screen
+would look healthy. The club finds out from an angry member.
+
+- `system_health()` reports conditions a human should act on, in plain words:
+  reports stuck untriaged, work that gave up retrying, alerts not reaching
+  anyone, nobody on duty, invited staff who never signed in, and the scheduler
+  itself having stopped.
+- A heartbeat is written on every sweep, so an **external** service can alert
+  when the writes stop — a monitor that depends on the thing it monitors is not
+  a monitor.
+- Surfaced on the dashboard, and only when something is wrong. A permanent green
+  tick teaches people to ignore it.
+- 7 tests (`npm run test:watchdog`).
+
+**[bug] It found a real one within a minute of existing.** Escalation alerts were
+never delivered: the sweeper only ran when *triage* had pending work, but
+escalation queues notifications without touching that queue. Reports escalated to
+management sat with their alerts queued indefinitely, and nothing looked wrong.
+The gate now covers both kinds of work; backlog cleared on the next sweep.
+
 ### The queue is now personal
 Everyone saw every open report. On a busy Saturday a groundskeeper scrolled past
 pro shop and F&B items to find their own — which is how a queue stops being read,

@@ -54,7 +54,11 @@ values (
   -- like — which is exactly how the member-facing pages carried on rendering the
   -- old provisional gold after the redesign landed everywhere else. A branding
   -- row is for a club that genuinely differs, not for repeating the default.
-  '{"branding":{"logo_url":null},"quiet_hours":{"start":"20:00","end":"06:00"}}'::jsonb,
+  -- public_url is the address a member's phone will load from a printed code.
+  -- Stored, not inferred: rendering the placard sheet on a laptop used to bake
+  -- localhost into every QR, and even a real deployment yields Vercel's long
+  -- branch URL rather than the short one a club actually uses.
+  '{"branding":{"logo_url":null},"public_url":"https://pr-main-dun.vercel.app","quiet_hours":{"start":"20:00","end":"06:00"}}'::jsonb,
   now() - interval '400 days'
 )
 on conflict (id) do nothing;

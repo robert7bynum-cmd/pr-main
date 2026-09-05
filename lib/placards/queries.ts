@@ -1,5 +1,7 @@
 import "server-only";
 
+import { resolvePlacardOrigin, isUnprintableOrigin } from "@/lib/placards/origin";
+
 import { createClient } from "@/lib/supabase/server";
 import { brandingFrom, type Branding } from "@/lib/branding";
 
@@ -23,16 +25,17 @@ export interface PlacardSet {
   courseSlug: string;
   branding: Branding;
   placards: Placard[];
+  /** The address baked into every code above, and where it came from. */
+  origin: string;
+  originSource: "configured" | "deployment" | "request";
+  /** True when committing this address to a printed sign would be a mistake. */
+  unprintable: boolean;
 }
 
 /**
  * Every placard for the caller's club, in the order they'd be printed.
- *
- * The URL is built from the request's own origin rather than a stored setting:
- * a code printed against the wrong host is a sign that has to be replaced, and
- * guessing here is how that happens.
  */
-export async function getPlacards(origin: string): Promise<PlacardSet | null> {
+export async function getPlacards(requestOrigin: string): Promise<PlacardSet | null> {
   const supabase = await createClient();
 
   const [{ data: courses }, { data: rows }] = await Promise.all([
@@ -45,6 +48,11 @@ export async function getPlacards(origin: string): Promise<PlacardSet | null> {
 
   const course = courses?.[0];
   if (!course) return null;
+
+  const { origin, source } = resolvePlacardOrigin(
+    course.settings as { public_url?: string | null } | null,
+    requestOrigin,
+  );
 
   const placards = ((rows ?? []) as unknown as {
     token: string;
@@ -74,5 +82,8 @@ export async function getPlacards(origin: string): Promise<PlacardSet | null> {
     courseSlug: course.slug,
     branding: brandingFrom(course.settings),
     placards,
+    origin,
+    originSource: source,
+    unprintable: isUnprintableOrigin(origin),
   };
 }

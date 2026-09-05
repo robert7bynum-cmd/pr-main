@@ -70,6 +70,8 @@ type ReportEvent = {
 type Notification = {
   id: string; report_id: string; course_id: string; profile_id: string | null;
   status: string; created_at: string;
+  /** A "send a test" alert. Delivered for real, but told nobody about the report. */
+  is_test: boolean;
 };
 type Profile = { id: string; course_id: string; active: boolean };
 type Location = { id: string; course_id: string };
@@ -79,7 +81,7 @@ console.log("loading real data from production (read-only)…\n");
 const [reports, events, notifications, profiles, locations] = await Promise.all([
   fetchAll<Report>("reports", "id,course_id,location_id,status,department_id,created_at"),
   fetchAll<ReportEvent>("report_events", "id,report_id,course_id,type,payload,created_at"),
-  fetchAll<Notification>("notifications", "id,report_id,course_id,profile_id,status,created_at"),
+  fetchAll<Notification>("notifications", "id,report_id,course_id,profile_id,status,created_at,is_test"),
   fetchAll<Profile>("profiles", "id,course_id,active"),
   fetchAll<Location>("locations", "id,course_id"),
 ]);
@@ -94,8 +96,12 @@ for (const e of routedEvents) {
   list.push(e);
   routedByReport.set(e.report_id, list);
 }
+// A "send a test" alert borrows a real report to hang on. It is delivered
+// through the ordinary path on purpose, but it never told anyone about that
+// report, so counting it here would report a club as having notified people it
+// did not.
 const notificationsByReport = new Map<string, Notification[]>();
-for (const n of notifications) {
+for (const n of notifications.filter(n => !n.is_test)) {
   const list = notificationsByReport.get(n.report_id) ?? [];
   list.push(n);
   notificationsByReport.set(n.report_id, list);
@@ -156,9 +162,20 @@ console.log("routing and delivery\n");
 // only guards the code path going forward. This is the check that the
 // invariant actually held for every report that exists, not just the ones
 // filed since the fix landed.
+// A report can legitimately be closed before triage catches up — somebody
+// standing there fixes it within the minute. That is the product working
+// unusually well, and the closing event now records it explicitly, so a fast
+// fix and a report that went missing are never the same shape.
+const closedEarly = new Set(
+  events
+    .filter(e => (e.payload as Record<string, unknown> | null)?.closed_before_routing === true)
+    .map(e => e.report_id),
+);
 check(
-  "every report past 'new' has a routed event",
-  liveNonNew.filter(r => !(routedByReport.get(r.id)?.length)).map(r => r.id),
+  "every report past 'new' was either routed or recorded as closed before routing",
+  liveNonNew
+    .filter(r => !(routedByReport.get(r.id)?.length) && !closedEarly.has(r.id))
+    .map(r => r.id),
   liveNonNew.length,
 );
 
@@ -234,7 +251,7 @@ console.log("\ntriage completeness\n");
 
 check(
   "every report past 'new' has a department assigned",
-  liveNonNew.filter(r => r.department_id === null).map(r => r.id),
+  liveNonNew.filter(r => r.department_id === null && !closedEarly.has(r.id)).map(r => r.id),
   liveNonNew.length,
 );
 

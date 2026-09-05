@@ -82,12 +82,18 @@ export async function sendTestPush(): Promise<{ ok: boolean; error?: string }> {
     .order("created_at", { ascending: false }).limit(1);
   if (!recent?.length) return { ok: false, error: "no reports to test with yet" };
 
+  // Marked as a test. The row borrows a real report to hang on, and without
+  // this that report's record claimed the club had told someone about it —
+  // which is the accountability data this product is sold on, inflated by a
+  // button press. Delivery still goes through the ordinary path; only the
+  // bookkeeping distinguishes it.
   await admin.from("notifications").insert({
     report_id: recent[0].id,
     course_id: recent[0].course_id,
     profile_id: data.user.id,
     channel: "push",
     status: "queued",
+    is_test: true,
   });
 
   const res = await fetch(

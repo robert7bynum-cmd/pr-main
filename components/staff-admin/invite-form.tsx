@@ -88,11 +88,7 @@ export function InviteForm({ departments, canInviteOwner }: {
             const res = await inviteStaff(email, name, role, depts);
             setResult({
               ok: res.ok,
-              // Shown once, deliberately: there is no way to retrieve it later,
-              // which is what makes it safe to generate on a manager's screen.
-              text: res.tempPassword
-                ? `Invited. Temporary password: ${res.tempPassword} — give it to them now, it is not shown again.`
-                : res.message ?? (res.ok ? "Invited." : "Could not invite."),
+              text: res.message ?? (res.ok ? "Invitation sent." : "Could not invite."),
             });
             if (res.ok) { setEmail(""); setName(""); setDepts([]); }
           })}

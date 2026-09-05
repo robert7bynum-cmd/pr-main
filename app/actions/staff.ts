@@ -1,10 +1,27 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { randomBytes } from "node:crypto";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
-export interface StaffResult { ok: boolean; message?: string; tempPassword?: string }
+export interface StaffResult { ok: boolean; message?: string }
+
+/**
+ * Where an emailed link should bring someone back to.
+ *
+ * The origin the manager is on right now, which for invitations is the right
+ * answer: they are on the club's real site when they press the button. The
+ * link only works if this origin is on the Supabase project's redirect
+ * allow-list; otherwise Supabase quietly sends the person to its configured
+ * Site URL instead, which on a fresh project is localhost — the reason the
+ * first invitations ever sent from this app would have gone nowhere.
+ */
+async function callbackUrl(next: string): Promise<string> {
+  const h = await headers();
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const host = h.get("host") ?? "localhost:3000";
+  return `${proto}://${host}/auth/callback?next=${encodeURIComponent(next)}`;
+}
 
 /**
  * Every one of these calls a SECURITY DEFINER function that enforces the
@@ -35,29 +52,50 @@ export async function inviteStaff(
   });
   if (error) return { ok: false, message: error.message };
 
-  // The auth account needs the service key, which the RPC deliberately does not
-  // have. Created here, with a temporary password they must replace.
+  // The invitation itself is an email from Supabase with a one-time link. It
+  // lands on /auth/callback, which turns the link into a session, links that
+  // session to the profile the manager just created, and sends the person to
+  // choose a password. No temporary password is shown on screen any more —
+  // the earlier flow did that, and every manager who used it expected an email
+  // to have gone out and was surprised when nothing arrived.
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
-  const temp = randomBytes(9).toString("base64url");
+  const address = email.trim().toLowerCase();
 
-  const { error: authError } = await admin.auth.admin.createUser({
-    email: email.trim().toLowerCase(),
-    password: temp,
-    email_confirm: true,
-    user_metadata: { must_change_password: true },
+  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(address, {
+    data: { must_change_password: true },
+    redirectTo: await callbackUrl("/account/password"),
   });
 
   revalidatePath("/app/staff");
 
-  // Already registered is not a failure: the invitation still stands, they just
-  // keep their existing password.
-  if (authError && !/already been registered/i.test(authError.message)) {
-    return { ok: false, message: authError.message };
+  if (inviteError && /already been registered|already exists/i.test(inviteError.message)) {
+    // They have a login from before. The invitation still stands; what they
+    // need is a way in, which is the same email a password reset sends.
+    const sent = await sendPasswordLink(address);
+    return sent.ok
+      ? { ok: true, message: `${address} already had a login — sent them a sign-in link instead.` }
+      : sent;
   }
-  if (authError) return { ok: true, message: "Invited. They keep their existing password." };
+  if (inviteError) {
+    return { ok: false, message: `Invitation could not be emailed: ${inviteError.message}` };
+  }
+  return { ok: true, message: `Invitation emailed to ${address}. It lasts 24 hours.` };
+}
 
-  return { ok: true, tempPassword: temp };
+/**
+ * A "reset your password" email, which is also how an existing account gets
+ * its first sign-in link. Sent with the public client on purpose: this is the
+ * ordinary, rate-limited path a person could trigger for themselves from a
+ * login page, not an admin action that mints credentials.
+ */
+async function sendPasswordLink(address: string): Promise<StaffResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(address, {
+    redirectTo: await callbackUrl("/account/password"),
+  });
+  if (error) return { ok: false, message: `Could not email a link: ${error.message}` };
+  return { ok: true, message: `Sign-in link emailed to ${address}.` };
 }
 
 // Declared as async functions: Next requires every export from a "use server"
@@ -74,7 +112,7 @@ export async function setDepartments(id: string, departmentIds: string[]): Promi
   return call("set_staff_departments", { p_profile_id: id, p_department_ids: departmentIds });
 }
 
-/** Issue a new temporary password. Used when someone is locked out. */
+/** Email someone a link to set a new password. Used when they are locked out. */
 export async function resetPassword(id: string, email: string): Promise<StaffResult> {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
@@ -82,21 +120,7 @@ export async function resetPassword(id: string, email: string): Promise<StaffRes
   if (!actor || !["manager", "owner"].includes(actor.role)) {
     return { ok: false, message: "You do not manage staff at this club." };
   }
-
-  const { createAdminClient } = await import("@/lib/supabase/admin");
-  const admin = createAdminClient();
-  const temp = randomBytes(9).toString("base64url");
-
-  const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const user = users.users.find((u) => u.email === email);
-  if (!user) return { ok: false, message: "No sign-in account for that address yet." };
-
-  const { error } = await admin.auth.admin.updateUserById(user.id, {
-    password: temp,
-    user_metadata: { must_change_password: true },
-  });
-  if (error) return { ok: false, message: error.message };
-
+  const sent = await sendPasswordLink(email.trim().toLowerCase());
   revalidatePath("/app/staff");
-  return { ok: true, tempPassword: temp };
+  return sent;
 }

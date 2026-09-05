@@ -19,7 +19,7 @@ export default async function PasswordPage() {
         </h1>
         <div className="mt-4 h-0.5 w-8 rounded-pill bg-accent" />
         <p className="mt-5 text-[15px] leading-relaxed text-ink-secondary">
-          Your club set a temporary one. Pick your own — you&apos;ll use it every shift.
+          You came in through an emailed link. Pick a password — you&apos;ll use it every shift.
         </p>
         <div className="mt-6">
           <ChangePasswordForm />

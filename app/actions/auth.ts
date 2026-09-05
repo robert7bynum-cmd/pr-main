@@ -40,6 +40,21 @@ export async function signIn(email: string, password: string): Promise<SignInRes
   return { ok: true };
 }
 
+/**
+ * After an emailed link has become a session in the browser.
+ *
+ * Password sign-in claims the invited profile inside signIn(); a person who
+ * arrived by link never went through signIn, so the same step is done here.
+ * Without it the session is valid and the club knows nothing about them.
+ */
+export async function claimAfterEmailLink(): Promise<SignInResult> {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { ok: false, error: "That link has expired. Ask your manager for a new one." };
+  await supabase.rpc("claim_profile");
+  return { ok: true, mustChangePassword: Boolean(data.user.user_metadata?.must_change_password) };
+}
+
 export async function changePassword(next: string): Promise<SignInResult> {
   if (next.length < 10) {
     return { ok: false, error: "Use at least 10 characters." };

@@ -16,15 +16,10 @@ export function StaffTable({
   const [open, setOpen] = useState<string | null>(null);
   const [note, setNote] = useState<{ id: string; text: string } | null>(null);
 
-  const run = (id: string, fn: () => Promise<{ ok: boolean; message?: string; tempPassword?: string }>) =>
+  const run = (id: string, fn: () => Promise<{ ok: boolean; message?: string }>) =>
     start(async () => {
       const res = await fn();
-      setNote({
-        id,
-        text: res.tempPassword
-          ? `Temporary password: ${res.tempPassword} — give them this once; they must change it.`
-          : res.message ?? (res.ok ? "Saved" : "Something went wrong"),
-      });
+      setNote({ id, text: res.message ?? (res.ok ? "Saved" : "Something went wrong") });
     });
 
   return (
@@ -159,7 +154,7 @@ export function StaffTable({
                           onClick={() => run(p.profile_id, () => resetPassword(p.profile_id, p.email!))}
                           className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink-secondary transition hover:border-line-strong"
                         >
-                          Reset password
+                          Email a sign-in link
                         </button>
                       )}
                     </div>

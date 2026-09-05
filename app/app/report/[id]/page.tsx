@@ -22,7 +22,7 @@ const EVENT_LABEL: Record<string, string> = {
   scheduled: "Scheduled",
   escalated: "Escalated",
   unstaffed: "Nobody on duty — escalated to management",
-  reassigned: "Moved to another department",
+  reassigned: "Handed over",
   note: "Note",
   resolved: "Resolved",
   verified: "Verified",

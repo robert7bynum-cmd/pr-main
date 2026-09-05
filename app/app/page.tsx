@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getQueue, getDepartmentCounts } from "@/lib/queue/reports";
+import { getQueue, getDepartmentCounts, getTeam } from "@/lib/queue/reports";
 import { getMe } from "@/lib/queue/actions-db";
 import { Badge } from "@/components/ui/badge";
 import { QueueCard } from "@/components/staff/queue-card";
@@ -24,9 +24,11 @@ export default async function StaffQueuePage({
 
   const view: "mine" | "all" = scope === "all" ? "all" : "mine";
 
-  const [rows, departments] = await Promise.all([
+  const [rows, departments, team] = await Promise.all([
     getQueue(dept, view),
     getDepartmentCounts(view),
+    // Once per page, not once per card.
+    getTeam(),
   ]);
 
   // An empty personal queue and a broken app look identical, and that is not a
@@ -117,7 +119,7 @@ export default async function StaffQueuePage({
         ) : (
           <div className="space-y-4">
             {rows.map((row) => (
-              <QueueCard key={row.id} row={row} />
+              <QueueCard key={row.id} row={row} team={team} meId={me.profile_id} />
             ))}
           </div>
         )}

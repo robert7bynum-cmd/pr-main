@@ -1,6 +1,7 @@
 import type { QueueRow } from "@/lib/queue/reports";
 import { Badge } from "@/components/ui/badge";
 import { CardActions } from "./card-actions";
+import type { Teammate } from "@/lib/queue/reports";
 
 /**
  * One report, sized for a phone held one-handed outdoors.
@@ -48,7 +49,9 @@ function age(minutes: number) {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-export function QueueCard({ row }: { row: QueueRow }) {
+export function QueueCard({
+  row, team, meId,
+}: { row: QueueRow; team: Teammate[]; meId: string }) {
   const u = URGENCY[row.urgency] ?? URGENCY.normal;
   const unclaimed = !row.claimed_by;
 
@@ -108,7 +111,7 @@ export function QueueCard({ row }: { row: QueueRow }) {
           </span>
         </div>
 
-        <CardActions reportId={row.id} claimed={!!row.claimed_by} />
+        <CardActions reportId={row.id} claimed={!!row.claimed_by} team={team} meId={meId} />
       </div>
     </article>
   );

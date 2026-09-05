@@ -5,7 +5,9 @@ import {
   acknowledgeAction,
   resolveAction,
   scheduleAction,
+  assignAction,
 } from "@/app/actions/report-actions";
+import type { Teammate } from "@/lib/queue/reports";
 
 /**
  * Actions on a report card.
@@ -19,14 +21,20 @@ import {
 export function CardActions({
   reportId,
   claimed,
+  team,
+  meId,
 }: {
   reportId: string;
   claimed: boolean;
+  team: Teammate[];
+  /** Excluded from the picker: handing a report to yourself is "I've got this". */
+  meId: string;
 }) {
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
-  const [mode, setMode] = useState<"idle" | "resolve" | "schedule">("idle");
+  const [mode, setMode] = useState<"idle" | "resolve" | "schedule" | "assign">("idle");
   const [date, setDate] = useState("");
+  const [assignee, setAssignee] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string }>) =>
@@ -112,6 +120,56 @@ export function CardActions({
     );
   }
 
+  if (mode === "assign") {
+    const others = team.filter((t) => t.id !== meId);
+    // On duty first, and said out loud. "Who is actually working right now" is
+    // the question a supervisor is answering when they hand something over, and
+    // a flat alphabetical list makes them guess at it.
+    const sorted = [...others].sort(
+      (a, b) => Number(b.on_duty) - Number(a.on_duty) || a.full_name.localeCompare(b.full_name),
+    );
+    return (
+      <div className="mt-5 border-t border-line pt-4">
+        {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
+        <label className="block text-[13px] text-ink-secondary" htmlFor={`assign-${reportId}`}>
+          Hand this to
+        </label>
+        <select
+          id={`assign-${reportId}`}
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+          className="mt-2 w-full rounded-control border border-line bg-surface px-4 py-3.5 text-[15px] outline-none focus:border-line-strong"
+        >
+          <option value="">Choose someone…</option>
+          {sorted.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.full_name}
+              {t.on_duty ? " — on duty" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
+          They are told straight away, and the response clock starts again for them.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <button
+            disabled={pending || !assignee}
+            onClick={() => run(() => assignAction(reportId, assignee))}
+            className="flex-1 rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
+          >
+            {pending ? "Handing over…" : "Hand it over"}
+          </button>
+          <button
+            onClick={() => { setMode("idle"); setAssignee(""); }}
+            className="rounded-control border border-line bg-surface px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-5 border-t border-line pt-4">
       {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
@@ -141,6 +199,14 @@ export function CardActions({
           >
             Later
           </button>
+          {team.length > 1 && (
+            <button
+              onClick={() => setMode("assign")}
+              className="flex-1 rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"
+            >
+              Assign
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -230,3 +230,31 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
     }),
   } as ReportDetail;
 }
+
+export interface Teammate { id: string; full_name: string; on_duty: boolean }
+
+/**
+ * Who a report can be handed to: everyone active at the club.
+ *
+ * Read once per page and passed down, not fetched per card — a queue of thirty
+ * reports would otherwise make thirty identical requests. On duty is included
+ * so the picker can say who is actually working right now, which is the whole
+ * question a supervisor is answering when they assign something.
+ */
+export async function getTeam(): Promise<Teammate[]> {
+  if (usingDevDb()) {
+    const db = await devDb();
+    const res = await db.query<Teammate>(
+      `select id, full_name, on_duty from profiles where active order by full_name`,
+    );
+    return res.rows;
+  }
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, on_duty")
+    .eq("active", true)
+    .order("full_name");
+  return (data ?? []) as Teammate[];
+}

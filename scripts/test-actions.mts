@@ -220,5 +220,89 @@ check("a report resolved before triage is not routed", closed?.reason === "alrea
 const notesForDone = await one<{ n: number }>(`select count(*)::int n from notifications where report_id=$1`, [done]);
 check("and nobody is paged about finished work", (notesForDone?.n ?? -1) === 0, `${notesForDone?.n}`);
 
+/**
+ * Handing a report to a named person.
+ *
+ * The clock behaviour is the part worth pinning: a report acknowledged by one
+ * person and handed to another must start the new person's clock, or their
+ * response time is invisible and the first person is charged for time they did
+ * not own.
+ */
+console.log("\n13. handing a report to somebody");
+const teammate = (await one<{ id: string; full_name: string }>(
+  `select id, full_name from profiles where id <> $1 and active limit 1`, [alice.id]))!;
+const handed = await mk();
+await act(alice.id);
+await db.query(`select acknowledge_report($1,$2)`, [handed, alice.id]);
+const ackBefore = await one<{ acknowledged_at: string | null }>(
+  `select acknowledged_at from reports where id = $1`, [handed]);
+check("it starts acknowledged by the first person", ackBefore?.acknowledged_at !== null);
+
+const assigned = await one<{ ok: boolean; assignee_name: string }>(
+  `select * from assign_report($1,$2,$3)`, [handed, alice.id, teammate.id]);
+check("assigning succeeds", assigned?.ok === true);
+check("and names who now has it", assigned?.assignee_name === teammate.full_name, assigned?.assignee_name);
+
+const handedAfter = await one<{ claimed_by: string; acknowledged_at: string | null; status: string }>(
+  `select claimed_by, acknowledged_at, status::text from reports where id = $1`, [handed]);
+check("the report is theirs now", handedAfter?.claimed_by === teammate.id);
+check("the acknowledgement clock is reset for them", handedAfter?.acknowledged_at === null,
+  "the new owner inherited the old timestamp");
+check("and it is waiting to be picked up again", handedAfter?.status === "triaged", handedAfter?.status);
+
+const notified = await one<{ n: number }>(
+  `select count(*)::int n from notifications where report_id = $1 and profile_id = $2`,
+  [handed, teammate.id]);
+check("they are told", (notified?.n ?? 0) >= 1);
+
+const handoverEv = await one<{ payload: Record<string, unknown> }>(
+  `select payload from report_events
+    where report_id = $1 and type = 'reassigned' order by created_at desc limit 1`, [handed]);
+check("the handover is on the record, naming both ends",
+  handoverEv?.payload?.kind === "person" && handoverEv?.payload?.to === teammate.id && handoverEv?.payload?.from === alice.id,
+  JSON.stringify(handoverEv?.payload ?? {}));
+
+// It appears in the new owner's queue, which is the whole point of the feature
+// and the assertion the original Pro Shop bug says to make.
+await act(teammate.id);
+const theirs = await one<{ n: number }>(
+  `select count(*)::int n from my_queue where id = $1`, [handed]);
+check("it is in their own queue", (theirs?.n ?? 0) === 1, `${theirs?.n}`);
+
+console.log("\n14. and what assigning refuses");
+const refuses = async (sql: string, p: unknown[]) => {
+  try { await db.query(sql, p); return null; } catch (e) { return (e as Error).message; }
+};
+await act(alice.id);
+const same = await one<{ ok: boolean }>(
+  `select ok from assign_report($1,$2,$3)`, [handed, alice.id, teammate.id]);
+check("handing it to the person who already has it changes nothing", same?.ok === false);
+
+await db.query(`update profiles set active = false where id = $1`, [teammate.id]);
+const offboarded = await refuses(`select assign_report($1,$2,$3)`, [handed, alice.id, teammate.id]);
+check("cannot hand work to someone who has been offboarded", offboarded !== null, "accepted");
+await db.query(`update profiles set active = true where id = $1`, [teammate.id]);
+
+const outsider = (await one<{ id: string }>(
+  `insert into courses (name, slug, timezone) values ('Rival Two','rival-two','America/New_York')
+   returning id`))!.id;
+const outsiderProfile = (await one<{ id: string }>(
+  `insert into auth.users (id, email) values (gen_random_uuid(), 'rival@example.com') returning id`))!.id;
+await db.query(
+  `insert into profiles (id, course_id, full_name, role) values ($1,$2,'Rival Person','staff')`,
+  [outsiderProfile, outsider]);
+const crossClub = await refuses(`select assign_report($1,$2,$3)`, [handed, alice.id, outsiderProfile]);
+check("cannot hand work to another club's staff", crossClub !== null, "accepted");
+
+const finished = await mk();
+await act(alice.id);
+await db.query(`select resolve_report($1,$2,$3)`, [finished, alice.id, "done"]);
+const onClosed = await refuses(`select assign_report($1,$2,$3)`, [finished, alice.id, teammate.id]);
+check("cannot hand somebody finished work", onClosed !== null, "accepted");
+
+await db.query(`select set_config('test.uid', '', false)`);
+const noSession = await refuses(`select assign_report($1,$2,$3)`, [handed, alice.id, teammate.id]);
+check("an unauthenticated caller cannot assign", noSession !== null, "accepted");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

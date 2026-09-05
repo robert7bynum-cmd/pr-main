@@ -31,6 +31,12 @@ type Conn = "connecting" | "live" | "reconnecting";
  */
 let lastAlertedId: string | null = null;
 let soundEnabled = false;
+/**
+ * Whether this page has already had a working subscription. Distinguishes the
+ * first connect, where the server-rendered list is already current, from a
+ * reconnect, where it is not.
+ */
+let hadSubscribed = false;
 
 export function QueueLive({
   courseId,
@@ -94,8 +100,18 @@ export function QueueLive({
       )
       .subscribe((status, err) => {
         console.log("[queue-live] status", status, err?.message ?? "");
-        if (status === "SUBSCRIBED") setConn("live");
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setConn("reconnecting");
+        if (status === "SUBSCRIBED") {
+          setConn("live");
+          // Events that happened while the socket was down were never
+          // delivered and never will be. Marking the badge "Live" without
+          // refetching left the board silently stale from the moment of the
+          // outage onward — the worst version of this, because it looks
+          // healthy. Re-subscribing means catching up.
+          if (hadSubscribed) router.refresh();
+          hadSubscribed = true;
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setConn("reconnecting");
+        }
       });
     })();
 
@@ -106,9 +122,36 @@ export function QueueLive({
 
   // The guarantee. Short enough that a failed socket is not noticeable in a
   // demo, long enough not to hammer the database all day.
+  //
+  // On its own it is not a guarantee at all, which is how a report arrived by
+  // push while the queue behind it stayed stale: a browser throttles timers in
+  // a hidden tab and freezes them on a locked phone, so the one mechanism meant
+  // to cover a dropped socket is asleep in exactly the situation that drops it.
   useEffect(() => {
     const id = setInterval(() => router.refresh(), 20_000);
     return () => clearInterval(id);
+  }, [router]);
+
+  // Coming back to the page is the moment staleness is visible and the moment
+  // it matters: someone has just unlocked their phone because it buzzed. Every
+  // one of these fires after a gap in which events could have been missed.
+  useEffect(() => {
+    const catchUp = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", catchUp);
+    window.addEventListener("focus", catchUp);
+    window.addEventListener("online", catchUp);
+    // A page restored from the back/forward cache is served whole from memory,
+    // effects and all, so nothing above would otherwise run.
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) router.refresh(); };
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", catchUp);
+      window.removeEventListener("focus", catchUp);
+      window.removeEventListener("online", catchUp);
+      window.removeEventListener("pageshow", onShow);
+    };
   }, [router]);
 
   useEffect(() => {

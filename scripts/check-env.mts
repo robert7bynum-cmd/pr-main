@@ -57,12 +57,20 @@ for (const [name, consequence] of REQUIRED) {
   if (!present(name)) problems.push(`${name} is not set — ${consequence}.`);
 }
 
-// Web push is the whole notification path. Missing on a preview is survivable
-// and worth knowing about; missing in production means nobody gets paged.
+// Web push is one notification channel, not the app. This was a hard failure in
+// production and it blocked deployment for two hours over a feature that
+// degrades rather than breaks: without it the queue still updates live, the
+// station still chimes, and escalation still runs — staff just cannot subscribe
+// to background alerts.
+//
+// A guard should block what makes the deployment unusable and warn about what
+// makes it worse. Getting that boundary wrong is how a guard ends up deleted
+// instead of respected.
 if (!present("NEXT_PUBLIC_VAPID_PUBLIC_KEY")) {
-  const msg = "NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set — staff cannot subscribe to push.";
-  if (env === "production") problems.push(msg);
-  else warnings.push(msg);
+  warnings.push(
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set — staff cannot subscribe to push " +
+      "notifications. The queue, station alerts and escalation are unaffected.",
+  );
 }
 
 // --- Refusals ---------------------------------------------------------------

@@ -10,10 +10,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * untriaged. The club would find out from an angry member.
  *
  * So the thing that watches the scheduler cannot be the scheduler. This route
- * runs on Vercel Cron: a different machine, a different scheduler, a different
- * vendor. It reads health with the service role and sends push from here
- * directly rather than queueing notifications for the sweep to deliver, because
- * asking a dead process to deliver its own death notice is not monitoring.
+ * reads health with the service role and sends push from here directly rather
+ * than queueing notifications for the sweep to deliver, because asking a dead
+ * process to deliver its own death notice is not monitoring.
+ *
+ * WHO CALLS IT. vercel.json schedules this once a day, which is the most
+ * frequent cron Vercel's Hobby plan allows — a */5 schedule fails the
+ * deployment outright rather than degrading, which is how this shipped broken
+ * the first time. Once a day is a floor, not the intended cadence: it catches
+ * "dead since yesterday", not "dead for ten minutes".
+ *
+ * For real coverage point any external pinger at this URL every five minutes.
+ * That is also the better architecture, not merely the cheaper one: a Vercel
+ * cron cannot report that Vercel is down, and a third party watching from
+ * outside both vendors is the only thing that can. On Vercel Pro, changing the
+ * schedule in vercel.json to a five-minute expression is the other option.
  *
  * It is deliberately dumb: no retries, no state of its own beyond the alert
  * ledger in the database. If this route breaks, the in-database half still

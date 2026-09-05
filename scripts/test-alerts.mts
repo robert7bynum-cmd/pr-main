@@ -38,7 +38,32 @@ const beat = (ago: string) =>
 await db.query(`update reports set status='triaged' where status='new'`);
 await beat("0 minutes");
 
-console.log("a healthy club says nothing");
+// A club where no manager has a device would otherwise trip the new
+// "no manager can receive system alerts" warning in every case below.
+await db.query(`
+  insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+  select id, 'https://example.test/probe', 'p', 'a' from profiles
+   where course_id = $1 and active and is_management_role(role) limit 1`, [course]);
+
+console.log("an alarm with nowhere to go is itself a problem");
+const { rows: noDevice } = await db.query<Alert>(
+  `select * from system_health_for($1)`, [course]);
+check("a manager with a device clears the warning",
+  !noDevice.some(a => a.issue === "No manager can receive system alerts"),
+  JSON.stringify(noDevice.map(a => a.issue)));
+
+await db.query(`delete from push_subscriptions where endpoint = 'https://example.test/probe'`);
+const { rows: stranded } = await db.query<Alert>(
+  `select * from system_health_for($1)`, [course]);
+check("with no manager device, the watchdog says so rather than failing quietly",
+  stranded.some(a => a.issue === "No manager can receive system alerts"),
+  JSON.stringify(stranded.map(a => a.issue)));
+await db.query(`
+  insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+  select id, 'https://example.test/probe', 'p', 'a' from profiles
+   where course_id = $1 and active and is_management_role(role) limit 1`, [course]);
+
+console.log("\na healthy club says nothing");
 check("no alerts when everything is fine", (await sweep()).length === 0);
 
 console.log("\nfirst failure is reported once");

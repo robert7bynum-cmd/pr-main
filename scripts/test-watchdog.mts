@@ -28,6 +28,12 @@ await db.query(`select record_heartbeat('sweep')`);
 await db.query(`update profiles set on_duty = true where role='staff'`);
 await db.query(`update pending_profiles set claimed_at = now()`);
 await db.query(`update reports set status='triaged' where status='new'`);
+// A club where no manager could receive an alert is not healthy, and the
+// watchdog now says so. The seed ships no push subscriptions, so give the
+// baseline what a working club has: one manager with notifications on.
+await db.query(`
+  insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+  values ($1, 'https://example.test/baseline', 'p', 'a')`, [manager]);
 
 console.log("\n1. a healthy system says nothing");
 await act(manager);

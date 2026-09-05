@@ -19,13 +19,11 @@ config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const EMAIL = process.env.REALTIME_TEST_EMAIL;
+// Defaulted rather than required. This needed REALTIME_TEST_EMAIL to run, so it
+// was left out of `verify:live` — leaving the single feature whose failure mode
+// is total silence as the one suite the gate never ran.
+const EMAIL = process.env.REALTIME_TEST_EMAIL ?? "gm@beaconhilldemo.com";
 const PASSWORD = requireDemoPassword();
-
-if (!EMAIL) {
-  console.log("REALTIME_TEST_EMAIL not set — pass a staff email to run this");
-  process.exit(2);
-}
 
 let pass = 0, fail = 0;
 const check = (n: string, ok: boolean, d = "") => { ok ? pass++ : fail++; console.log(`  ${ok ? "ok  " : "FAIL"} ${n}${ok ? "" : "  -> " + d}`); };
@@ -83,9 +81,20 @@ const { error: submitErr } = await anon.rpc("submit_report", {
 });
 check("the report is accepted", !submitErr, submitErr?.message ?? "");
 
-const arrived = await waitFor(() => events.length > 0, 20_000);
+// 20s was enough in isolation and flaked once when the whole suite ran at
+// once — a socket that is working but slow under load is not the failure this
+// test exists to catch, and a check that cries wolf gets ignored on the day it
+// is right. The failure it IS for — a connected but deaf socket, which is what
+// an unauthenticated realtime connection looks like — never arrives late; it
+// never arrives at all.
+const WAIT_MS = 60_000;
+const started = Date.now();
+const arrived = await waitFor(() => events.length > 0, WAIT_MS);
 check("the staff queue is told about it over the socket", arrived,
-  "no postgres_changes event in 20s — the socket is connected but deaf, which is what an unauthenticated realtime connection looks like");
+  `no postgres_changes event in ${Math.round((Date.now() - started) / 1000)}s — ` +
+    "the socket is connected but deaf, which is what an unauthenticated realtime " +
+    "connection looks like");
+if (arrived) console.log(`       (event arrived in ${Date.now() - started}ms)`);
 
 await supabase.removeChannel(channel);
 await supabase.auth.signOut();

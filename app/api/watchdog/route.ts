@@ -84,9 +84,9 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const delivery = vapid
-      ? await pushAlerts(db, course.id, toSend, vapid)
-      : { sent: 0, recipients: 0, skipped: "push not configured" };
+    const delivery = vapid.ok
+      ? await pushAlerts(db, course.id, toSend)
+      : { sent: 0, recipients: 0, undelivered: vapid.reason };
 
     results.push({
       course: course.name,
@@ -107,24 +107,50 @@ export async function GET(request: Request) {
   );
 }
 
-async function loadVapid(db: ReturnType<typeof createAdminClient>) {
-  const [{ data: pub }, { data: priv }, { data: subj }] = await Promise.all([
-    db.from("app_settings").select("value").eq("key", "vapid_public_key").maybeSingle(),
-    db.from("app_settings").select("value").eq("key", "vapid_private_key").maybeSingle(),
-    db.from("app_settings").select("value").eq("key", "vapid_subject").maybeSingle(),
-  ]);
-  const publicKey = process.env.VAPID_PUBLIC_KEY ?? pub?.value;
-  const privateKey = process.env.VAPID_PRIVATE_KEY ?? priv?.value;
-  if (!publicKey || !privateKey) return null;
-  webpush.setVapidDetails(subj?.value ?? "mailto:ops@proresponse.app", publicKey, privateKey);
-  return true;
+/**
+ * VAPID credentials, and — when they are missing — why.
+ *
+ * The first version returned a bare null and the caller reported "push not
+ * configured", which is the same answer for three different situations: keys
+ * genuinely absent, the settings table unreadable, and an environment variable
+ * defined as an empty string. Production hit the third and the response
+ * confidently blamed the first. A monitor that misreports why it cannot raise
+ * an alarm is worse than no monitor, so this says which.
+ */
+async function loadVapid(
+  db: ReturnType<typeof createAdminClient>,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data, error } = await db
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["vapid_public_key", "vapid_private_key", "vapid_subject"]);
+
+  if (error) return { ok: false, reason: `app_settings unreadable: ${error.message}` };
+
+  const stored = (k: string) =>
+    (data ?? []).find((r) => r.key === k)?.value?.trim() || undefined;
+
+  // `||`, deliberately, not `??`. An environment variable that exists but holds
+  // an empty string is not a credential, and `??` treats it as one — which is
+  // exactly how a blank VAPID_PUBLIC_KEY in the deployment shadowed the perfectly
+  // good key sitting in app_settings.
+  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim() || stored("vapid_public_key");
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim() || stored("vapid_private_key");
+  const subject = stored("vapid_subject") || "mailto:ops@proresponse.app";
+
+  if (!publicKey || !privateKey) {
+    const missing = [!publicKey && "public", !privateKey && "private"].filter(Boolean);
+    return { ok: false, reason: `VAPID ${missing.join(" and ")} key missing` };
+  }
+
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  return { ok: true };
 }
 
 async function pushAlerts(
   db: ReturnType<typeof createAdminClient>,
   courseId: string,
   alerts: Alert[],
-  _vapid: true,
 ) {
   const { data: recipients } = await db.rpc("watchdog_recipients", { p_course: courseId });
   const list = (recipients ?? []) as {

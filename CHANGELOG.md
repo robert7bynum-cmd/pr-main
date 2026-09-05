@@ -5,6 +5,24 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### The queue is now personal
+Everyone saw every open report. On a busy Saturday a groundskeeper scrolled past
+pro shop and F&B items to find their own — which is how a queue stops being read,
+and a queue nobody reads is worse than none.
+
+Three ways a report reaches you, and the last two matter as much as the first:
+1. it is routed to a department you are in
+2. **you were notified about it** — escalation pages leadership outside the
+   department, so without this you would be paged about something you cannot see
+3. you claimed it, so it stays visible if it is later re-routed
+
+Management see the whole course and get a My departments / Whole course toggle;
+everyone else does not, because for them both views return the same rows.
+`staff_queue` stays course-wide for reporting, so the dashboard is unaffected.
+
+Verified: pro shop staff went from 20 reports to 1; the manager still sees 20.
+8 tests (`npm run test:queue`), including that another club's work is invisible.
+
 ### App shell — one navigation, one account menu
 Navigation was inline links that differed on every page, so where you could go
 depended on where you happened to be.

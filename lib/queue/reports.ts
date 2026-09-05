@@ -57,12 +57,25 @@ function normalise(row: Record<string, unknown>): QueueRow {
   };
 }
 
-export async function getQueue(departmentKey?: string): Promise<QueueRow[]> {
+/**
+ * The signed-in person's queue by default.
+ *
+ * `scope: "all"` reads the course-wide view instead, which management use to see
+ * the whole course. Everyone else gets the same rows either way, because the
+ * course-wide view is still RLS-scoped to their club — the difference is
+ * department filtering, not permission.
+ */
+export async function getQueue(
+  departmentKey?: string,
+  scope: "mine" | "all" = "mine",
+): Promise<QueueRow[]> {
+  const source = scope === "all" ? "staff_queue" : "my_queue";
+
   if (usingDevDb()) {
     const db = await devDb();
     const where = departmentKey ? `where department_key = $1` : ``;
     const res = await db.query<Record<string, unknown>>(
-      `select * from staff_queue ${where} ${ORDER}`,
+      `select * from ${source} ${where} ${ORDER}`,
       departmentKey ? [departmentKey] : [],
     );
     return res.rows.map(normalise);
@@ -70,7 +83,7 @@ export async function getQueue(departmentKey?: string): Promise<QueueRow[]> {
 
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  let q = supabase.from("staff_queue").select("*");
+  let q = supabase.from(source).select("*");
   if (departmentKey) q = q.eq("department_key", departmentKey);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
@@ -91,8 +104,10 @@ export interface DepartmentCount {
   open: number;
 }
 
-export async function getDepartmentCounts(): Promise<DepartmentCount[]> {
-  const rows = await getQueue();
+export async function getDepartmentCounts(
+  scope: "mine" | "all" = "mine",
+): Promise<DepartmentCount[]> {
+  const rows = await getQueue(undefined, scope);
   const map = new Map<string, DepartmentCount>();
   for (const r of rows) {
     if (!r.department_key) continue;

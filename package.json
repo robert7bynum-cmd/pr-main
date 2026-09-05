@@ -27,7 +27,8 @@
     "triage:run": "tsx --env-file=.env.local scripts/run-triage.mts",
     "test:matcher": "tsx --env-file=.env.local scripts/test-sql-matcher.mts",
     "test:placards": "tsx --env-file=.env.local scripts/test-placards.mts",
-    "test:staff": "tsx scripts/test-staff-admin.mts"
+    "test:staff": "tsx scripts/test-staff-admin.mts",
+    "test:queue": "tsx scripts/test-my-queue.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

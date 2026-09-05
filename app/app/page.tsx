@@ -11,9 +11,9 @@ export const metadata = { title: "Queue — ProResponse" };
 export default async function StaffQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ dept?: string; station?: string }>;
+  searchParams: Promise<{ dept?: string; station?: string; scope?: string }>;
 }) {
-  const { dept, station } = await searchParams;
+  const { dept, station, scope } = await searchParams;
 
   // No profile means either not signed in, or signed in with an address the
   // club never invited. Both land on the sign-in page; neither is told which,
@@ -21,9 +21,14 @@ export default async function StaffQueuePage({
   const me = await getMe();
   if (!me) redirect("/login");
 
+  // Management can widen to the whole course; for everyone else the two views
+  // return the same rows, so the toggle is only shown where it means something.
+  const isManagement = ["manager", "owner"].includes(me.role);
+  const view: "mine" | "all" = scope === "all" ? "all" : "mine";
+
   const [rows, departments] = await Promise.all([
-    getQueue(dept),
-    getDepartmentCounts(),
+    getQueue(dept, view),
+    getDepartmentCounts(view),
   ]);
 
   const overdue = rows.filter((r) => r.ack_overdue).length;
@@ -53,12 +58,22 @@ export default async function StaffQueuePage({
 
           {/* Department filter. Staff see their own departments in the real
               build; showing all of them is a demo affordance. */}
-          <nav className="mt-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-            <FilterChip href="/app" label="All" count={null} active={!dept} />
+          {isManagement && (
+            <div className="mt-3 flex gap-2">
+              <FilterChip href="/app" label="My departments" count={null} active={view === "mine"} />
+              <FilterChip href="/app?scope=all" label="Whole course" count={null} active={view === "all"} />
+            </div>
+          )}
+
+          <nav className="mt-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            <FilterChip
+              href={view === "all" ? "/app?scope=all" : "/app"}
+              label="All" count={null} active={!dept}
+            />
             {departments.map((d) => (
               <FilterChip
                 key={d.key}
-                href={`/app?dept=${d.key}`}
+                href={`/app?dept=${d.key}${view === "all" ? "&scope=all" : ""}`}
                 label={d.name}
                 count={d.open}
                 active={dept === d.key}
@@ -73,7 +88,9 @@ export default async function StaffQueuePage({
 
         {rows.length === 0 ? (
           <p className="rounded-2xl border border-line bg-surface-raised px-5 py-10 text-center text-[15px] text-ink-muted">
-            Nothing open here. The course is quiet.
+            {view === "mine" && !isManagement
+              ? "Nothing for your team right now."
+              : "Nothing open here. The course is quiet."}
           </p>
         ) : (
           <div className="space-y-2.5">

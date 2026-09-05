@@ -10,7 +10,16 @@ import type { ScanContext } from "@/lib/scan/context";
  * Everything optional stays collapsed behind a single disclosure, because the
  * design constraint is a member standing on a tee box with a group waiting.
  */
-export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) {
+export function ReportForm({
+  ctx,
+  token,
+  nonce,
+}: {
+  ctx: ScanContext;
+  token: string;
+  /** Null when the placard is flood-limited; submit reports the real reason. */
+  nonce: string | null;
+}) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showOptional, setShowOptional] = useState(false);
@@ -43,7 +52,7 @@ export function ReportForm({ ctx, token }: { ctx: ScanContext; token: string }) 
     <form
       action={(fd) => {
         fd.set("token", token);
-        fd.set("nonce", ctx.nonce);
+        fd.set("nonce", nonce ?? "");
         startTransition(async () => setResult(await submitReport(fd)));
       }}
       className="space-y-5"

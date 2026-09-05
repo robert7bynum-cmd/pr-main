@@ -10,8 +10,6 @@ import "server-only";
  * serving fake club data to a real member.
  */
 export interface ScanContext {
-  /** Single-use token for this scan; submitting consumes it. */
-  nonce: string;
   courseId: string;
   courseName: string;
   courseSlug: string;
@@ -52,7 +50,6 @@ function fallback(token: string): ScanContext | null {
   }
 
   return {
-    nonce: "dev-nonce",
     courseId: "demo",
     courseName: "Beacon Hill Golf Club",
     courseSlug: "beacon-hill",
@@ -69,18 +66,14 @@ export async function getScanContext(token: string): Promise<ScanContext | null>
 
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const [{ data, error }, { data: nonce, error: nonceError }] = await Promise.all([
-    supabase.rpc("get_scan_context", { p_token: token }),
-    supabase.rpc("issue_scan_nonce", { p_token: token }),
-  ]);
+  const { data, error } = await supabase.rpc("get_scan_context", { p_token: token });
 
-  if (error || !data?.length || nonceError || !nonce) return null;
+  if (error || !data?.length) return null;
 
   const row = data[0];
   const branding = (row.settings?.branding ?? {}) as Partial<Branding>;
 
   return {
-    nonce: nonce as string,
     courseId: row.course_id,
     courseName: row.course_name,
     courseSlug: row.course_slug,
@@ -89,4 +82,24 @@ export async function getScanContext(token: string): Promise<ScanContext | null>
     holeNumber: row.hole_number,
     branding: { ...DEFAULT_BRANDING, ...branding },
   };
+}
+
+/**
+ * Mint a scan nonce. Split out from getScanContext because the context is read
+ * once per page load but Next.js renders generateMetadata and the page as two
+ * separate invocations — when minting lived inside the lookup, every page load
+ * burned two nonces and halved the per-placard flood budget. The paired,
+ * never-consumed rows in scan_nonces are the fingerprint of that bug.
+ *
+ * Returns null rather than throwing when the placard is flood-limited: the
+ * member should still get the form, type their report, and hear a real reason
+ * at submit — not a 404 that makes a working placard look broken.
+ */
+export async function issueScanNonce(token: string): Promise<string | null> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return "dev-nonce";
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("issue_scan_nonce", { p_token: token });
+  if (error || !data) return null;
+  return data as string;
 }

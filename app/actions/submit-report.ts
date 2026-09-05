@@ -38,16 +38,44 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
 
-  const { error } = await supabase.rpc("submit_report", {
-    p_token: token,
-    p_nonce: nonce,
-    p_body: body,
-    p_name: name || null,
-    p_phone: phone || null,
-    p_email: email || null,
-    p_member_no: memberNo || null,
-    p_language: "en",
-  });
+  const send = (n: string) =>
+    supabase.rpc("submit_report", {
+      p_token: token,
+      p_nonce: n,
+      p_body: body,
+      p_name: name || null,
+      p_phone: phone || null,
+      p_email: email || null,
+      p_member_no: memberNo || null,
+      p_language: "en",
+    });
+
+  let { error } = await send(nonce);
+
+  // A nonce goes stale after two hours and is consumed on first use. A phone
+  // that slept with the form open, a bfcache restore, or a second tap on send
+  // therefore arrives holding a dead nonce — and the member loses everything
+  // they typed to a message telling them to go scan the placard again.
+  //
+  // That is the wrong trade. The nonce exists to stop someone scripting the
+  // endpoint off a photographed placard, and the control that actually does
+  // that work is the per-placard rate limit inside issue_scan_nonce. Minting a
+  // fresh nonce here runs that same limiter and the same active-placard check,
+  // so re-issuing once costs nothing in safety and turns a lost report into a
+  // filed one. Exactly one retry: if the fresh nonce fails too, the cause is
+  // not staleness and the real error belongs in front of the member.
+  if (error && isStaleNonce(error.message)) {
+    const { data: fresh, error: mintError } = await supabase.rpc("issue_scan_nonce", {
+      p_token: token,
+    });
+    if (mintError || !fresh) {
+      return {
+        ok: false,
+        error: mintError?.message || "Something went wrong. Please try again.",
+      };
+    }
+    ({ error } = await send(fresh as string));
+  }
 
   if (error) {
     // The RPC raises friendly messages for the cases a member can cause
@@ -56,4 +84,14 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
   }
 
   return { ok: true };
+}
+
+/**
+ * Matches the message submit_report raises when the nonce is missing, already
+ * consumed, or older than two hours. Matching on text is brittle, so the RPC
+ * and this string are changed together — the test in scripts/test-nonce.mts
+ * fails if they drift apart.
+ */
+function isStaleNonce(message: string | undefined): boolean {
+  return Boolean(message && message.includes("This form has expired"));
 }

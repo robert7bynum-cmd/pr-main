@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getScanContext } from "@/lib/scan/context";
+import { getScanContext, issueScanNonce } from "@/lib/scan/context";
 import { ReportForm } from "@/components/reporter/report-form";
 import { brandStyle } from "@/lib/branding";
 
@@ -27,6 +27,11 @@ export default async function ReporterPage({
   // filed against the wrong hole is worse than one never filed.
   if (!ctx) notFound();
 
+  // Minted here and only here. generateMetadata above deliberately does not
+  // mint: it runs as a separate invocation, and minting in both was doubling
+  // every placard's nonce consumption.
+  const nonce = await issueScanNonce(token);
+
   return (
     <main className="min-h-dvh bg-surface-raised text-ink antialiased" style={brandStyle(ctx.branding)}>
       <div className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6">
@@ -48,7 +53,7 @@ export default async function ReporterPage({
         </header>
 
         <div className="flex-1 pb-10">
-          <ReportForm ctx={ctx} token={token} />
+          <ReportForm ctx={ctx} token={token} nonce={nonce} />
         </div>
 
         <footer className="border-t border-line py-5">

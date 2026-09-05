@@ -118,5 +118,49 @@ check("a staff member cannot edit rules", await throws(
   `select update_routing_rules($1::jsonb)`,
   [JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 15, resolve_sla_minutes: 60 }])]));
 
+/**
+ * Deactivating has to end access, not merely mark it.
+ *
+ * It used to flip a flag. Every guard reads that flag, so the person could do
+ * nothing — but the session they were already holding stayed valid for up to an
+ * hour, and in that window they could still READ the club's reports. Their
+ * phone also kept its push subscription. A departed employee reading the
+ * course's traffic on the way out is not something anyone would think to check.
+ */
+console.log("\n8. deactivating ends the session and the pages");
+{
+  const victim = (await one<{ id: string }>(
+    `select id from profiles where role = 'staff' and active limit 1`))!.id;
+  await db.query(`insert into auth.sessions (user_id) values ($1)`, [victim]);
+  await db.query(
+    `insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+     values ($1, 'https://example.test/offboard', 'p', 'a')`, [victim]);
+
+  await act(manager);
+  await db.query(`select set_staff_active($1, false)`, [victim]);
+
+  const sessions = await one<{ n: number }>(
+    `select count(*)::int n from auth.sessions where user_id = $1`, [victim]);
+  check("their session is gone, not left to expire", (sessions?.n ?? -1) === 0, `${sessions?.n}`);
+
+  const devices = await one<{ n: number }>(
+    `select count(*)::int n from push_subscriptions where profile_id = $1`, [victim]);
+  check("their devices stop being paged", (devices?.n ?? -1) === 0, `${devices?.n}`);
+
+  const ev = await one<{ detail: Record<string, unknown> }>(
+    `select detail from admin_events
+      where subject_id = $1 and type = 'staff_deactivated'
+      order by created_at desc limit 1`, [victim]);
+  check("and the record says what was revoked",
+    Number(ev?.detail?.sessions_ended ?? -1) === 1 && Number(ev?.detail?.devices_removed ?? -1) === 1,
+    JSON.stringify(ev?.detail ?? {}));
+
+  // Reactivating must not resurrect a session somebody already lost.
+  await db.query(`select set_staff_active($1, true)`, [victim]);
+  const after = await one<{ n: number }>(
+    `select count(*)::int n from auth.sessions where user_id = $1`, [victim]);
+  check("reactivating does not hand the old session back", (after?.n ?? -1) === 0, `${after?.n}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

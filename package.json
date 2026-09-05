@@ -42,9 +42,10 @@
     "test:e2e": "tsx scripts/test-e2e-journey.mts",
     "test:authz": "tsx scripts/test-authz.mts",
     "verify:offline": "npm run test:conformance && npm run test:routing && npm run test:actions && npm run test:grants && npm run test:alerts && npm run test:watchdog && npm run test:nonce && npm run test:queue && npm run test:staff && npm run test:escalation && npm run test:escalation-sim && npm run test:placard-origin",
-    "verify:live": "npm run test:rls && npm run test:matcher && npm run test:placards && npm run test:accounts && npm run test:authz && npm run test:reconciliation && npm run test:e2e && npm run test:realtime",
+    "verify:live": "npm run test:rls && npm run test:matcher && npm run test:placards && npm run test:accounts && npm run test:authz && npm run test:reconciliation && npm run test:e2e && npm run test:realtime && npm run test:account-guards",
     "verify": "npm run verify:offline && npm run verify:live",
-    "test:placard-origin": "tsx scripts/test-placard-origin.mts"
+    "test:placard-origin": "tsx scripts/test-placard-origin.mts",
+    "test:account-guards": "tsx scripts/test-account-guards.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

@@ -30,6 +30,19 @@ create table auth.users (
   updated_at                 timestamptz default now()
 );
 
+-- GoTrue's session tables, minimally. set_staff_active deletes from these to
+-- end a departed employee's session rather than waiting out their token, and
+-- without them here the offline suite would skip the very line that does it.
+-- Only the columns that code touches.
+create table if not exists auth.sessions (
+  id      uuid primary key default gen_random_uuid(),
+  user_id uuid not null
+);
+create table if not exists auth.refresh_tokens (
+  id      bigserial primary key,
+  user_id text not null
+);
+
 -- Impersonation for tests: auth.uid() reads a session setting so a suite can
 -- act as a specific staff member and exercise the privilege guards, which is
 -- the only way to test them at all.

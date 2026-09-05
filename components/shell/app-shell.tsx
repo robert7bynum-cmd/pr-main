@@ -96,8 +96,8 @@ export function AppShell({ user, children }: { user: ShellUser; children: React.
                     <p className="mt-0.5 text-[12px] capitalize text-ink-muted">{user.role}</p>
                   </div>
                   <div className="my-1.5 border-t border-line" />
-                  <a href="/account/password" className="block px-4 py-2.5 text-[14px] text-ink-secondary hover:bg-surface-sunken">
-                    Change password
+                  <a href="/account" className="block px-4 py-2.5 text-[14px] text-ink-secondary hover:bg-surface-sunken">
+                    Your account
                   </a>
                   <form action={signOut}>
                     <button className="w-full px-4 py-2.5 text-left text-[14px] text-ink-secondary hover:bg-surface-sunken">

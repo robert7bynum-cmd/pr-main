@@ -11,6 +11,9 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
   const showDemo = await demoEnabled();
+  // Visible while one-click sign-in is live on a public deployment. A build
+  // check alone is forgettable; a banner on the page people actually open is not.
+  const demoOnProd = showDemo && process.env.VERCEL_ENV === "production";
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface-app px-6">
@@ -30,6 +33,13 @@ export default async function LoginPage({
         <div className="mt-6">
           <LoginForm />
         </div>
+        {demoOnProd && (
+          <p className="mt-6 rounded-control border border-line bg-surface-sunken px-4 py-3
+                        text-[12px] leading-relaxed text-ink-secondary">
+            Demo mode: anyone with this link can sign in as staff. Fine for a
+            demonstration, not for a club&apos;s real reports.
+          </p>
+        )}
         {showDemo && <DemoSignIn />}
       </div>
     </main>

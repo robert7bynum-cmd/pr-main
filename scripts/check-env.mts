@@ -110,13 +110,28 @@ if (anon && service && anon === service) {
 /**
  * The demo personas are one click into a supervisor's queue with no password.
  * Correct on a preview, catastrophic on a real club's production deployment.
+ *
+ * This blocked the deploy of a demo that needed exactly that, which is the
+ * failure mode of an absolute rule: it gets deleted rather than respected. So
+ * it is now an explicit opt-in — deliberate enough that nobody sets it by
+ * accident, and the running app shows a banner while it is on, so it cannot be
+ * quietly forgotten before a club has real data in there.
  */
+const demoAck = present("DEMO_SIGNIN_ACK");
 if (present("DEMO_SIGNIN") === "true" && env === "production") {
-  problems.push(
-    "DEMO_SIGNIN=true in the production environment. The one-click demo personas " +
-      "would let anyone who reaches the login page sign in as staff. Set it on " +
-      "Preview only.",
-  );
+  if (demoAck !== "demo-deployment-no-real-club-data") {
+    problems.push(
+      "DEMO_SIGNIN=true in the production environment. Anyone reaching the login " +
+        "page could sign in as staff. If this deployment is a demo with no real " +
+        "club data, set DEMO_SIGNIN_ACK=demo-deployment-no-real-club-data to " +
+        "acknowledge it. Remove both before a club uses this for real.",
+    );
+  } else {
+    warnings.push(
+      "DEMO_SIGNIN is on in production, acknowledged. Anyone with the URL can " +
+        "sign in as staff. Remove it before a club has real data here.",
+    );
+  }
 }
 
 const url = present("NEXT_PUBLIC_SUPABASE_URL");

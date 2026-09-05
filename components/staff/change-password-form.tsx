@@ -21,7 +21,7 @@ export function ChangePasswordForm() {
           else router.push("/app");
         });
       }}
-      className="space-y-3"
+      className="space-y-3.5"
     >
       <input
         type="password"
@@ -31,18 +31,19 @@ export function ChangePasswordForm() {
         value={pw}
         onChange={(e) => setPw(e.target.value)}
         placeholder="New password"
-        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5
-                   text-[16px] outline-none focus:border-line-strong"
+        className="w-full rounded-control border border-line bg-surface-raised px-4 py-4
+                   text-[16px] shadow-inset outline-none placeholder:text-ink-subtle
+                   focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
       />
       {error && <p className="text-[13px] text-urgent">{error}</p>}
       <button
         disabled={pending || pw.length < 10}
-        className="w-full rounded-xl bg-ink px-4 py-3.5 text-[16px] font-medium
-                   text-surface disabled:opacity-40"
+        className="w-full rounded-control bg-accent-strong px-4 py-4 text-[16px] font-medium
+                   text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
       >
         {pending ? "Saving…" : "Save and continue"}
       </button>
-      <p className="text-center text-[12px] text-ink-muted">At least 10 characters.</p>
+      <p className="pt-1 text-center text-[12px] text-ink-muted">At least 10 characters.</p>
     </form>
   );
 }

@@ -19,7 +19,7 @@ export function InviteForm({ departments, canInviteOwner }: {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-control bg-ink px-4 py-2.5 text-[14px] font-medium text-surface"
+        className="rounded-control bg-accent-strong px-5 py-3 text-[14px] font-medium text-ink-on-accent shadow-card transition"
       >
         Add someone
       </button>
@@ -27,41 +27,45 @@ export function InviteForm({ departments, canInviteOwner }: {
   }
 
   return (
-    <div className="rounded-card border border-line bg-surface-raised px-4 py-4">
-      <div className="grid gap-2.5 sm:grid-cols-2">
+    <div className="rounded-card border border-line bg-surface-raised px-5 py-5 shadow-card">
+      <div className="grid gap-3 sm:grid-cols-2">
         <input
           autoFocus value={name} onChange={(e) => setName(e.target.value)}
           placeholder="Full name"
-          className="rounded-control border border-line px-3 py-2.5 text-[15px] outline-none focus:border-line-strong"
+          className="rounded-control border border-line bg-surface px-4 py-3 text-[15px] shadow-inset outline-none placeholder:text-ink-subtle focus:border-accent-border"
         />
         <input
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
           placeholder="Email they'll sign in with"
-          className="rounded-control border border-line px-3 py-2.5 text-[15px] outline-none focus:border-line-strong"
+          className="rounded-control border border-line bg-surface px-4 py-3 text-[15px] shadow-inset outline-none placeholder:text-ink-subtle focus:border-accent-border"
         />
       </div>
 
-      <div className="mt-3">
-        <label className="text-[12px] text-ink-muted">Role</label>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className="mt-5">
+        <label className="text-[12px] font-medium uppercase tracking-[0.1em] text-ink-subtle">Role</label>
+        <div className="mt-2 flex flex-wrap gap-2">
           {["staff", "supervisor", "manager", ...(canInviteOwner ? ["owner"] : [])].map((r) => (
             <button key={r} onClick={() => setRole(r)}
-              className={`rounded-pill border px-3 py-1.5 text-[12px] ${
-                role === r ? "border-ink bg-ink text-surface" : "border-line text-ink-secondary"}`}>
+              className={`rounded-pill border px-3.5 py-2 text-[12px] font-medium capitalize transition ${
+                role === r
+                  ? "border-accent-strong bg-accent-strong text-ink-on-accent shadow-card"
+                  : "border-line bg-surface text-ink-secondary hover:border-accent-border"}`}>
               {r}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-3">
-        <label className="text-[12px] text-ink-muted">Departments</label>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className="mt-5">
+        <label className="text-[12px] font-medium uppercase tracking-[0.1em] text-ink-subtle">Departments</label>
+        <div className="mt-2 flex flex-wrap gap-2">
           {departments.map((d) => (
             <button key={d.id}
               onClick={() => setDepts((s) => s.includes(d.id) ? s.filter((x) => x !== d.id) : [...s, d.id])}
-              className={`rounded-pill border px-3 py-1.5 text-[12px] ${
-                depts.includes(d.id) ? "border-ink bg-ink text-surface" : "border-line text-ink-secondary"}`}>
+              className={`rounded-pill border px-3.5 py-2 text-[12px] font-medium transition ${
+                depts.includes(d.id)
+                  ? "border-accent-strong bg-accent-strong text-ink-on-accent shadow-card"
+                  : "border-line bg-surface text-ink-secondary hover:border-accent-border"}`}>
               {d.name}
             </button>
           ))}
@@ -69,13 +73,15 @@ export function InviteForm({ departments, canInviteOwner }: {
       </div>
 
       {result && (
-        <p className={`mt-3 rounded-control px-3 py-2 text-[13px] ${
-          result.ok ? "bg-surface-sunken text-ink-secondary" : "bg-urgent-surface text-urgent"}`}>
+        <p className={`mt-5 rounded-control border px-4 py-3 text-[13px] leading-relaxed ${
+          result.ok
+            ? "border-tone-dept-border bg-tone-dept-fill text-tone-dept-ink"
+            : "border-urgent-border bg-urgent-surface text-urgent"}`}>
           {result.text}
         </p>
       )}
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-6 flex gap-2.5">
         <button
           disabled={pending || !email || !name}
           onClick={() => start(async () => {
@@ -90,12 +96,12 @@ export function InviteForm({ departments, canInviteOwner }: {
             });
             if (res.ok) { setEmail(""); setName(""); setDepts([]); }
           })}
-          className="rounded-control bg-ink px-4 py-2.5 text-[14px] font-medium text-surface disabled:opacity-40"
+          className="rounded-control bg-accent-strong px-5 py-3 text-[14px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
         >
           {pending ? "Inviting…" : "Send invite"}
         </button>
         <button onClick={() => { setOpen(false); setResult(null); }}
-          className="rounded-control border border-line px-4 py-2.5 text-[14px] text-ink-secondary">
+          className="rounded-control border border-line bg-surface px-5 py-3 text-[14px] text-ink-secondary transition hover:border-line-strong">
           Done
         </button>
       </div>

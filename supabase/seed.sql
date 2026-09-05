@@ -49,7 +49,12 @@ values (
   'Beacon Hill Golf Club',
   'America/New_York',
   true,
-  '{"branding":{"primary":"#E2AF47","ink":"#111111","surface":"#FFFFFF","logo_url":null},"quiet_hours":{"start":"20:00","end":"06:00"}}'::jsonb,
+  -- No colour overrides. The palette lives in app/globals.css, and a club row
+  -- that restates it means two files have to agree about what the product looks
+  -- like — which is exactly how the member-facing pages carried on rendering the
+  -- old provisional gold after the redesign landed everywhere else. A branding
+  -- row is for a club that genuinely differs, not for repeating the default.
+  '{"branding":{"logo_url":null},"quiet_hours":{"start":"20:00","end":"06:00"}}'::jsonb,
   now() - interval '400 days'
 )
 on conflict (id) do nothing;

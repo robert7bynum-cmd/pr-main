@@ -16,17 +16,18 @@ export default async function LoginPage({
   const demoOnProd = showDemo && process.env.VERCEL_ENV === "production";
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-surface-app px-6">
-      <div className="w-full max-w-[24rem]">
+    <main className="app-ground flex min-h-dvh items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[25rem] rounded-card border border-line bg-surface-raised px-7 py-9 shadow-pop">
         <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">ProResponse</p>
-        <h1 className="mt-4 text-[1.7rem] font-semibold leading-tight tracking-tight">
+        <h1 className="mt-4 font-display text-[1.9rem] leading-tight tracking-tight">
           Sign in
         </h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">
+        <div className="mt-4 h-0.5 w-8 rounded-pill bg-accent" />
+        <p className="mt-5 text-[15px] leading-relaxed text-ink-secondary">
           Use the email and password your club set up for you.
         </p>
         {error && (
-          <p className="mt-4 rounded-lg bg-urgent-surface px-4 py-3 text-[14px] text-urgent">
+          <p className="mt-5 rounded-control border border-urgent-border bg-urgent-surface px-4 py-3.5 text-[14px] text-urgent">
             Please sign in again.
           </p>
         )}
@@ -34,8 +35,8 @@ export default async function LoginPage({
           <LoginForm />
         </div>
         {demoOnProd && (
-          <p className="mt-6 rounded-control border border-line bg-surface-sunken px-4 py-3
-                        text-[12px] leading-relaxed text-ink-secondary">
+          <p className="mt-7 rounded-control border border-tone-high-border bg-tone-high-fill px-4 py-3.5
+                        text-[12px] leading-relaxed text-tone-high-ink">
             Demo mode: anyone with this link can sign in as staff. Fine for a
             demonstration, not for a club&apos;s real reports.
           </p>

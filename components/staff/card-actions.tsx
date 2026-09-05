@@ -39,7 +39,7 @@ export function CardActions({
 
   if (mode === "resolve") {
     return (
-      <div className="mt-4 space-y-3 border-t border-line pt-4">
+      <div className="mt-5 space-y-4 border-t border-line pt-5">
         <div>
           <label className="text-[13px] font-medium text-ink-secondary">
             What did you do?
@@ -50,8 +50,9 @@ export function CardActions({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Swapped the valve, tested twice"
-            className="mt-1.5 w-full resize-none rounded-lg border border-line px-3 py-2.5
-                       text-[16px] outline-none focus:border-line-strong"
+            className="mt-2 w-full resize-none rounded-control border border-line bg-surface px-3.5 py-3
+                       text-[16px] shadow-inset outline-none placeholder:text-ink-subtle
+                       focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
           />
           <p className="mt-1 text-[11px] text-ink-subtle">
             Internal record. Nothing is sent to the member.
@@ -64,13 +65,13 @@ export function CardActions({
           <button
             disabled={pending}
             onClick={() => run(() => resolveAction(reportId, note))}
-            className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
+            className="flex-1 rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
             {pending ? "Saving…" : "Mark resolved"}
           </button>
           <button
             onClick={() => setMode("idle")}
-            className="rounded-xl border border-line px-4 py-3.5 text-[15px] text-ink-secondary"
+            className="rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"
           >
             Cancel
           </button>
@@ -81,7 +82,7 @@ export function CardActions({
 
   if (mode === "schedule") {
     return (
-      <div className="mt-4 space-y-3 border-t border-line pt-4">
+      <div className="mt-5 space-y-4 border-t border-line pt-5">
         <label className="text-[13px] font-medium text-ink-secondary">
           When will this be handled?
         </label>
@@ -89,20 +90,20 @@ export function CardActions({
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="w-full rounded-lg border border-line px-3 py-2.5 text-[16px]"
+          className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px] shadow-inset outline-none focus:border-accent-border"
         />
         {error && <p className="text-[13px] text-urgent">{error}</p>}
         <div className="flex gap-2">
           <button
             disabled={pending}
             onClick={() => run(() => scheduleAction(reportId, date))}
-            className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
+            className="flex-1 rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
             {pending ? "Saving…" : "Schedule"}
           </button>
           <button
             onClick={() => setMode("idle")}
-            className="rounded-xl border border-line px-4 py-3.5 text-[15px] text-ink-secondary"
+            className="rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"
           >
             Cancel
           </button>
@@ -112,32 +113,35 @@ export function CardActions({
   }
 
   return (
-    <div className="mt-4 border-t border-line pt-3">
+    <div className="mt-5 border-t border-line pt-4">
       {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
-      <div className="flex gap-2">
+      {/* Claiming gets its own full-width row rather than a third of one.
+          Three buttons across a 375px card wrapped "I've got this" onto two
+          lines, which made the one-tap action look like the fiddly one. */}
+      <div className="space-y-2">
         {!claimed && (
           <button
             disabled={pending}
             onClick={() => run(() => acknowledgeAction(reportId))}
-            className="flex-1 rounded-xl bg-ink px-4 py-3.5 text-[15px] font-medium text-surface disabled:opacity-40"
+            className="w-full rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
             {pending ? "…" : "I've got this"}
           </button>
         )}
-        <button
-          onClick={() => setMode("resolve")}
-          className={`rounded-xl border border-line px-4 py-3.5 text-[15px] font-medium text-ink-secondary ${
-            claimed ? "flex-1" : ""
-          }`}
-        >
-          Resolve
-        </button>
-        <button
-          onClick={() => setMode("schedule")}
-          className="rounded-xl border border-line px-4 py-3.5 text-[15px] text-ink-secondary"
-        >
-          Later
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode("resolve")}
+            className="flex-1 rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] font-medium text-ink-secondary transition hover:border-line-strong"
+          >
+            Resolve
+          </button>
+          <button
+            onClick={() => setMode("schedule")}
+            className="flex-1 rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"
+          >
+            Later
+          </button>
+        </div>
       </div>
     </div>
   );

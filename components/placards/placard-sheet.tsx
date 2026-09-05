@@ -33,6 +33,10 @@ export async function PlacardSheet({ set }: { set: PlacardSet }) {
         // High error correction: a scratched or partly obscured sign on a tee
         // box still scans, which is the whole point of putting it outdoors.
         errorCorrectionLevel: "H",
+        // The one literal colour in the app, and deliberately not a token:
+        // this is scanner ink on a printed sign, not a theme decision. A
+        // rebranded QR module colour is a QR code that stops scanning, and
+        // qrcode needs a concrete hex here rather than a custom property.
         color: { dark: "#111111", light: "#00000000" },
       }),
     })),
@@ -43,7 +47,12 @@ export async function PlacardSheet({ set }: { set: PlacardSet }) {
       {codes.map((p) => (
         <article key={p.token} className="placard">
           <p className="club">{set.courseName}</p>
-          <div className="rule" style={{ backgroundColor: set.branding.primary }} />
+          {/* The club's own accent when it has set one, otherwise the token —
+              never a literal, so a rebrand does not need a code change. */}
+          <div
+            className="rule"
+            style={{ backgroundColor: set.branding.primary ?? "var(--accent)" }}
+          />
 
           <h2 className="where">
             {p.holeNumber ? `Hole ${p.holeNumber}` : p.locationName}

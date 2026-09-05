@@ -4,19 +4,28 @@
    Design tokens
    ---------------------------------------------------------------------------
 
-   PROVISIONAL — colour, type and spacing are placeholders pending real design
-   decisions. They were derived from Beacon Hill's website (gold #E2AF47 on
-   white) plus neutral greys, not from a chosen system.
+   BEACON HILL PALETTE — chosen, not provisional. Four colours picked by the
+   club: moss #6c844c, cream #f9e6bf, sage #9caca7, dark olive #5f5933. They are
+   a family, not four slots: almost everything below is a mix of them, so a
+   badge can be cream-filled with a moss border and olive text and still be
+   "one" colour decision. Two extra primitives only give the family somewhere
+   to go: bark, the deepest olive-brown, for ink and shadow; and white, for
+   tints. A signal red and a brass sit outside the family on purpose; see
+   "status" below.
+
+   Still overridable per club. Nothing here is Beacon-Hill-specific except the
+   values: lib/branding.ts writes a course's own accent, ink and surface over
+   the semantic tokens at runtime and every derived tint follows, because the
+   derivations mix against those tokens rather than against fixed hexes.
 
    Changing them should be a one-file job: every component references the
    SEMANTIC tokens below and nothing hardcodes a colour. If a redesign ever
    requires editing components, something has leaked out of this file and the
    leak is the bug.
 
-   Still to decide: typeface (currently the system stack — the club's own
-   area-extended/astoria are Adobe Fonts and need licensing), dark mode (none
-   yet, deliberately: the staff app is used outdoors in daylight), and a
-   validated categorical chart palette (only a single-series hue exists today).
+   Still to decide: dark mode (none yet, deliberately: the staff app is used
+   outdoors in daylight) and a validated categorical chart palette (only a
+   single-series hue exists today).
    ---------------------------------------------------------------------------
    Two layers, deliberately:
 
@@ -34,57 +43,156 @@
 
 :root {
   /* --- primitives ------------------------------------------------------- */
+  /* The club's four. */
+  --c-moss:       #6c844c;
+  --c-cream:      #f9e6bf;
+  --c-sage:       #9caca7;
+  --c-olive:      #5f5933;
+
+  /* Ends of the same family, so tints and shades stay warm. Mixing toward a
+     pure #000 is what made every earlier attempt look grey and cold. */
+  --c-bark:       #3a3520;
   --c-white:      #ffffff;
-  --c-black:      #111111;
-  --c-stone-50:   #f6f6f5;
-  --c-stone-100:  #efefee;
-  --c-gold:       #e2af47;
-  --c-red-600:    #dc2626;
-  --c-red-50:     #fef2f2;
-  --c-amber-500:  #f59e0b;
-  --c-slate-600:  #4b5563;
-  --c-slate-800:  #1f2937;
+
+  /* Deliberately outside the family. A status colour that harmonises with the
+     brand is a status colour nobody sees on a tee box at midday. */
+  --c-alarm:      #b8241a;
+  --c-brass:      #96600f;
 
   /* --- semantic: surfaces ----------------------------------------------- */
-  /* Member-facing pages sit on white; staff tools sit on stone so the two are
-     distinguishable at a glance. */
-  --surface:            var(--c-white);
-  --surface-app:        var(--c-stone-50);
-  --surface-raised:     var(--c-white);
-  --surface-sunken:     color-mix(in srgb, var(--c-black) 3%, transparent);
+  /* Warm paper, not white. Member-facing pages sit on the palest cream; staff
+     tools sit on a deeper one so the two are distinguishable at a glance, and
+     cards lift back toward white so a queue reads as objects on a surface
+     rather than lines on a page. */
+  --surface:            color-mix(in srgb, var(--c-cream) 20%, var(--c-white));
+  --surface-app:        color-mix(in srgb, var(--c-cream) 45%, var(--c-white));
+  /* Mixed from --surface rather than from cream, so a card always lifts
+     *relative to whatever ground the club chose* instead of landing on a fixed
+     value that could sit darker than it. */
+  --surface-raised:     color-mix(in srgb, var(--c-white) 60%, var(--surface));
+  --surface-sunken:     color-mix(in srgb, var(--ink) 6%, transparent);
+
+  /* A single very low-contrast wash behind the staff app. One flat fill edge
+     to edge is most of what "flat" actually means. */
+  --surface-app-wash:
+    radial-gradient(125% 55% at 50% 0%,
+      color-mix(in srgb, var(--c-cream) 60%, transparent) 0%,
+      transparent 72%);
 
   /* --- semantic: ink ---------------------------------------------------- */
-  --ink:                var(--c-black);
-  --ink-secondary:      color-mix(in srgb, var(--c-black) 62%, transparent);
-  --ink-muted:          color-mix(in srgb, var(--c-black) 45%, transparent);
-  --ink-subtle:         color-mix(in srgb, var(--c-black) 32%, transparent);
-  --ink-on-accent:      var(--c-black);
+  /* Olive-brown rather than near-black: warmer, and at 12:1 on cream still far
+     past what daylight needs.
+
+     The ramp is mixed from --ink itself, so a club that overrides one ink
+     colour gets a consistent set rather than one dark heading over four stock
+     greys. It is also compressed on purpose — muted and subtle are close
+     together because every one of them has to clear 4.5:1 outdoors. Hierarchy
+     comes from size and weight here, not from fading text out until it
+     disappears in the sun. */
+  --ink:                var(--c-bark);
+  --ink-secondary:      color-mix(in srgb, var(--ink) 84%, var(--surface));
+  --ink-muted:          color-mix(in srgb, var(--ink) 76%, var(--surface));
+  --ink-subtle:         color-mix(in srgb, var(--ink) 70%, var(--surface));
+  --ink-on-accent:      color-mix(in srgb, var(--c-cream) 26%, var(--c-white));
 
   /* --- semantic: lines -------------------------------------------------- */
-  --line:               color-mix(in srgb, var(--c-black) 10%, transparent);
-  --line-strong:        color-mix(in srgb, var(--c-black) 22%, transparent);
+  --line:               color-mix(in srgb, var(--ink) 13%, transparent);
+  --line-strong:        color-mix(in srgb, var(--ink) 28%, transparent);
 
   /* --- semantic: brand -------------------------------------------------- */
-  /* Overridden per club at runtime. Used on member-facing surfaces only —
-     at small sizes on the staff app it fails contrast in daylight. */
-  --accent:             var(--c-gold);
+  /* --accent is overridden per club at runtime. Everything else in the accent
+     family is mixed from it, so a club that sets one hex gets a border, a fill
+     and a text colour that are all still legible.
+     --accent-strong exists because moss at full strength is 4.2:1 on cream —
+     fine as a rule or a fill, not fine as 12px text or under white text. */
+  --accent:             var(--c-moss);
+  --accent-strong:      color-mix(in srgb, var(--accent) 72%, var(--c-bark));
+  --accent-surface:     color-mix(in srgb, var(--accent) 12%, var(--surface));
+  --accent-border:      color-mix(in srgb, var(--accent) 55%, var(--surface));
 
   /* --- semantic: status ------------------------------------------------- */
   /* Reserved. Never reused as a chart series or decoration. Always paired with
-     a text label, because colour alone is unreadable in direct sun. */
-  --urgent:             var(--c-red-600);
-  --urgent-surface:     var(--c-red-50);
-  --high:               var(--c-amber-500);
-  --neutral-bar:        var(--line-strong);
+     a text label, because colour alone is unreadable in direct sun.
+     Mixed from primitives, never from --accent: a club rebrand must not be
+     able to change what "urgent" looks like. */
+  --urgent:             var(--c-alarm);
+  --urgent-surface:     color-mix(in srgb, var(--c-alarm) 9%, var(--surface));
+  --urgent-border:      color-mix(in srgb, var(--c-alarm) 40%, var(--surface));
+  --on-urgent:          color-mix(in srgb, var(--c-cream) 24%, var(--c-white));
+
+  --high:               var(--c-brass);
+  --high-surface:       color-mix(in srgb, var(--c-brass) 14%, var(--surface));
+
+  --ok:                 color-mix(in srgb, var(--c-moss) 78%, var(--c-bark));
+
+  --neutral-bar:        color-mix(in srgb, var(--c-sage) 78%, var(--c-olive));
+  --quiet-bar:          color-mix(in srgb, var(--c-sage) 55%, var(--surface));
+
+  /* --- semantic: badge tones -------------------------------------------- */
+  /* Each tone is a triple: a tinted fill, a slightly darker border of the same
+     family, and darker text again. A fill with no border is exactly the flat
+     chip this redesign exists to remove — the border is what makes a badge
+     look like an object rather than a highlighted word.
+     Every ink/fill pair below clears 4.5:1. Nothing here means anything
+     without the word inside it. */
+  --tone-urgent-fill:   var(--urgent);
+  --tone-urgent-border: color-mix(in srgb, var(--c-alarm) 52%, var(--c-bark));
+  --tone-urgent-ink:    var(--on-urgent);
+
+  --tone-high-fill:     var(--high-surface);
+  --tone-high-border:   color-mix(in srgb, var(--c-brass) 62%, var(--surface));
+  --tone-high-ink:      color-mix(in srgb, var(--c-brass) 78%, var(--c-bark));
+
+  --tone-normal-fill:   color-mix(in srgb, var(--c-sage) 24%, var(--surface));
+  --tone-normal-border: color-mix(in srgb, var(--c-sage) 55%, var(--c-olive));
+  --tone-normal-ink:    color-mix(in srgb, var(--c-sage) 30%, var(--ink));
+
+  --tone-low-fill:      color-mix(in srgb, var(--c-sage) 11%, var(--surface));
+  --tone-low-border:    color-mix(in srgb, var(--c-sage) 72%, var(--c-olive));
+  --tone-low-ink:       var(--ink-muted);
+
+  /* The club's own description of what it wanted: cream fill, moss border,
+     dark-olive text. The fill stays cream across clubs — it is a paper
+     colour, and it is mixed into --surface so it follows a rebrand anyway —
+     while border and text follow --accent. */
+  --tone-dept-fill:     color-mix(in srgb, var(--c-cream) 55%, var(--surface));
+  --tone-dept-border:   color-mix(in srgb, var(--accent) 80%, var(--surface));
+  --tone-dept-ink:      color-mix(in srgb, var(--accent) 42%, var(--ink-secondary));
+
+  --tone-status-fill:   color-mix(in srgb, var(--ink) 8%, var(--surface));
+  --tone-status-border: color-mix(in srgb, var(--ink) 36%, var(--surface));
+  --tone-status-ink:    var(--ink-secondary);
+
+  --tone-neutral-fill:  transparent;
+  --tone-neutral-border: var(--line-strong);
+  --tone-neutral-ink:   var(--ink-secondary);
+
+  /* --- semantic: scrim -------------------------------------------------- */
+  --scrim:              color-mix(in srgb, var(--c-bark) 42%, transparent);
 
   /* --- semantic: data --------------------------------------------------- */
-  /* One series, so one hue. A categorical palette gets added when something
-     actually needs one — and gets validated before it ships. */
-  --chart-series-1:     var(--c-slate-600);
-  --chart-series-1-hover: var(--c-slate-800);
+  /* One series, so one hue. Mixed from the moss primitive rather than from
+     --accent so a club's branding cannot make its own chart illegible. A
+     categorical palette gets added when something actually needs one — and
+     gets validated before it ships. */
+  --chart-series-1:       color-mix(in srgb, var(--c-moss) 80%, var(--c-bark));
+  --chart-series-1-hover: var(--c-olive);
+
+  /* --- depth ------------------------------------------------------------ */
+  /* Warm shadows. A black shadow over cream reads as dirt; these are bark at
+     low alpha, which is the same trick as painting a shadow with the object's
+     own colour. */
+  --depth-card:
+    0 1px 2px color-mix(in srgb, var(--c-bark) 7%, transparent),
+    0 6px 16px -6px color-mix(in srgb, var(--c-bark) 24%, transparent);
+  --depth-pop:
+    0 2px 4px color-mix(in srgb, var(--c-bark) 8%, transparent),
+    0 16px 34px -12px color-mix(in srgb, var(--c-bark) 34%, transparent);
+  --depth-inset:
+    inset 0 1px 2px color-mix(in srgb, var(--c-bark) 7%, transparent);
 
   /* --- shape ------------------------------------------------------------ */
-  --radius-card:        0.875rem;
+  --radius-card:        1rem;
   --radius-control:     0.75rem;
   --radius-pill:        9999px;
 }
@@ -105,12 +213,53 @@
   --color-line-strong:      var(--line-strong);
 
   --color-accent:           var(--accent);
+  --color-accent-strong:    var(--accent-strong);
+  --color-accent-surface:   var(--accent-surface);
+  --color-accent-border:    var(--accent-border);
+
   --color-urgent:           var(--urgent);
   --color-urgent-surface:   var(--urgent-surface);
+  --color-urgent-border:    var(--urgent-border);
+  --color-on-urgent:        var(--on-urgent);
   --color-high:             var(--high);
+  --color-high-surface:     var(--high-surface);
+  --color-ok:               var(--ok);
+  --color-neutral-bar:      var(--neutral-bar);
+  --color-quiet-bar:        var(--quiet-bar);
+
+  --color-tone-urgent-fill:    var(--tone-urgent-fill);
+  --color-tone-urgent-border:  var(--tone-urgent-border);
+  --color-tone-urgent-ink:     var(--tone-urgent-ink);
+  --color-tone-high-fill:      var(--tone-high-fill);
+  --color-tone-high-border:    var(--tone-high-border);
+  --color-tone-high-ink:       var(--tone-high-ink);
+  --color-tone-normal-fill:    var(--tone-normal-fill);
+  --color-tone-normal-border:  var(--tone-normal-border);
+  --color-tone-normal-ink:     var(--tone-normal-ink);
+  --color-tone-low-fill:       var(--tone-low-fill);
+  --color-tone-low-border:     var(--tone-low-border);
+  --color-tone-low-ink:        var(--tone-low-ink);
+  --color-tone-dept-fill:      var(--tone-dept-fill);
+  --color-tone-dept-border:    var(--tone-dept-border);
+  --color-tone-dept-ink:       var(--tone-dept-ink);
+  --color-tone-status-fill:    var(--tone-status-fill);
+  --color-tone-status-border:  var(--tone-status-border);
+  --color-tone-status-ink:     var(--tone-status-ink);
+  --color-tone-neutral-fill:   var(--tone-neutral-fill);
+  --color-tone-neutral-border: var(--tone-neutral-border);
+  --color-tone-neutral-ink:    var(--tone-neutral-ink);
+
+  --color-scrim:            var(--scrim);
+
+  --shadow-card:            var(--depth-card);
+  --shadow-pop:             var(--depth-pop);
+  --shadow-inset:           var(--depth-inset);
 
   --radius-card:            var(--radius-card);
   --radius-control:         var(--radius-control);
+  /* Was missing, so every `rounded-pill` in the app — the filter chips, the
+     role pickers, the SLA pills — has been rendering as a square corner. */
+  --radius-pill:            var(--radius-pill);
 }
 
 body {
@@ -119,6 +268,26 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Headings carry the clubhouse. The body stack stays a plain system sans
+   because it is read one-handed in sunlight and a serif at 13px outdoors is a
+   worse read, not a warmer one. */
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* The staff app's ground. The wash sits at the top of the document and scrolls
+   with it — deliberately not background-attachment: fixed, which repaints the
+   whole viewport on every scroll frame and is exactly the thing that makes a
+   long queue feel sticky on a mid-range Android. */
+.app-ground {
+  background-color: var(--surface-app);
+  background-image: var(--surface-app-wash);
+  background-repeat: no-repeat;
+  background-size: 100% 22rem;
 }
 
 /* ---------------------------------------------------------------------------
@@ -131,14 +300,15 @@ body {
 .placards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .placard {
   background: var(--surface-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  padding: 1.5rem 1.25rem 1.25rem;
+  box-shadow: var(--depth-card);
+  padding: 1.75rem 1.5rem 1.5rem;
   text-align: center;
   break-inside: avoid;
 }
@@ -152,9 +322,10 @@ body {
 .placard .rule { width: 1.75rem; height: 2px; margin: 0.6rem auto 0; }
 .placard .where {
   margin-top: 0.75rem;
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
   font-size: 1.5rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   line-height: 1;
 }
 .placard .qr { margin: 1rem auto 0.9rem; width: 8.5rem; height: 8.5rem; }
@@ -175,6 +346,7 @@ body {
   .placards { display: block; }
   .placard {
     border: none;
+    box-shadow: none;
     /* One per page: a club reprints a single damaged sign, not a whole sheet. */
     break-after: page;
     padding: 0;

@@ -15,7 +15,7 @@ export function DemoSignIn() {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="mt-8 border-t border-line pt-6">
+    <div className="mt-9 border-t border-line pt-7">
       <p className="text-[11px] uppercase tracking-[0.16em] text-ink-subtle">Demo</p>
       <p className="mt-2 text-[13px] leading-relaxed text-ink-muted">
         Sign in as a Beacon Hill staff member.
@@ -38,13 +38,13 @@ export function DemoSignIn() {
                 }
               });
             }}
-            className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3 text-left
-                       transition hover:border-line-strong disabled:opacity-50"
+            className="w-full rounded-control border border-line bg-surface px-4 py-3.5 text-left
+                       shadow-card transition hover:border-accent-border disabled:opacity-50"
           >
             <span className="block text-[15px] font-medium">
               {busy === p.email && pending ? "Signing in…" : p.name}
             </span>
-            <span className="block text-[12px] text-ink-muted">{p.role}</span>
+            <span className="mt-0.5 block text-[12px] leading-snug text-ink-muted">{p.role}</span>
           </button>
         ))}
       </div>

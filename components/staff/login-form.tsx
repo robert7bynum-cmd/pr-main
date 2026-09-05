@@ -22,7 +22,7 @@ export function LoginForm() {
           else router.push(res.mustChangePassword ? "/account/password" : "/app");
         });
       }}
-      className="space-y-3"
+      className="space-y-3.5"
     >
       <input
         type="email"
@@ -32,8 +32,9 @@ export function LoginForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@club.com"
-        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5
-                   text-[16px] outline-none focus:border-line-strong"
+        className="w-full rounded-control border border-line bg-surface-raised px-4 py-4
+                   text-[16px] shadow-inset outline-none placeholder:text-ink-subtle
+                   focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
       />
       <input
         type="password"
@@ -42,18 +43,19 @@ export function LoginForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
-        className="w-full rounded-xl border border-line bg-surface-raised px-4 py-3.5
-                   text-[16px] outline-none focus:border-line-strong"
+        className="w-full rounded-control border border-line bg-surface-raised px-4 py-4
+                   text-[16px] shadow-inset outline-none placeholder:text-ink-subtle
+                   focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
       />
       {error && <p className="text-[13px] text-urgent">{error}</p>}
       <button
         disabled={pending || !email || !password}
-        className="w-full rounded-xl bg-ink px-4 py-3.5 text-[16px] font-medium
-                   text-surface disabled:opacity-40"
+        className="w-full rounded-control bg-accent-strong px-4 py-4 text-[16px] font-medium
+                   text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
       >
         {pending ? "Signing in…" : "Sign in"}
       </button>
-      <p className="pt-1 text-center text-[12px] text-ink-muted">
+      <p className="pt-2 text-center text-[12px] leading-relaxed text-ink-muted">
         Your club creates your account. Forgotten your password? Ask your manager
         to reset it.
       </p>

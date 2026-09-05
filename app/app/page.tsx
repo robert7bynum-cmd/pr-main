@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getQueue, getDepartmentCounts } from "@/lib/queue/reports";
 import { getMe } from "@/lib/queue/actions-db";
+import { Badge } from "@/components/ui/badge";
 import { QueueCard } from "@/components/staff/queue-card";
 import { QueueLive } from "@/components/staff/queue-live";
 import { PushSetup } from "@/components/staff/push-setup";
@@ -47,11 +48,11 @@ export default async function StaffQueuePage({
 
   return (
     <main>
-      <div className="mx-auto max-w-[34rem] px-4 pb-24">
-        <header className="pt-8 pb-4">
-          <div className="flex items-baseline justify-between">
-            <h1 className="text-[1.35rem] font-semibold tracking-tight">Open reports</h1>
-            <div className="flex flex-col items-end gap-1">
+      <div className="mx-auto max-w-[34rem] px-5 pb-28">
+        <header className="pt-9 pb-5">
+          <div className="flex items-baseline justify-between gap-4">
+            <h1 className="font-display text-[1.6rem] tracking-tight">Open reports</h1>
+            <div className="flex flex-col items-end gap-1.5">
               <span className="text-[13px] tabular-nums text-ink-muted">
                 {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}
               </span>
@@ -71,12 +72,12 @@ export default async function StaffQueuePage({
               already readable by any signed-in staff member and RLS still
               confines it to their own club, so this shows nothing that was not
               already theirs to see. */}
-          <div className="mt-3 flex gap-2">
+          <div className="mt-5 flex gap-2">
             <FilterChip href="/app" label="My departments" count={null} active={view === "mine"} />
             <FilterChip href="/app?scope=all" label="Whole course" count={null} active={view === "all"} />
           </div>
 
-          <nav className="mt-3 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          <nav className="mt-2.5 -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
             <FilterChip
               href={view === "all" ? "/app?scope=all" : "/app"}
               label="All" count={null} active={!dept}
@@ -93,19 +94,19 @@ export default async function StaffQueuePage({
           </nav>
         </header>
 
-        <div className="mb-3">
+        <div className="mb-4">
           <PushSetup />
         </div>
 
         {rows.length === 0 ? (
-          <div className="rounded-2xl border border-line bg-surface-raised px-5 py-10 text-center">
-            <p className="text-[15px] text-ink-muted">
+          <div className="rounded-card border border-line bg-surface-raised px-6 py-12 text-center shadow-card">
+            <p className="text-[15px] leading-relaxed text-ink-muted">
               {elsewhere > 0
                 ? "Nothing for your team right now."
                 : "Nothing open here. The course is quiet."}
             </p>
             {elsewhere > 0 && (
-              <p className="mt-2 text-[13px] text-ink-subtle">
+              <p className="mt-3 text-[13px] leading-relaxed text-ink-subtle">
                 {elsewhere} open {elsewhere === 1 ? "report" : "reports"} elsewhere on the course.{" "}
                 <a href="/app?scope=all" className="underline underline-offset-2">
                   See the whole course
@@ -114,7 +115,7 @@ export default async function StaffQueuePage({
             )}
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-4">
             {rows.map((row) => (
               <QueueCard key={row.id} row={row} />
             ))}
@@ -125,18 +126,23 @@ export default async function StaffQueuePage({
   );
 }
 
+/**
+ * A filter is a badge you can tap, so it is literally the Badge — with the
+ * height pushed up to a thumb-sized target, because these are pressed with a
+ * work glove on.
+ */
 function FilterChip({
   href, label, count, active,
 }: { href: string; label: string; count: number | null; active: boolean }) {
   return (
-    <a
-      href={href}
-      className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-medium transition ${
-        active ? "bg-ink text-surface" : "bg-surface-raised text-ink-secondary border border-line"
-      }`}
+    <Badge
+      variant={active ? "default" : "neutral"}
+      size="lg"
+      className={`h-9 shrink-0 px-4 font-medium ${active ? "shadow-card" : "bg-surface-raised"}`}
+      render={<a href={href} />}
     >
       {label}
-      {count !== null && <span className="ml-1.5 tabular-nums opacity-60">{count}</span>}
-    </a>
+      {count !== null && <span className="tabular-nums opacity-70">{count}</span>}
+    </Badge>
   );
 }

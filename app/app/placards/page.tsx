@@ -28,10 +28,10 @@ export default async function PlacardsPage() {
 
   return (
     <main>
-      <div className="no-print mx-auto max-w-[62rem] px-6 pt-9 pb-4">
+      <div className="no-print mx-auto max-w-[62rem] px-6 pt-10 pb-5">
         <div className="flex items-baseline justify-between">
           <div>
-            <h1 className="text-[1.5rem] font-semibold tracking-tight">Placards</h1>
+            <h1 className="font-display text-[1.75rem] tracking-tight">Placards</h1>
             <p className="mt-1 text-[13px] text-ink-muted">
               {set.placards.length} codes for {set.courseName}
             </p>
@@ -45,7 +45,7 @@ export default async function PlacardsPage() {
             warns on screen and on paper rather than relying on the reader to
             recognise a vercel.app hostname. */}
         {preview ? (
-          <div className="mt-4 rounded-card border border-urgent bg-urgent-surface px-4 py-3">
+          <div className="mt-5 rounded-card border border-urgent-border bg-urgent-surface px-5 py-4 shadow-card">
             <p className="text-[13px] font-medium text-urgent">
               Preview deployment — do not print these.
             </p>
@@ -58,13 +58,13 @@ export default async function PlacardsPage() {
             </p>
           </div>
         ) : (
-          <div className="mt-4 rounded-card border border-line bg-surface-raised px-4 py-3">
+          <div className="mt-5 rounded-card border border-line bg-surface-raised px-5 py-4 shadow-card">
             <p className="text-[13px] leading-relaxed text-ink-secondary">
               These codes point at <span className="font-medium text-ink">{origin}</span>.
               Print them from the address members will actually use — a code printed
               against the wrong one has to be physically replaced.
             </p>
-            <p className="mt-2 text-[13px] text-ink-muted">
+            <p className="mt-2.5 text-[13px] leading-relaxed text-ink-muted">
               Print from your browser (⌘P). One placard per page, sized for a
               standard tee marker.
             </p>
@@ -72,9 +72,9 @@ export default async function PlacardsPage() {
         )}
       </div>
 
-      <div className="mx-auto max-w-[62rem] px-6 pb-16">
+      <div className="mx-auto max-w-[62rem] px-6 pb-20">
         {preview && (
-          <p className="mb-4 border border-urgent px-3 py-2 text-[12px] font-medium text-urgent">
+          <p className="mb-5 rounded-control border border-urgent bg-urgent-surface px-4 py-3 text-[12px] font-medium text-urgent">
             PREVIEW BUILD — these codes point at {origin} and will stop working. Not for printing.
           </p>
         )}

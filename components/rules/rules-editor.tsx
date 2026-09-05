@@ -29,16 +29,16 @@ function Pills({ options, value, onChange, format }: {
   format: (n: number) => string;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {options.map((o) => (
         <button
           key={o}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-pill border px-3 py-1.5 text-[13px] transition ${
+          className={`rounded-pill border px-3.5 py-2 text-[13px] font-medium transition ${
             value === o
-              ? "border-ink bg-ink text-surface"
-              : "border-line text-ink-secondary hover:border-line-strong"
+              ? "border-accent-strong bg-accent-strong text-ink-on-accent shadow-card"
+              : "border-line bg-surface text-ink-secondary hover:border-accent-border"
           }`}
         >
           {format(o)}
@@ -47,7 +47,7 @@ function Pills({ options, value, onChange, format }: {
       {/* A value set outside the presets stays visible rather than silently
           snapping to the nearest pill. */}
       {!options.includes(value) && (
-        <span className="rounded-pill border border-ink bg-ink px-3 py-1.5 text-[13px] text-surface">
+        <span className="rounded-pill border border-accent-strong bg-accent-strong px-3.5 py-2 text-[13px] font-medium text-ink-on-accent shadow-card">
           {format(value)}
         </span>
       )}
@@ -70,11 +70,11 @@ export function RulesEditor({ initial, departments }: {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {rules.map((r) => (
-        <section key={r.category} className="rounded-card border border-line bg-surface-raised px-4 py-4">
+        <section key={r.category} className="rounded-card border border-line bg-surface-raised px-5 py-5 shadow-card">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-[15px] font-semibold">
+            <h2 className="font-display text-[17px] tracking-tight">
               {CATEGORY_LABEL[r.category] ?? r.category}
             </h2>
             <span className="text-[12px] tabular-nums text-ink-muted">
@@ -82,18 +82,18 @@ export function RulesEditor({ initial, departments }: {
             </span>
           </div>
 
-          <div className="mt-3">
-            <p className="text-[12px] text-ink-muted">Goes to</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="mt-5">
+            <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-ink-subtle">Goes to</p>
+            <div className="mt-2 flex flex-wrap gap-2">
               {departments.map((d) => (
                 <button
                   key={d.id}
                   type="button"
                   onClick={() => update(r.category, { department_id: d.id, department_name: d.name })}
-                  className={`rounded-pill border px-3 py-1.5 text-[13px] transition ${
+                  className={`rounded-pill border px-3.5 py-2 text-[13px] font-medium transition ${
                     r.department_id === d.id
-                      ? "border-ink bg-ink text-surface"
-                      : "border-line text-ink-secondary hover:border-line-strong"
+                      ? "border-accent-strong bg-accent-strong text-ink-on-accent shadow-card"
+                      : "border-line bg-surface text-ink-secondary hover:border-accent-border"
                   }`}
                 >
                   {d.name}
@@ -102,10 +102,10 @@ export function RulesEditor({ initial, departments }: {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <div>
-              <p className="text-[12px] text-ink-muted">Someone should pick it up within</p>
-              <div className="mt-1.5">
+              <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-ink-subtle">Picked up within</p>
+              <div className="mt-2">
                 <Pills
                   options={ACK_OPTIONS}
                   value={r.ack_sla_minutes}
@@ -115,8 +115,8 @@ export function RulesEditor({ initial, departments }: {
               </div>
             </div>
             <div>
-              <p className="text-[12px] text-ink-muted">And resolve it within</p>
-              <div className="mt-1.5">
+              <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-ink-subtle">Resolved within</p>
+              <div className="mt-2">
                 <Pills
                   options={RESOLVE_OPTIONS}
                   value={r.resolve_sla_minutes}
@@ -137,8 +137,8 @@ export function RulesEditor({ initial, departments }: {
 
       {/* Sticky, because the list is long and a save button below the fold is a
           save button nobody presses. */}
-      <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-card border border-line
-                      bg-surface-raised px-4 py-3 shadow-sm">
+      <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-card border border-line
+                      bg-surface-raised px-4 py-3.5 shadow-pop">
         <button
           disabled={pending || !dirty || rules.some((r) => r.resolve_sla_minutes < r.ack_sla_minutes)}
           onClick={() =>
@@ -151,7 +151,7 @@ export function RulesEditor({ initial, departments }: {
               setNote({ ok: res.ok, text: res.message });
             })
           }
-          className="rounded-control bg-ink px-5 py-2.5 text-[15px] font-medium text-surface disabled:opacity-40"
+          className="rounded-control bg-accent-strong px-5 py-3 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
         >
           {pending ? "Saving…" : "Save changes"}
         </button>

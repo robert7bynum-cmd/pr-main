@@ -49,8 +49,8 @@ export function VolumeChart({ data }: { data: Daily[] }) {
 
       {hover !== null && (
         <div
-          className="pointer-events-none absolute -top-1 rounded-lg bg-black px-2.5 py-1.5
-                     text-[12px] text-white shadow-sm"
+          className="pointer-events-none absolute -top-1 rounded-control bg-ink px-3 py-2
+                     text-[12px] text-surface shadow-pop"
           style={{ left: `${((hover + 0.5) / data.length) * 100}%`, transform: "translateX(-50%)" }}
         >
           {label(data[hover].day)} · {data[hover].filed}

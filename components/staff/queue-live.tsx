@@ -122,7 +122,7 @@ export function QueueLive({
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5 text-[12px] text-ink-muted">
           <span
-            className={`h-1.5 w-1.5 rounded-full ${conn === "live" ? "bg-emerald-500" : "bg-high"}`}
+            className={`h-2 w-2 rounded-full ${conn === "live" ? "bg-ok" : "bg-high"}`}
           />
           {conn === "live" ? "Live" : "Reconnecting…"}
         </span>
@@ -141,7 +141,7 @@ export function QueueLive({
                 setTimeout(() => playChime(), 60);
               }
             }}
-            className="rounded-pill border border-line px-2.5 py-1 text-[12px] text-ink-secondary"
+            className="rounded-pill border border-line bg-surface-raised px-3 py-1.5 text-[12px] text-ink-secondary"
           >
             {sound ? (audioReady() ? "Sound on" : "Sound blocked") : "Sound off — tap to test"}
           </button>
@@ -151,11 +151,11 @@ export function QueueLive({
       {banner && (
         <div
           role="status"
-          className="fixed inset-x-3 bottom-3 z-50 rounded-card bg-ink px-4 py-3
-                     text-surface shadow-lg"
+          className="fixed inset-x-4 bottom-4 z-50 rounded-card border border-tone-urgent-border
+                     bg-ink px-5 py-4 text-surface shadow-pop"
         >
-          <p className="text-[12px] uppercase tracking-wide opacity-60">New report</p>
-          <p className="mt-0.5 text-[15px] leading-snug">{banner}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] opacity-70">New report</p>
+          <p className="mt-1.5 text-[15px] leading-snug">{banner}</p>
         </div>
       )}
     </>

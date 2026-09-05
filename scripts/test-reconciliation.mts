@@ -101,6 +101,20 @@ for (const n of notifications) {
   notificationsByReport.set(n.report_id, list);
 }
 
+/**
+ * `recipients` out of a routed event's JSON payload, or undefined.
+ *
+ * The payload is whatever was written to the database, so its shape is
+ * genuinely unknown at the type level — but that is a reason to check it, not
+ * to cast it away. Whether this returns a number is itself the signal that
+ * separates an event route_report() wrote from one the seed hand-built.
+ */
+const recipientsIn = (payload: unknown): number | undefined => {
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const v = (payload as Record<string, unknown>).recipients;
+  return typeof v === "number" ? v : undefined;
+};
+
 const nonNew = reports.filter(r => r.status !== "new");
 
 // --------------------------------------------------------------- populations
@@ -123,7 +137,7 @@ const nonNew = reports.filter(r => r.status !== "new");
 // one. What it is not is a permanent red light on work already done.
 const isSeedShaped = (id: string) => {
   const evs = routedByReport.get(id) ?? [];
-  return evs.length > 0 && evs.every(e => typeof (e.payload as any)?.recipients !== "number");
+  return evs.length > 0 && evs.every(e => recipientsIn(e.payload) === undefined);
 };
 const backfillCutoff = reports
   .filter(r => isSeedShaped(r.id))
@@ -152,7 +166,7 @@ check(
 // fires, a report was marked delivered while nobody was actually told.
 check(
   "no routed event claims zero recipients",
-  routedEvents.filter(e => Number((e.payload as any)?.recipients) === 0).map(e => e.report_id),
+  routedEvents.filter(e => recipientsIn(e.payload) === 0).map(e => e.report_id),
   routedEvents.length,
 );
 
@@ -171,7 +185,7 @@ check(
     live++;
     const actual = (notificationsByReport.get(reportId) ?? []).length;
     for (const ev of evs) {
-      const claimed = (ev.payload as any)?.recipients;
+      const claimed = recipientsIn(ev.payload);
       if (typeof claimed !== "number") {
         violations.push(`${reportId} (event ${ev.id}: payload has no numeric recipients field — ${JSON.stringify(ev.payload)})`);
       } else if (claimed !== actual) {

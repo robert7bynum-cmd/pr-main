@@ -98,7 +98,7 @@ export function PushSetup() {
   if (state === "checking" || state === "unsupported") return null;
 
   return (
-    <div className="rounded-card border border-line bg-surface-raised px-4 py-3">
+    <div className="rounded-card border border-line bg-surface-raised px-5 py-4 shadow-card">
       {state === "ios-app" && (
         <>
           <p className="text-[14px] font-medium">Alerts come through the iPhone app</p>
@@ -131,8 +131,8 @@ export function PushSetup() {
           <button
             onClick={enable}
             disabled={busy}
-            className="shrink-0 rounded-control bg-ink px-4 py-2.5 text-[14px] font-medium
-                       text-surface disabled:opacity-40"
+            className="shrink-0 rounded-control bg-accent-strong px-4 py-3 text-[14px] font-medium
+                       text-ink-on-accent shadow-card transition disabled:opacity-40"
           >
             {busy ? "…" : "Turn on"}
           </button>
@@ -152,8 +152,8 @@ export function PushSetup() {
               setBusy(false);
             }}
             disabled={busy}
-            className="shrink-0 rounded-control border border-line px-3 py-2 text-[13px]
-                       text-ink-secondary disabled:opacity-40"
+            className="shrink-0 rounded-control border border-line bg-surface px-3.5 py-2.5 text-[13px]
+                       text-ink-secondary transition hover:border-line-strong disabled:opacity-40"
           >
             Send a test
           </button>

@@ -11,13 +11,14 @@ export default async function PasswordPage() {
   if (!data.user) redirect("/login");
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-surface-app px-6">
-      <div className="w-full max-w-[24rem]">
+    <main className="app-ground flex min-h-dvh items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[25rem] rounded-card border border-line bg-surface-raised px-7 py-9 shadow-pop">
         <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">ProResponse</p>
-        <h1 className="mt-4 text-[1.7rem] font-semibold leading-tight tracking-tight">
+        <h1 className="mt-4 font-display text-[1.9rem] leading-tight tracking-tight">
           Choose a password
         </h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-ink-secondary">
+        <div className="mt-4 h-0.5 w-8 rounded-pill bg-accent" />
+        <p className="mt-5 text-[15px] leading-relaxed text-ink-secondary">
           Your club set a temporary one. Pick your own — you&apos;ll use it every shift.
         </p>
         <div className="mt-6">

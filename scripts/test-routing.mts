@@ -119,14 +119,25 @@ check("no phantom notifications recorded", (zeroNotes?.n ?? -1) === 0);
 await db.query(`update profiles set active = true`);
 
 console.log("\n9. start_report rejects an unknown report");
-threw = false;
+// `alice` was never defined in this file. The ReferenceError was raised while
+// evaluating the argument — inside the try — and swallowed by a bare catch, so
+// this reported ok on every run while start_report was never called at all. A
+// test that executes no SQL and still passes is worse than no test.
+//
+// Fixed twice over: a real actor, and an assertion that only a *database*
+// rejection satisfies. A bare catch cannot tell a Postgres error from a typo,
+// which is the fault that hid this for so long.
+const actor = (await one<{ id: string }>(
+  `select id from profiles where active limit 1`))!.id;
+let pgError: { code?: string } | null = null;
 try {
   await db.query(`select start_report($1,$2)`,
-    ["00000000-0000-0000-0000-0000000000ff", alice.id]);
-} catch {
-  threw = true;
+    ["00000000-0000-0000-0000-0000000000ff", actor]);
+} catch (e) {
+  pgError = e as { code?: string };
 }
-check("unknown id raises instead of silently doing nothing", threw);
+check("unknown id raises instead of silently doing nothing",
+  Boolean(pgError?.code), pgError ? "not a database error: " + String(pgError) : "nothing raised");
 
 console.log("\n10. work orphaned by a dead worker is reclaimed");
 const orphan = await newReport("worker died holding this one");

@@ -35,7 +35,15 @@
     "test:alerts": "tsx scripts/test-alerts.mts",
     "test:grants": "tsx scripts/test-grants.mts",
     "test:realtime": "tsx scripts/test-realtime.mts",
-    "test:accounts": "tsx scripts/test-accounts.mts"
+    "test:accounts": "tsx scripts/test-accounts.mts",
+    "test:conformance": "tsx scripts/test-routing-conformance.mts",
+    "test:reconciliation": "tsx scripts/test-reconciliation.mts",
+    "test:escalation-sim": "tsx scripts/test-escalation-sim.mts",
+    "test:e2e": "tsx scripts/test-e2e-journey.mts",
+    "test:authz": "tsx scripts/test-authz.mts",
+    "verify:offline": "npm run test:conformance && npm run test:routing && npm run test:actions && npm run test:grants && npm run test:alerts && npm run test:watchdog && npm run test:nonce && npm run test:queue && npm run test:staff && npm run test:escalation && npm run test:escalation-sim",
+    "verify:live": "npm run test:rls && npm run test:matcher && npm run test:placards && npm run test:accounts && npm run test:authz && npm run test:reconciliation && npm run test:e2e",
+    "verify": "npm run verify:offline && npm run verify:live"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

@@ -40,22 +40,44 @@ await c.query(`update notifications set created_at = created_at + $1::interval,
 // earlier version closed six every run, so re-running shrank the queue from
 // 18 to 12 to 6.
 const TARGET_OPEN = 12;
+// Two things this used to get wrong, both found by test:reconciliation reading
+// the real database rather than by anyone reading this file.
+//
+// It closed reports still in 'new' — reports that had never been triaged, never
+// routed, and never reached a person — and stamped them resolved with a
+// member-facing "Taken care of". A resolution for work nobody was ever told
+// about is a lie in the demo data, and it is exactly the shape of the thing
+// this product exists to make impossible.
+//
+// And it wrote no report_events row, so ten reports sat resolved with no event
+// explaining it. "Every metric derives from report_events, never from a mutable
+// column" is the rule; operational tooling gets to follow it too, or the
+// reconciliation harness can never be a clean go-live gate.
 await c.query(`
   with oldest as (
     select id from reports
-     where status in ('new','triaged','acknowledged','in_progress')
+     -- 'new' deliberately excluded: never routed, so there is nothing to have
+     -- resolved. Those belong to triage, not to the freshener.
+     where status in ('triaged','acknowledged','in_progress')
      order by created_at
      offset $1
+  ),
+  upd as (
+    update reports r set
+      status = 'resolved',
+      resolved_at = r.created_at + interval '48 minutes',
+      resolved_by = (select id from profiles
+                      where course_id = r.course_id and account_kind='individual'
+                      order by id limit 1),
+      resolution_note = coalesce(r.resolution_note, 'Handled on the morning round.'),
+      member_message = coalesce(r.member_message, 'Taken care of — thank you for flagging it.')
+    from oldest where oldest.id = r.id
+    returning r.id, r.course_id, r.resolved_by, r.resolved_at
   )
-  update reports r set
-    status = 'resolved',
-    resolved_at = r.created_at + interval '48 minutes',
-    resolved_by = (select id from profiles
-                    where course_id = r.course_id and account_kind='individual'
-                    order by id limit 1),
-    resolution_note = coalesce(r.resolution_note, 'Handled on the morning round.'),
-    member_message = coalesce(r.member_message, 'Taken care of — thank you for flagging it.')
-  from oldest where oldest.id = r.id`, [TARGET_OPEN]);
+  insert into report_events (report_id, course_id, type, actor_id, created_at, payload)
+  select u.id, u.course_id, 'resolved', u.resolved_by, u.resolved_at,
+         jsonb_build_object('has_member_message', true, 'source', 'demo_freshener')
+    from upd u`, [TARGET_OPEN]);
 
 // ---- 2. bring open work into the working day
 // Ordered oldest-first so the queue still has a sensible spread, with the two

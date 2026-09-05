@@ -33,6 +33,17 @@ must list it.*
 data, but Postgres grants EXECUTE to PUBLIC by default. *Every new function is
 revoked from `public, anon` and granted explicitly.*
 
+**The worker's functions belong to the worker, and grants say so.**
+That rule got applied to the member-facing surface and stopped there.
+`route_report`, `claim_triage_batch`, `escalate_reports` and
+`resolve_recipients` stayed executable by `authenticated` — so any staff member
+with a session could reroute any report past the classifier, claim the pending
+queue and never process it (stalling triage for the whole club while every
+screen stayed green), or page leadership at will. None of the four had a single
+call site in `app/`, `lib/` or `components/`. *A function whose only caller is
+the service role is granted to `service_role` and revoked from everyone else,
+and the grant is how a reader knows who the caller was meant to be.*
+
 **Never let an error distinguish "wrong password" from "no such account".**
 Failed sign-in returns one message. Signed-out and not-invited are
 indistinguishable from outside, so nobody can enumerate a club's staff.
@@ -72,6 +83,27 @@ existed took every local suite down without anyone noticing.
 A subagent audited 800 lines of seed SQL column by column and declared it sound;
 executing it revealed `random()` in uncorrelated subqueries had collapsed all
 220 rows to one status, one hole, one date. A confident review is not evidence.
+`db:validate` later passed a migration whose very first call failed on an
+ambiguous column reference — validating the DDL proved only that it parsed.
+
+**A test that proves a function returned the right value has not proved a
+person can see it.**
+The queue defaults to your own departments. The Pro Shop account belongs to a
+department nothing routes to, so it showed "Nothing for your team right now"
+no matter how many placards were scanned. Routing was flawless, the report was
+in the database, every one of 117 tests passed, and the product was unusable —
+the owner reasonably concluded it was broken. *An end-to-end test signs in as
+the person who was actually notified and asserts the report is on their screen.
+Asserting on the database is asserting on the wrong thing.*
+
+**A change is not shipped until the deployment reports the commit containing
+it.**
+A realtime fix sat undeployed for two hours behind a build guard of my own
+making, while the demo URL served older code and I described the work as
+finished. Then a `*/5` cron in `vercel.json` — rejected outright by the Hobby
+plan — silently took down a whole push. *Announcing a fix requires reading the
+deployed commit back and seeing the change live, not watching a build go
+green.*
 
 **Two implementations of one rule will drift. There is one of everything.**
 The auth stub was copy-pasted into five files and broke every suite when the

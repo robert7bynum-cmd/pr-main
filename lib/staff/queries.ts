@@ -12,6 +12,8 @@ export interface RosterRow {
   account_kind: string;
   departments: string[];
   resolved_30d: number;
+  /** Registered push devices. Zero means routing can page them and nothing happens. */
+  devices: number;
 }
 
 export interface Department { id: string; key: string; name: string }

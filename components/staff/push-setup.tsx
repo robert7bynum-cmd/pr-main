@@ -22,7 +22,17 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
-export function PushSetup() {
+/**
+ * `card` is the version that sits in the queue: small, easy to ignore, and the
+ * right shape for someone mid-shift who already said yes on another device.
+ *
+ * `onboarding` is the version that actually earns the permission. A browser
+ * will only ask once per site, and a person who dismisses the OS prompt has to
+ * go into settings to undo it — so the single ask is worth spending real
+ * screen on, at the moment they are sitting down being set up rather than
+ * standing on a fairway with the queue open.
+ */
+export function PushSetup({ variant = "card" }: { variant?: "card" | "onboarding" }) {
   const [state, setState] = useState<State>("checking");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -103,7 +113,67 @@ export function PushSetup() {
     }
   }
 
-  if (state === "checking" || state === "unsupported") return null;
+  // The onboarding step has to say something even when this device cannot do
+  // push at all, because it is a page of its own — a blank screen mid-setup
+  // reads as broken. The queue card can simply not appear.
+  if (state === "checking") return null;
+  if (state === "unsupported" && variant === "card") return null;
+
+  if (variant === "onboarding") {
+    const canAsk = state === "off";
+    return (
+      <div>
+        <h1 className="font-display text-[1.9rem] leading-tight tracking-tight">
+          {state === "on" ? "You're all set" : "Getting told about a report"}
+        </h1>
+        <div className="mt-4 h-0.5 w-8 rounded-pill bg-accent" />
+
+        <p className="mt-5 text-[15px] leading-relaxed text-ink-secondary">
+          {state === "on"
+            ? "This device will buzz when a report is sent to you."
+            : state === "ios-app"
+              ? "iPhone can't send alerts from a browser tab. The ProResponse app is on the way — until then you'll see new reports whenever the queue is open."
+              : state === "blocked"
+                ? "This browser is blocking notifications for the site. You can turn them back on in browser settings, then reload — or carry on and do it later."
+                : state === "unsupported"
+                  ? "This browser can't send alerts. You'll still see new reports whenever the queue is open, and you can turn alerts on later from a phone."
+                  : "A member scans a code on the course and it comes straight to whoever is on duty. Without alerts you would only find out by opening the queue."}
+        </p>
+
+        {canAsk && (
+          <p className="mt-3 text-[13px] leading-relaxed text-ink-muted">
+            Your browser will ask you to allow notifications. It only asks once,
+            so if you dismiss it you will have to turn them on in settings later.
+          </p>
+        )}
+
+        <div className="mt-7 flex flex-col gap-3">
+          {canAsk && (
+            <button
+              onClick={enable}
+              disabled={busy}
+              className="w-full rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium
+                         text-ink-on-accent shadow-card transition disabled:opacity-40"
+            >
+              {busy ? "Turning on…" : "Turn on alerts"}
+            </button>
+          )}
+          <a
+            href="/app"
+            className={`w-full rounded-control px-4 py-3.5 text-center text-[15px] transition ${
+              canAsk
+                ? "border border-line bg-surface text-ink-secondary hover:border-line-strong"
+                : "bg-accent-strong text-ink-on-accent shadow-card font-medium"
+            }`}
+          >
+            {canAsk ? "Not now" : "Go to the queue"}
+          </a>
+        </div>
+
+        {note && <p className="mt-4 text-[13px] text-ink-muted">{note}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-card border border-line bg-surface-raised px-5 py-4 shadow-card">

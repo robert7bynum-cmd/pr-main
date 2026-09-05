@@ -53,6 +53,14 @@ export function StaffTable({
                   {p.account_kind === "station" && (
                     <Badge variant="status" size="sm">Shared station</Badge>
                   )}
+                  {/* The roster showed everything about who should be told and
+                      nothing about who can be. A club can have the rules right,
+                      the right people on duty, and still page nobody — and every
+                      screen looks correct while it happens. Only shown for
+                      people who are actually meant to be reachable. */}
+                  {p.active && p.devices === 0 && (
+                    <Badge variant="high" size="sm">No alerts</Badge>
+                  )}
                 </p>
                 <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
                   {p.email ?? "no email"}
@@ -60,6 +68,12 @@ export function StaffTable({
                 <p className="mt-0.5 text-[12px] leading-relaxed text-ink-muted">
                   {p.departments.length ? p.departments.join(" · ") : "No departments"}
                   <span className="tabular-nums"> · {p.resolved_30d} resolved</span>
+                  <span className="tabular-nums">
+                    {" · "}
+                    {p.devices === 0
+                      ? "no device"
+                      : `${p.devices} device${p.devices === 1 ? "" : "s"}`}
+                  </span>
                 </p>
               </div>
 

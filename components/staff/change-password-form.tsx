@@ -18,7 +18,13 @@ export function ChangePasswordForm() {
         start(async () => {
           const res = await changePassword(pw);
           if (!res.ok) setError(res.error ?? "Could not set password");
-          else router.push("/app");
+          // Straight to the queue skipped the only good moment to ask about
+          // alerts. A browser asks for notification permission once and
+          // remembers the answer, so the ask has to land while someone is being
+          // set up and paying attention — not from a card competing with a
+          // fairway full of work. The step itself is skippable; the timing is
+          // the part that matters.
+          else router.push("/account/notifications");
         });
       }}
       className="space-y-3.5"

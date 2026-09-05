@@ -14,16 +14,16 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { requireDemoPassword } from "@/lib/dev/demo-password";
+import { provisionTestStaff, deleteReport } from "@/lib/dev/test-staff";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-// Defaulted rather than required. This needed REALTIME_TEST_EMAIL to run, so it
-// was left out of `verify:live` — leaving the single feature whose failure mode
-// is total silence as the one suite the gate never ran.
-const EMAIL = process.env.REALTIME_TEST_EMAIL ?? "gm@beaconhilldemo.com";
-const PASSWORD = requireDemoPassword();
+// A manager created for this run. The club keeps no demo personas.
+const admin = createClient(URL_, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+const fixtures = await provisionTestStaff(admin);
+const EMAIL = fixtures.manager.email;
+const PASSWORD = fixtures.password;
 
 let pass = 0, fail = 0;
 const check = (n: string, ok: boolean, d = "") => { ok ? pass++ : fail++; console.log(`  ${ok ? "ok  " : "FAIL"} ${n}${ok ? "" : "  -> " + d}`); };
@@ -98,6 +98,14 @@ if (arrived) console.log(`       (event arrived in ${Date.now() - started}ms)`);
 
 await supabase.removeChannel(channel);
 await supabase.auth.signOut();
+
+// Leave nothing behind: the report this filed, then the people it invented.
+{
+  const { data: mine } = await admin.from("reports").select("id").eq("body", body).limit(1);
+  const id = (mine ?? [])[0]?.id as string | undefined;
+  if (id) await deleteReport(admin, id);
+  await fixtures.teardown();
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

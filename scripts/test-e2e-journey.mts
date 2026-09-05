@@ -21,12 +21,17 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { requireDemoPassword } from "@/lib/dev/demo-password";
+import { provisionTestStaff, deleteReport } from "@/lib/dev/test-staff";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const PASSWORD = requireDemoPassword();
+// Staff for this run only. The club keeps no demo personas, so the suite brings
+// a manager to observe, a maintenance supervisor to be paged, and a pro-shop
+// member to NOT be paged — and removes all three, and the report, at the end.
+const admin = createClient(URL_, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+const fixtures = await provisionTestStaff(admin);
+const PASSWORD = fixtures.password;
 
 if (!URL_ || !PUB) {
   console.log("NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY missing from .env.local");
@@ -38,15 +43,11 @@ if (!URL_ || !PUB) {
 // other's per-placard flood control.
 const PLACARD = process.env.E2E_PLACARD_TOKEN ?? "bh-h07";
 
-// The staff logins this test can actually authenticate as. These are the demo
-// personas created by scripts/demo-users.mts and they all share DEMO_PASSWORD.
-// The rest of the roster are seeded profiles with no auth account, so if
-// routing picks one of those we say so out loud rather than quietly asserting
-// something weaker (see step 6).
+// The logins this test holds a password for: the three it just created.
 const KNOWN_LOGINS = [
-  "supt@beaconhilldemo.com",
-  "shop@beaconhilldemo.com",
-  "gm@beaconhilldemo.com",
+  fixtures.supervisor.email,
+  fixtures.staff.email,
+  fixtures.manager.email,
 ];
 
 const stamp = new Date().toISOString();
@@ -83,8 +84,15 @@ const mins = (a: string, b: string) =>
   (new Date(a).getTime() - new Date(b).getTime()) / 60000;
 
 let reportId: string | null = null;
-const finish = () => {
-  if (reportId) console.log(`\n  report id: ${reportId}  (left resolved, marker ${marker})`);
+// Nothing this suite creates outlives it: the report goes, then the people.
+// Earlier versions left the report "resolved" as a marked artifact, and those
+// piled up in a real club's history until the owner asked for all of it gone.
+const finish = async () => {
+  if (reportId) {
+    try { await deleteReport(admin, reportId); console.log(`\n  removed report ${reportId} (${marker})`); }
+    catch (e) { console.log(`\n  !! could not remove report ${reportId}: ${(e as Error).message}`); }
+  }
+  await fixtures.teardown();
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 };
@@ -101,7 +109,7 @@ const { data: nonce, error: nonceErr } = await member.rpc("issue_scan_nonce", {
 });
 check("the placard hands out a scan nonce", typeof nonce === "string" && nonce.length > 0,
   nonceErr?.message ?? String(nonce));
-if (typeof nonce !== "string") finish();
+if (typeof nonce !== "string") await finish();
 
 // -------------------------------------------------------------- 2. the report
 step(2, "and types one sentence about what they see");
@@ -113,7 +121,7 @@ const { data: submitted, error: submitErr } = await member.rpc("submit_report", 
 });
 check("the report is accepted with no account and no sign-in",
   !submitErr && typeof submitted === "string", submitErr?.message ?? String(submitted));
-if (typeof submitted !== "string") finish();
+if (typeof submitted !== "string") await finish();
 reportId = submitted;
 note(`report ${reportId}`);
 
@@ -124,10 +132,10 @@ note(`report ${reportId}`);
 // for the observer, because reading the whole club's reports is their actual
 // job — but note that observation is all it is used for. The assertion that
 // matters is made further down, by the person who was paged.
-const observer = await signIn("gm@beaconhilldemo.com");
+const observer = await signIn(fixtures.manager.email);
 check("a manager can sign in to watch the report land", Boolean(observer),
-  "gm@beaconhilldemo.com could not sign in — run npm run db:demo-users");
-if (!observer) finish();
+  "the fixture manager could not sign in");
+if (!observer) await finish();
 const obs = observer!;
 
 // ------------------------------------------------- 3. bound to the right hole
@@ -198,7 +206,7 @@ let events = await readEvents(obs);
 // as the club's numbers are concerned.
 check("a triaged event is on the record", events.some((e) => e.type === "triaged"),
   events.map((e) => e.type).join(","));
-if (!triaged) finish();
+if (!triaged) await finish();
 
 // ------------------------------------------------------------- 5. the routing
 step(5, "and routes it to a department, naming who was told");
@@ -222,7 +230,7 @@ const { data: notifRows } = await obs
   .order("created_at");
 const notified = (notifRows ?? []) as { profile_id: string; created_at: string }[];
 check("somebody is on the notification list", notified.length > 0);
-if (!notified.length) finish();
+if (!notified.length) await finish();
 
 const { data: peopleRows } = await obs
   .from("profiles")
@@ -269,7 +277,7 @@ if (!notifiedKnown.length) {
   note("LIMITATION: falling back to no reachability proof at all. The report was");
   note("routed and notifications were queued, but nobody this test can authenticate");
   note("as was among the recipients, so it cannot show a real person seeing it.");
-  finish();
+  await finish();
 }
 
 const chosen = notifiedKnown[0];
@@ -285,7 +293,7 @@ if (isManagement) {
 
 const staff = await signIn(chosenPerson.email!);
 check(`${chosenPerson.full_name} can sign in`, Boolean(staff), chosenPerson.email!);
-if (!staff) finish();
+if (!staff) await finish();
 const me = staff!;
 
 const { data: meRows } = await me.rpc("me");

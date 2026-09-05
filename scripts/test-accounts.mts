@@ -12,17 +12,22 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { requireDemoPassword } from "@/lib/dev/demo-password";
+import { provisionTestStaff } from "@/lib/dev/test-staff";
 config({ path: ".env.local" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SVC = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const MANAGER = process.env.ACCOUNTS_TEST_MANAGER ?? "gm@beaconhilldemo.com";
-const MANAGER_PW = requireDemoPassword();
+// The manager doing the inviting is created for this run and removed after.
+// The club has no demo personas any more, and a suite that needs one brings
+// its own.
+const admin0 = createClient(URL_, SVC, { auth: { persistSession: false } });
+const fixtures = await provisionTestStaff(admin0);
+const MANAGER = fixtures.manager.email;
+const MANAGER_PW = fixtures.password;
 
 const stamp = Date.now();
-const EMAIL = `probe-${stamp}@beaconhilldemo.com`;
+const EMAIL = `probe-invitee-${stamp}@proresponse.test`;
 const TEMP = `Tmp-${stamp}-aA1`;
 const NEXT_PW = `Chosen-${stamp}-bB2`;
 
@@ -98,7 +103,8 @@ try {
   if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
   await admin.from("pending_profiles").delete().eq("email", EMAIL);
   await admin.from("profiles").delete().eq("id", createdUserId ?? "00000000-0000-0000-0000-000000000000");
-  console.log(`\n  (cleaned up ${EMAIL})`);
+  await fixtures.teardown();
+  console.log(`\n  (cleaned up ${EMAIL} and the fixture staff)`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

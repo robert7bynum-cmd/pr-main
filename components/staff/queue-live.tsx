@@ -77,16 +77,23 @@ export function QueueLive({
     void (async () => {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
+      console.log("[queue-live] session token:", token ? `present (${token.length})` : "MISSING");
       if (token) await supabase.realtime.setAuth(token);
 
+      // Unique per mount: two subscribes with the same channel name get
+      // deduped, and the survivor can belong to an unmounted component.
       channel = supabase
-      .channel(`queue-${courseId}`)
+      .channel(`queue-${courseId}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "reports", filter: `course_id=eq.${courseId}` },
-        () => router.refresh(),
+        (payload) => {
+          console.log("[queue-live] event", payload.eventType);
+          router.refresh();
+        },
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        console.log("[queue-live] status", status, err?.message ?? "");
         if (status === "SUBSCRIBED") setConn("live");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setConn("reconnecting");
       });

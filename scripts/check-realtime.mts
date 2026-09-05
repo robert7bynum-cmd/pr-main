@@ -1,0 +1,10 @@
+import { Client } from "pg";
+const c = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+await c.connect();
+const pub = await c.query(`select pubname from pg_publication order by 1`);
+console.log("publications:", pub.rows.map(r=>r.pubname).join(", ") || "(none)");
+const tabs = await c.query(`select tablename from pg_publication_tables where pubname='supabase_realtime' order by 1`);
+console.log("tables in supabase_realtime:", tabs.rows.map(r=>r.tablename).join(", ") || "(none)");
+const ri = await c.query(`select relreplident from pg_class where relname='reports'`);
+console.log("reports replica identity:", ri.rows[0]?.relreplident, "(f = full)");
+await c.end();

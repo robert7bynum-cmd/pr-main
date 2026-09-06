@@ -9,7 +9,11 @@
  *
  * Pure functions, no database: this is the decision, isolated.
  */
-import { resolvePlacardOrigin, isUnprintableOrigin } from "@/lib/placards/origin";
+import { readFileSync } from "node:fs";
+import {
+  resolvePlacardOrigin, isUnprintableOrigin,
+  UNPRINTABLE_HOST_PATTERN, UNPRINTABLE_PREVIEW_PATTERN,
+} from "@/lib/placards/origin";
 
 let pass = 0, fail = 0;
 const check = (n: string, ok: boolean, d = "") => { ok ? pass++ : fail++; console.log(`  ${ok ? "ok  " : "FAIL"} ${n}${ok ? "" : "  -> " + d}`); };
@@ -62,6 +66,38 @@ console.log("\nthe failure this exists for");
   const r = resolvePlacardOrigin(null, "http://localhost:3000");
   check("an unconfigured club rendered on a laptop is caught, not printed",
     isUnprintableOrigin(r.origin), `${r.origin} would have been printed`);
+}
+
+// The same rule runs in the database: update_course_settings refuses to store
+// one of these addresses, so the placard page's refusal is a backstop and not
+// the only control. Two copies of one rule drift, so the migration carries the
+// two exported patterns verbatim, and this reads the file and checks they are
+// still there byte for byte — the way test-delivery-gate lifts the cron gate's
+// predicate out of its migration. Rewriting either side alone fails here.
+console.log("\nthe database refuses the same addresses, from the same two patterns");
+{
+  const MIGRATION = "supabase/migrations/20260906130000_club_settings.sql";
+  let sql = "";
+  try { sql = readFileSync(MIGRATION, "utf8"); } catch { /* reported by the first check */ }
+  check("the migration that refuses these addresses exists", sql.length > 0, `${MIGRATION} missing`);
+  check("the migration carries UNPRINTABLE_HOST_PATTERN verbatim",
+    sql.includes(`'${UNPRINTABLE_HOST_PATTERN}'`), `${UNPRINTABLE_HOST_PATTERN} not in ${MIGRATION}`);
+  check("and UNPRINTABLE_PREVIEW_PATTERN verbatim",
+    sql.includes(`'${UNPRINTABLE_PREVIEW_PATTERN}'`), `${UNPRINTABLE_PREVIEW_PATTERN} not in ${MIGRATION}`);
+  check("inside update_course_settings, not somewhere else",
+    sql.indexOf("function update_course_settings") < sql.indexOf(`'${UNPRINTABLE_HOST_PATTERN}'`)
+      && sql.indexOf(`'${UNPRINTABLE_HOST_PATTERN}'`) < sql.indexOf("function upsert_location"));
+  // The TS regex is built from the exported string, so this proves the string
+  // itself — not a copy — is what isUnprintableOrigin runs. Matched with the
+  // scheme stripped, which is how both sides apply it.
+  check("the exported host pattern is what the TS check runs",
+    new RegExp(UNPRINTABLE_HOST_PATTERN, "i").test("localhost:3000")
+      && new RegExp(UNPRINTABLE_HOST_PATTERN, "i").test("[::1]")
+      && !new RegExp(UNPRINTABLE_HOST_PATTERN, "i").test("beaconhillgolfva.com")
+      && !new RegExp(UNPRINTABLE_HOST_PATTERN, "i").test("localhost.beaconhill.com"));
+  check("the exported preview pattern is what the TS check runs",
+    new RegExp(UNPRINTABLE_PREVIEW_PATTERN, "i").test("https://pr-main-git-main-scope.vercel.app")
+      && !new RegExp(UNPRINTABLE_PREVIEW_PATTERN, "i").test("https://pr-main-dun.vercel.app"));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

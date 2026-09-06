@@ -269,5 +269,257 @@ console.log("\n10. re-inviting cannot demote a pending owner");
     changed?.role === "supervisor", String(changed?.role));
 }
 
+/**
+ * Club settings, locations, departments and placards.
+ *
+ * 20260906100000 made these tables read-only for signed-in users and nothing
+ * replaced the write path, so a club could not rename a hole or set the address
+ * its placards encode without a developer. These are the functions that give
+ * it back, and each guard below is a specific way the old table write could be
+ * abused: from another club, by staff, with an address that dies on a sign,
+ * with a malformed quiet-hours value that would stop the escalation sweep.
+ */
+console.log("\n11. club settings: staff refused on every function");
+{
+  const errorOf = async (sql: string, p: unknown[] = []) => {
+    try { await db.query(sql, p); return null; } catch (e) { return (e as Error).message; }
+  };
+  const hole1 = (await one<{ id: string }>(
+    `select id from locations where course_id = $1 and hole_number = 1`, [course]))!.id;
+  const dept1 = (await one<{ id: string }>(
+    `select id from departments where course_id = $1 order by sort_order limit 1`, [course]))!.id;
+
+  await act(staff);
+  for (const [name, sql, p] of [
+    ["update_course_settings", `select update_course_settings('X Club','America/New_York',null,null,null)`, []],
+    ["upsert_location", `select upsert_location(null,'other',null,'Snack Bar',null)`, []],
+    ["set_location_active", `select set_location_active($1,false)`, [hole1]],
+    ["upsert_department", `select upsert_department(null,'snacks','Snacks',null)`, []],
+    ["mint_placard", `select mint_placard($1)`, [hole1]],
+  ] as [string, string, unknown[]][]) {
+    const err = await errorOf(sql, p);
+    check(`a staff member cannot call ${name}`, err !== null && err.includes("do not manage"), err ?? "accepted");
+  }
+  const staffEvents = await one<{ n: number }>(
+    `select count(*)::int n from admin_events where actor_id = $1
+       and type in ('settings_changed','location_changed','placard_regenerated')`, [staff]);
+  check("and nothing was recorded for any of them", staffEvents?.n === 0, String(staffEvents?.n));
+
+  // A manager at the other club: every id-taking function must refuse an id
+  // from Beacon Hill, and the settings call must touch only their own club.
+  console.log("\n12. club settings: a manager at another club cannot reach in");
+  const otherMgrAuth = (await one<{ id: string }>(
+    `insert into auth.users (id, email, aud, role, confirmation_token, recovery_token,
+       email_change_token_new, email_change)
+     values (gen_random_uuid(),'m@other.com','authenticated','authenticated','','','','')
+     returning id`))!.id;
+  const otherManager = (await one<{ id: string }>(
+    `insert into profiles (id, course_id, full_name, role) values ($1,$2,'Other Manager','manager')
+     returning id`, [otherMgrAuth, other]))!.id;
+  await act(otherManager);
+
+  const foreignLoc = await errorOf(`select upsert_location($1,'hole',1,'Hole 1 (stolen)',null)`, [hole1]);
+  check("upsert_location on another club's location is refused",
+    foreignLoc?.includes("not at your club") ?? false, foreignLoc ?? "accepted");
+  const foreignRetire = await errorOf(`select set_location_active($1,false)`, [hole1]);
+  check("set_location_active on another club's location is refused",
+    foreignRetire?.includes("not at your club") ?? false, foreignRetire ?? "accepted");
+  const foreignMint = await errorOf(`select mint_placard($1)`, [hole1]);
+  check("mint_placard on another club's location is refused",
+    foreignMint?.includes("not at your club") ?? false, foreignMint ?? "accepted");
+  const foreignDept = await errorOf(`select upsert_department($1,'stolen','Stolen',null)`, [dept1]);
+  check("upsert_department on another club's department is refused",
+    foreignDept?.includes("not at your club") ?? false, foreignDept ?? "accepted");
+  const untouched = await one<{ name: string; active: boolean; codes: number }>(
+    `select l.name, l.active, (select count(*)::int from qr_codes q where q.location_id = l.id and q.active) codes
+       from locations l where l.id = $1`, [hole1]);
+  check("Hole 1 is untouched", untouched?.name === "Hole 1" && untouched?.active === true && untouched?.codes === 1,
+    JSON.stringify(untouched));
+
+  await db.query(`select update_course_settings('Other Club Renamed','America/Chicago',null,null,null)`);
+  const names = await one<{ mine: string; theirs: string }>(
+    `select (select name from courses where id = $1) mine, (select name from courses where id = $2) theirs`,
+    [course, other]);
+  check("their settings call renames their club only",
+    names?.theirs === "Other Club Renamed" && names?.mine === "Beacon Hill Golf Club", JSON.stringify(names));
+
+  console.log("\n13. club settings: what is refused, with the message a manager sees");
+  await act(manager);
+  const refused = async (label: string, args: string, expect: string) => {
+    const err = await errorOf(`select update_course_settings(${args})`);
+    check(label, err !== null && err.includes(expect), err ?? "accepted");
+  };
+  await refused("a timezone Postgres does not know", `'Beacon Hill Golf Club','Mars/Olympus_Mons',null,null,null`, "unknown timezone");
+  await refused("an http address", `'Beacon Hill Golf Club','America/New_York','http://beaconhillgolfva.com',null,null`, "must start with https://");
+  await refused("localhost", `'Beacon Hill Golf Club','America/New_York','https://localhost:3000',null,null`, "cannot go on a printed sign");
+  await refused("127.0.0.1", `'Beacon Hill Golf Club','America/New_York','https://127.0.0.1',null,null`, "cannot go on a printed sign");
+  await refused("a Vercel branch preview", `'Beacon Hill Golf Club','America/New_York','https://pr-main-git-feature-scope.vercel.app',null,null`, "cannot go on a printed sign");
+  await refused("quiet hours that are not HH:MM", `'Beacon Hill Golf Club','America/New_York',null,'8pm','6am'`, "quiet hours must be HH:MM");
+  await refused("an hour of 24", `'Beacon Hill Golf Club','America/New_York',null,'24:00','06:00'`, "quiet hours must be HH:MM");
+  await refused("a start with no end", `'Beacon Hill Golf Club','America/New_York',null,'20:00',null`, "both a start and an end");
+  await refused("a one-letter club name", `'B','America/New_York',null,null,null`, "between 2 and 80");
+  const beforeCount = await one<{ n: number }>(
+    `select count(*)::int n from admin_events where course_id = $1 and type = 'settings_changed'`, [course]);
+  check("none of those wrote a settings_changed row", beforeCount?.n === 0, String(beforeCount?.n));
+
+  console.log("\n14. club settings: a valid change lands and is recorded");
+  const changed = await one<{ n: number }>(
+    `select update_course_settings('Beacon Hill Golf Club','America/New_York','https://reports.beaconhill.com/','21:00','06:30') n`);
+  check("two keys changed (address and quiet hours)", changed?.n === 2, String(changed?.n));
+  const settings = await one<{ settings: Record<string, unknown>; timezone: string }>(
+    `select settings, timezone from courses where id = $1`, [course]);
+  check("the address is stored without its trailing slash",
+    settings?.settings.public_url === "https://reports.beaconhill.com", JSON.stringify(settings?.settings));
+  const quiet = settings?.settings.quiet_hours as { start?: string; end?: string } | undefined;
+  check("quiet hours are stored as start and end",
+    quiet?.start === "21:00" && quiet?.end === "06:30", JSON.stringify(quiet));
+  check("branding survived the jsonb edit", "branding" in (settings?.settings ?? {}), JSON.stringify(settings?.settings));
+  const ev = await one<{ detail: { kind: string; from: Record<string, unknown>; to: Record<string, unknown> } }>(
+    `select detail from admin_events where course_id = $1 and type = 'settings_changed'
+      order by created_at desc, id desc limit 1`, [course]);
+  check("settings_changed written with kind club", ev?.detail?.kind === "club", JSON.stringify(ev?.detail));
+  check("and it names only the keys that changed",
+    JSON.stringify(Object.keys(ev?.detail?.to ?? {}).sort()) === JSON.stringify(["public_url", "quiet_hours"]),
+    JSON.stringify(ev?.detail));
+  check("the old address is in from",
+    ev?.detail?.from?.public_url === "https://pr-main-dun.vercel.app", JSON.stringify(ev?.detail?.from));
+
+  const again = await one<{ n: number }>(
+    `select update_course_settings('Beacon Hill Golf Club','America/New_York','https://reports.beaconhill.com','21:00','06:30') n`);
+  check("saving the same values again reports zero changes", again?.n === 0, String(again?.n));
+  const cleared = await one<{ n: number }>(
+    `select update_course_settings('Beacon Hill Golf Club','America/New_York',null,null,null) n`);
+  const clearedSettings = await one<{ settings: Record<string, unknown> }>(
+    `select settings from courses where id = $1`, [course]);
+  check("clearing the address and quiet hours removes the keys",
+    cleared?.n === 2 && !("public_url" in clearedSettings!.settings) && !("quiet_hours" in clearedSettings!.settings),
+    JSON.stringify(clearedSettings?.settings));
+  check("with no quiet hours the club is never in quiet hours",
+    (await one<{ q: boolean }>(`select within_quiet_hours($1) q`, [course]))!.q === false);
+  await db.query(`select update_course_settings('Beacon Hill Golf Club','America/New_York','https://pr-main-dun.vercel.app','20:00','06:00')`);
+
+  console.log("\n15. locations: add, rename, and the friendly duplicate");
+  const snack = (await one<{ id: string }>(
+    `select upsert_location(null,'other',null,'Snack Bar',null) id`))!.id;
+  const snackRow = await one<{ name: string; kind: string; active: boolean; sort_order: number; venue_id: string | null }>(
+    `select name, kind::text, active, sort_order, venue_id from locations where id = $1`, [snack]);
+  check("a facility is added at this club", snackRow?.name === "Snack Bar" && snackRow?.kind === "other" && snackRow?.active === true,
+    JSON.stringify(snackRow));
+  check("it sorts after everything already there", (snackRow?.sort_order ?? 0) > 24, String(snackRow?.sort_order));
+  check("it belongs to the club's venue", snackRow?.venue_id !== null);
+  await db.query(`select upsert_location($1,'halfway_house',null,'Turn Snack Bar',null)`, [snack]);
+  const renamed = await one<{ name: string; kind: string }>(`select name, kind::text from locations where id = $1`, [snack]);
+  check("and renamed", renamed?.name === "Turn Snack Bar" && renamed?.kind === "halfway_house", JSON.stringify(renamed));
+  const locEvents = await one<{ actions: string[] }>(
+    `select array_agg(detail->>'action' order by id) actions from admin_events where subject_id = $1 and type = 'location_changed'`, [snack]);
+  check("both recorded as location_changed", JSON.stringify(locEvents?.actions) === JSON.stringify(["added", "changed"]),
+    JSON.stringify(locEvents?.actions));
+
+  const dup = await errorOf(`select upsert_location(null,'hole',7,'Hole 7 again',null)`);
+  check("a duplicate hole number gets the friendly message", dup?.includes("that hole number is already used") ?? false, dup ?? "accepted");
+  const dupRename = await errorOf(`select upsert_location($1,'hole',7,'Hole 7',null)`, [snack]);
+  check("so does renumbering onto an existing hole", dupRename?.includes("that hole number is already used") ?? false, dupRename ?? "accepted");
+  const noNumber = await errorOf(`select upsert_location(null,'hole',null,'Hole ?',null)`);
+  check("a hole needs a number", noNumber !== null, "accepted");
+  const hole19 = (await one<{ id: string }>(`select upsert_location(null,'hole',19,'Hole 19',null) id`))!.id;
+  const h19 = await one<{ sort_order: number; hole_number: number }>(`select sort_order, hole_number from locations where id = $1`, [hole19]);
+  check("a new hole sorts by its number", h19?.sort_order === 19 && h19?.hole_number === 19, JSON.stringify(h19));
+
+  console.log("\n16. locations: retiring");
+  const busy = (await one<{ location_id: string }>(
+    `select location_id from reports where course_id = $1 and status in ('new','triaged','acknowledged','in_progress')
+      group by location_id order by count(*) desc limit 1`, [course]))!.location_id;
+  const busyRefused = await errorOf(`select set_location_active($1,false)`, [busy]);
+  check("a location with open reports cannot be retired",
+    busyRefused?.includes("close its open reports first") ?? false, busyRefused ?? "accepted");
+  check("it is still active", (await one<{ active: boolean }>(`select active from locations where id = $1`, [busy]))!.active === true);
+
+  await db.query(`select set_location_active($1,false)`, [snack]);
+  const retiredRow = await one<{ active: boolean }>(`select active from locations where id = $1`, [snack]);
+  check("one with none is retired", retiredRow?.active === false);
+  const retiredEv = await one<{ detail: { action: string } }>(
+    `select detail from admin_events where subject_id = $1 and type = 'location_changed' order by id desc limit 1`, [snack]);
+  check("and location_changed says retired", retiredEv?.detail?.action === "retired", JSON.stringify(retiredEv?.detail));
+  const twice = await errorOf(`select set_location_active($1,false)`, [snack]);
+  check("retiring it again is reported, not silently accepted", twice?.includes("already retired") ?? false, twice ?? "accepted");
+  const mintRetired = await errorOf(`select mint_placard($1)`, [snack]);
+  check("no sign can be minted for a retired location", mintRetired !== null, "accepted");
+
+  // A retired hole's existing sign must stop working, whatever its token says.
+  const hole18 = (await one<{ id: string; token: string }>(
+    `select l.id, q.token from locations l join qr_codes q on q.location_id = l.id and q.active
+      where l.course_id = $1 and l.hole_number = 18`, [course]))!;
+  await db.query(`update reports set status = 'resolved', resolved_at = now() where location_id = $1
+                    and status not in ('resolved','verified','closed_no_action')`, [hole18.id]);
+  await db.query(`select set_location_active($1,false)`, [hole18.id]);
+  const scanRetired = await db.query(`select * from get_scan_context($1)`, [hole18.token]);
+  check("get_scan_context refuses a retired location's code", scanRetired.rows.length === 0, String(scanRetired.rows.length));
+  await db.query(`select set_location_active($1,true)`, [hole18.id]);
+  const scanRestored = await db.query(`select * from get_scan_context($1)`, [hole18.token]);
+  check("and resolves it again once restored", scanRestored.rows.length === 1, String(scanRestored.rows.length));
+  const restoredEv = await one<{ detail: { action: string } }>(
+    `select detail from admin_events where subject_id = $1 and type = 'location_changed' order by id desc limit 1`, [hole18.id]);
+  check("the restore is recorded too", restoredEv?.detail?.action === "restored", JSON.stringify(restoredEv?.detail));
+
+  console.log("\n17. placards: a new code retires the old one");
+  const hole7 = (await one<{ id: string; token: string }>(
+    `select l.id, q.token from locations l join qr_codes q on q.location_id = l.id and q.active
+      where l.course_id = $1 and l.hole_number = 7`, [course]))!;
+  const fresh = (await one<{ t: string }>(`select mint_placard($1) t`, [hole7.id]))!.t;
+  check("the new token is 24 hex characters", /^[0-9a-f]{24}$/.test(fresh), fresh);
+  check("and is not the old one", fresh !== hole7.token);
+  const oldRow = await one<{ active: boolean }>(`select active from qr_codes where token = $1`, [hole7.token]);
+  check("the old token is retired", oldRow?.active === false);
+  const live = await one<{ n: number }>(`select count(*)::int n from qr_codes where location_id = $1 and active`, [hole7.id]);
+  check("exactly one live code for the hole", live?.n === 1, String(live?.n));
+  const scanNew = await db.query<{ location_name: string }>(`select * from get_scan_context($1)`, [fresh]);
+  check("get_scan_context resolves the new code to Hole 7",
+    scanNew.rows.length === 1 && scanNew.rows[0].location_name === "Hole 7", JSON.stringify(scanNew.rows));
+  const scanOld = await db.query(`select * from get_scan_context($1)`, [hole7.token]);
+  check("and not the old one", scanOld.rows.length === 0, String(scanOld.rows.length));
+  const mintEv = await one<{ detail: Record<string, unknown> }>(
+    `select detail from admin_events where subject_id = $1 and type = 'placard_regenerated' order by id desc limit 1`, [hole7.id]);
+  const detailText = JSON.stringify(mintEv?.detail ?? {});
+  check("placard_regenerated is written", !!mintEv, "missing");
+  check("with the new prefix", mintEv?.detail?.new_prefix === fresh.slice(0, 6), detailText);
+  check("with the retired prefix", JSON.stringify(mintEv?.detail?.retired_prefixes) === JSON.stringify([hole7.token.slice(0, 6)]), detailText);
+  check("and not the new token in full", !detailText.includes(fresh), detailText);
+
+  // The seed's bh-h07 is six characters, so its prefix IS the token. Mint once
+  // more so the retired code is a real 24-hex one and the assertion means
+  // something.
+  const fresher = (await one<{ t: string }>(`select mint_placard($1) t`, [hole7.id]))!.t;
+  const mintEv2 = await one<{ detail: Record<string, unknown> }>(
+    `select detail from admin_events where subject_id = $1 and type = 'placard_regenerated' order by id desc limit 1`, [hole7.id]);
+  const detailText2 = JSON.stringify(mintEv2?.detail ?? {});
+  check("a second mint retires the 24-hex code by prefix only",
+    JSON.stringify(mintEv2?.detail?.retired_prefixes) === JSON.stringify([fresh.slice(0, 6)])
+      && !detailText2.includes(fresh) && !detailText2.includes(fresher), detailText2);
+  check("and the first fresh code no longer resolves",
+    (await db.query(`select * from get_scan_context($1)`, [fresh])).rows.length === 0);
+
+  console.log("\n18. departments: add and rename, never delete");
+  const valet = (await one<{ id: string }>(`select upsert_department(null,'valet','Valet',null) id`))!.id;
+  const valetRow = await one<{ key: string; name: string; sort_order: number }>(
+    `select key, name, sort_order from departments where id = $1`, [valet]);
+  check("a department is added", valetRow?.key === "valet" && valetRow?.name === "Valet", JSON.stringify(valetRow));
+  check("after the existing ones", (valetRow?.sort_order ?? 0) > 7, String(valetRow?.sort_order));
+  await db.query(`select upsert_department($1,'valet','Valet & Bag Drop',null)`, [valet]);
+  check("and renamed", (await one<{ name: string }>(`select name from departments where id = $1`, [valet]))!.name === "Valet & Bag Drop");
+  const deptEvents = await one<{ kinds: string[]; actions: string[] }>(
+    `select array_agg(detail->>'kind' order by id) kinds, array_agg(detail->>'action' order by id) actions
+       from admin_events where subject_id = $1 and type = 'settings_changed'`, [valet]);
+  check("both recorded as settings_changed with kind department",
+    JSON.stringify(deptEvents?.kinds) === JSON.stringify(["department", "department"])
+      && JSON.stringify(deptEvents?.actions) === JSON.stringify(["added", "changed"]),
+    JSON.stringify(deptEvents));
+  const badKey = await errorOf(`select upsert_department(null,'Valet 2','Valet 2',null)`);
+  check("a key with spaces or capitals is refused", badKey !== null, "accepted");
+  const dupKey = await errorOf(`select upsert_department(null,'valet','Another Valet',null)`);
+  check("a duplicate key gets the friendly message", dupKey?.includes("already used") ?? false, dupKey ?? "accepted");
+  check("there is no delete function for departments", (await one<{ n: number }>(
+    `select count(*)::int n from pg_proc where proname like '%department%' and proname like 'delete%'`))!.n === 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

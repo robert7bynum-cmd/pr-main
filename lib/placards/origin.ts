@@ -40,6 +40,27 @@ export function resolvePlacardOrigin(
 }
 
 /**
+ * The two shapes of address that must never reach a sign, as regex source.
+ *
+ * Exported as strings rather than RegExp objects because the same rule runs in
+ * the database: update_course_settings refuses to store one of these, so a
+ * manager cannot type localhost into the settings screen and have the placard
+ * page dutifully render it. Two copies of one rule drift, so the migration
+ * carries these two strings verbatim and scripts/test-placard-origin.mts
+ * asserts on the migration text that they are still byte-for-byte the same.
+ *
+ * HOST is matched against the address with its scheme removed — both sides
+ * strip `https?://` first — so the pattern itself contains nothing that needs
+ * escaping differently in a JavaScript regex and a Postgres string literal.
+ */
+export const UNPRINTABLE_HOST_PATTERN = String.raw`^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|$|/)`;
+export const UNPRINTABLE_PREVIEW_PATTERN = String.raw`-git-[^.]+\.vercel\.app`;
+
+const SCHEME = /^https?:\/\//i;
+const UNPRINTABLE_HOST = new RegExp(UNPRINTABLE_HOST_PATTERN, "i");
+const UNPRINTABLE_PREVIEW = new RegExp(UNPRINTABLE_PREVIEW_PATTERN, "i");
+
+/**
  * Is this an address it would be a mistake to commit to a printed sign?
  *
  * A localhost code is dead the moment it leaves the laptop. A preview code dies
@@ -47,6 +68,5 @@ export function resolvePlacardOrigin(
  * about, because the cost of the mistake is replacing signs on a golf course.
  */
 export function isUnprintableOrigin(origin: string): boolean {
-  return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|$|\/)/i.test(origin)
-    || /-git-[^.]+\.vercel\.app/i.test(origin);
+  return UNPRINTABLE_HOST.test(origin.replace(SCHEME, "")) || UNPRINTABLE_PREVIEW.test(origin);
 }

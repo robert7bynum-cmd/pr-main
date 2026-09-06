@@ -100,7 +100,19 @@ try {
   await again.auth.signOut();
 } finally {
   // Remove the probe whatever happened, so this never leaves an account behind.
-  if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
+  //
+  // The invitee's own claim writes an admin_events row naming them as actor,
+  // and that reference does not cascade — on purpose, an audit trail pointing
+  // at nobody is worthless. It also means deleteUser fails on the foreign key
+  // unless those rows go first, which is exactly how one probe account was
+  // left in production with the cleanup line above it looking correct.
+  if (createdUserId) {
+    await admin.from("admin_events").delete()
+      .or(`actor_id.eq.${createdUserId},subject_id.eq.${createdUserId}`);
+    const { error: delErr } = await admin.auth.admin.deleteUser(createdUserId);
+    // Loud, not swallowed: a leftover account is the thing this block exists to prevent.
+    if (delErr) { console.log(`  !! could not remove ${EMAIL}: ${delErr.message}`); fail++; }
+  }
   await admin.from("pending_profiles").delete().eq("email", EMAIL);
   await admin.from("profiles").delete().eq("id", createdUserId ?? "00000000-0000-0000-0000-000000000000");
   await fixtures.teardown();

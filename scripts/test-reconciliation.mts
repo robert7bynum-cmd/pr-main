@@ -193,7 +193,14 @@ check(
 // notifications for the same report — that shows up as an 'escalated' event
 // and is called out separately below, not silently absorbed into this check.)
 {
-  const escalatedReports = new Set(events.filter(e => e.type === "escalated").map(e => e.report_id));
+  // Escalation and handover both queue notifications after routing, on purpose:
+  // escalate_reports() pages leadership, assign_report() tells the new owner,
+  // and reroute_report() pages the new department. Each writes its own event
+  // (escalated / reassigned), so rows beyond the routed count are legitimate
+  // exactly when one of those events exists. Test alerts are excluded above.
+  const escalatedReports = new Set(
+    events.filter(e => e.type === "escalated" || e.type === "reassigned").map(e => e.report_id),
+  );
   const violations: string[] = [];
   const liveIds = new Set(liveNonNew.map(r => r.id));
   let live = 0;
@@ -216,14 +223,14 @@ check(
         // legitimate when the report escalated, and never fewer than routing
         // claimed, which would mean somebody was told and then unrecorded.
         if (!escalatedReports.has(reportId)) {
-          violations.push(`${reportId} (event ${ev.id}: claimed ${claimed}, actual notifications rows ${actual}, never escalated)`);
+          violations.push(`${reportId} (event ${ev.id}: claimed ${claimed}, actual notifications rows ${actual}, never escalated or handed over)`);
         } else if (actual < claimed) {
           violations.push(`${reportId} (event ${ev.id}: claimed ${claimed} but only ${actual} notifications exist — someone was told and then unrecorded)`);
         }
       }
     }
   }
-  check("every notification is accounted for by a routing or escalation event", violations, live);
+  check("every notification is accounted for by a routing, escalation or handover event", violations, live);
 }
 
 // The backfill, stated plainly. Not assertions — these describe history that

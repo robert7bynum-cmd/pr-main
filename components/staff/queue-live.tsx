@@ -38,21 +38,73 @@ let soundEnabled = false;
  */
 let hadSubscribed = false;
 
+/**
+ * The sound preference outlives the page. A counter browser gets closed and
+ * reopened every morning, and a station that came back silent after a restart
+ * is the failure nobody notices until a report has sat for an hour.
+ */
+const SOUND_KEY = "proresponse.station.sound";
+
+function readSoundPreference(): boolean | null {
+  try {
+    const v = localStorage.getItem(SOUND_KEY);
+    return v === "on" ? true : v === "off" ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSoundPreference(on: boolean) {
+  try {
+    localStorage.setItem(SOUND_KEY, on ? "on" : "off");
+  } catch {
+    // Private mode or storage disabled: the toggle still works for this page.
+  }
+}
+
 export function QueueLive({
   courseId,
   station,
   newestId,
   newestBody,
+  defaultSound = false,
 }: {
   courseId: string;
   station: boolean;
   newestId: string | null;
   newestBody: string | null;
+  /** What sound does before anyone has touched the toggle on this browser. */
+  defaultSound?: boolean;
 }) {
   const router = useRouter();
   const [conn, setConn] = useState<Conn>("connecting");
   const [sound, setSound] = useState(soundEnabled);
   const [banner, setBanner] = useState<string | null>(null);
+  // Re-rendered when audio is primed, so the label can stop saying "blocked".
+  const [, setPrimed] = useState(false);
+
+  // Restore the stored preference, or the page's default, on a station. Runs
+  // on every remount (router.refresh() remounts this) and lands on the same
+  // answer each time because the toggle persists before it changes anything.
+  useEffect(() => {
+    if (!station) return;
+    const on = readSoundPreference() ?? defaultSound;
+    soundEnabled = on;
+    // Deferred for the same reason as the banner: a synchronous setState in an
+    // effect cascades a render on every server refresh.
+    const id = setTimeout(() => setSound(on), 0);
+    return () => clearTimeout(id);
+  }, [station, defaultSound]);
+
+  // A restored "on" is a promise the browser will not let us keep until a
+  // gesture has happened: audio stays suspended until the first click. So the
+  // first pointer-down anywhere on the page primes it, and the label follows.
+  useEffect(() => {
+    if (!sound) return;
+    const prime = () => { primeAudio(); setPrimed(true); };
+    window.addEventListener("pointerdown", prime, { once: true });
+    return () => window.removeEventListener("pointerdown", prime);
+  }, [sound]);
   // Alert when the server hands us a report we have not shown before. On the
   // first render of a page load we only record it — arriving at the queue is
   // not a new-report event.
@@ -173,6 +225,7 @@ export function QueueLive({
               const on = !sound;
               setSound(on);
               soundEnabled = on;
+              writeSoundPreference(on);
               if (on) {
                 primeAudio();
                 // Play immediately: whoever switches it on hears proof it works.

@@ -43,8 +43,8 @@ function age(minutes: number) {
 }
 
 export function QueueCard({
-  row, team, meId,
-}: { row: QueueRow; team: Teammate[]; meId: string }) {
+  row, team, meId, meKind,
+}: { row: QueueRow; team: Teammate[]; meId: string; meKind?: string }) {
   const u = URGENCY[row.urgency] ?? URGENCY.normal;
   const own = ownership(row);
 
@@ -99,7 +99,7 @@ export function QueueCard({
           </span>
         </div>
 
-        <CardActions reportId={row.id} claimed={!!row.claimed_by} team={team} meId={meId} />
+        <CardActions reportId={row.id} claimed={!!row.claimed_by} team={team} meId={meId} meKind={meKind} />
       </div>
     </article>
   );

@@ -22,6 +22,12 @@ export default async function StaffQueuePage({
   const me = await getMe();
   if (!me) redirect("/login");
 
+  // A shared counter login lands on the board built for it: big type, sound
+  // on by default, screen kept awake. Only this route redirects — a station
+  // can still open a report or the account page. Done here rather than in the
+  // layout because a layout cannot see which path it is rendering.
+  if (me.account_kind === "station") redirect("/app/station");
+
   const view: "mine" | "all" = scope === "all" ? "all" : "mine";
 
   const [rows, departments, team] = await Promise.all([
@@ -119,7 +125,7 @@ export default async function StaffQueuePage({
         ) : (
           <div className="space-y-4">
             {rows.map((row) => (
-              <QueueCard key={row.id} row={row} team={team} meId={me.profile_id} />
+              <QueueCard key={row.id} row={row} team={team} meId={me.profile_id} meKind={me.account_kind} />
             ))}
           </div>
         )}

@@ -22,6 +22,7 @@ interface NavItem { href: string; label: string; hint: string; roles?: string[] 
 
 const NAV: NavItem[] = [
   { href: "/app", label: "Open reports", hint: "What needs doing now" },
+  { href: "/app/station", label: "Station board", hint: "Counter view — big type, sound, stays awake" },
   { href: "/app/dashboard", label: "Course status", hint: "Volume, response times, recurring problems", roles: ["manager", "owner"] },
   { href: "/app/staff", label: "Staff", hint: "Add people, roles, departments", roles: ["manager", "owner"] },
   { href: "/app/rules", label: "Routing & SLAs", hint: "Who gets told, and how fast", roles: ["manager", "owner"] },

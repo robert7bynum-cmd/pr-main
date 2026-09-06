@@ -61,6 +61,12 @@ export interface Me {
   course_id: string;
   course_name: string;
   on_duty: boolean;
+  /**
+   * 'individual' or 'station'. A station is a shared counter login: it can
+   * watch and hand work to people, but must never claim in its own name, and
+   * the app has to know that before it draws a claim button.
+   */
+  account_kind: string;
 }
 
 /** The signed-in staff member, or null if they have no profile at this club. */
@@ -69,7 +75,8 @@ export async function getMe(): Promise<Me | null> {
     const db = await devDb();
     const res = await db.query<Me>(
       `select p.id as profile_id, p.full_name, p.role::text as role,
-              p.course_id, c.name as course_name, p.on_duty
+              p.course_id, c.name as course_name, p.on_duty,
+              p.account_kind::text as account_kind
          from profiles p join courses c on c.id = p.course_id
         where p.account_kind = 'individual' and p.active
         order by case p.role when 'supervisor' then 0 else 1 end limit 1`,

@@ -81,7 +81,13 @@ export function FileReportForm({ locations }: { locations: FilingLocation[] }) {
     >
       <div className="rounded-card border border-line bg-surface-raised p-5 shadow-card">
         <label className="block text-[14px] font-medium text-ink">Where is it?</label>
-        <Select value={locationId} onValueChange={(v) => setLocationId(v ?? "")}>
+        <Select
+          value={locationId}
+          onValueChange={(v) => setLocationId(v ?? "")}
+          // The trigger shows the chosen item's label only if the root knows
+          // the labels; without this it showed the location's uuid.
+          items={locations.map((l) => ({ value: l.id, label: label(l) }))}
+        >
           <SelectTrigger className="mt-3 h-auto w-full px-4 py-3.5 text-[16px]">
             <SelectValue placeholder="Pick a hole or a place…" />
           </SelectTrigger>

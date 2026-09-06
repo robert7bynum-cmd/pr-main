@@ -298,7 +298,12 @@ export function CardActions({
       <div className="mt-5 border-t border-line pt-4">
         {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
         <p className="text-[13px] text-ink-secondary">{station ? "Who's taking this?" : "Hand this to"}</p>
-        <Select value={assignee} onValueChange={(v) => setAssignee(v ?? "")}>
+        <Select
+          value={assignee}
+          onValueChange={(v) => setAssignee(v ?? "")}
+          // Same reason as the filing form: the trigger otherwise shows the id.
+          items={sorted.map((t) => ({ value: t.id, label: t.full_name }))}
+        >
           <SelectTrigger className="mt-2 h-auto w-full px-4 py-3.5 text-[15px]">
             <SelectValue placeholder="Choose someone…" />
           </SelectTrigger>

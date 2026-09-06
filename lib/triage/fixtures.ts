@@ -1,15 +1,17 @@
 // lib/triage/fixtures.ts
 //
-// Regression suite for the keyword triage pass in lib/triage/keywords.ts.
-// Written the way real members actually type on a phone between shots:
-// lowercase, terse, typo'd, sometimes one word, sometimes a run-on
-// sentence. Every category in docs/taxonomy.md has coverage.
+// Regression suite for the keyword triage pass: the rules in
+// lib/triage/keywords.ts as evaluated by the SQL function match_keywords
+// (npm run triage:eval boots a throwaway Postgres and calls it). Written the
+// way real members actually type on a phone between shots: lowercase, terse,
+// typo'd, sometimes one word, sometimes a run-on sentence. Every category in
+// docs/taxonomy.md has coverage.
 //
-// A subset (see `note`) is expected to fall through to null in
-// matchKeywords — these are genuinely ambiguous/novel phrasings that
-// should escalate to the AI model. Their expectedCategory is the category
-// a human reviewer would eventually assign, not what the keyword pass
-// should produce.
+// A subset (see `note`) is expected to fall through — match_keywords returns
+// no row — these are genuinely ambiguous/novel phrasings that should
+// escalate to the AI model. Their expectedCategory is the category a human
+// reviewer would eventually assign, not what the keyword pass should
+// produce.
 
 import type { Category, Urgency } from "./keywords";
 
@@ -259,6 +261,6 @@ export const TRIAGE_FIXTURES: TriageFixture[] = [
   {
     text: "",
     expectedCategory: "needs_review",
-    note: "empty input — matchKeywords must return null, not throw",
+    note: "empty input — match_keywords must return no row, not raise",
   },
 ];

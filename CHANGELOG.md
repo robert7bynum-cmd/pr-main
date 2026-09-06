@@ -5,6 +5,22 @@ Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 
 ## In progress
 
+### One keyword matcher
+**[bug] The eval suite tested a matcher production never ran.** `triage:eval` and
+`triage:coverage` called a TypeScript `matchKeywords`; production called the SQL
+`match_keywords`. Written to the same intent, they disagreed on 35 of 397 inputs,
+all in the dangerous direction: the SQL idiom guard suppressed safety rules by word
+count, so "my back is killing me, call 911 on 12" was urgent in the green suite and
+nothing in the live database. Normalisation differed on apostrophes ("cart won't
+start"), and "tree down" existed twice with different urgencies — `on conflict do
+nothing` kept the first and the count came back one short, unnoticed.
+- The TypeScript matcher is deleted. `lib/triage/keywords.ts` is data; the matcher
+  is `match_keywords`, and `triage:eval` / `triage:coverage` boot a throwaway
+  Postgres and call it. They also exit 1 on failure now; they exited 0 before.
+- `lib/triage/load-rules.ts` is the one loader for the live seed and the suites.
+  Plain inserts — a duplicate rule is an error, not a silent choice.
+- `test:matcher` is gone: there is nothing left for the SQL to agree with.
+
 ### Watchdog — closing the largest operational gap
 Everything is scheduled inside the database, which is what makes it independent
 of the web app — and also meant that if `pg_cron` stopped, nothing would notice.

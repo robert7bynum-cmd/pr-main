@@ -39,6 +39,26 @@ export default async function DashboardPage() {
           </div>
         </header>
 
+        {/* The data out. Plain links to a file download, so it works from a
+            phone's share sheet as well as a desk. Nothing a member wrote and
+            no internal note is in the file — see app/api/export/route.ts. */}
+        <p className="-mt-3 mb-6 text-[13px] text-ink-muted">
+          Export CSV{" "}
+          {[30, 90, 365].map((d, i) => (
+            <span key={d}>
+              {i === 0 ? "(" : " / "}
+              <a
+                href={`/api/export?days=${d}`}
+                download
+                className="underline underline-offset-4 hover:text-ink-secondary"
+              >
+                {d} days
+              </a>
+              {i === 2 ? ")" : ""}
+            </span>
+          ))}
+        </p>
+
         {/* Only rendered when something is wrong, so its presence is the
             signal. A permanent green tick teaches people to ignore it. */}
         {health.length > 0 && (

@@ -1,5 +1,7 @@
 "use server";
 
+import { isLang, t, type Lang } from "@/lib/i18n/member";
+
 /**
  * The one write a member is allowed to make.
  *
@@ -21,9 +23,15 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
   const phone = String(formData.get("phone") ?? "").trim();
   const memberNo = String(formData.get("memberNo") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
+  // The form sends the language it was shown in. Anything else — a missing
+  // field, a hand-crafted request — is English; the column is a hint for
+  // whoever replies, not something worth rejecting a report over.
+  const rawLang = formData.get("language");
+  const language: Lang = isLang(rawLang) ? rawLang : "en";
+  const s = t(language);
 
   if (body.length < 3) {
-    return { ok: false, error: "Please describe the issue." };
+    return { ok: false, error: s.errorDescribe };
   }
 
   // Until Supabase exists, accept the submission so the flow is reviewable.
@@ -47,7 +55,7 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
       p_phone: phone || null,
       p_email: email || null,
       p_member_no: memberNo || null,
-      p_language: "en",
+      p_language: language,
     });
 
   let { error } = await send(nonce);
@@ -71,7 +79,7 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
     if (mintError || !fresh) {
       return {
         ok: false,
-        error: mintError?.message || "Something went wrong. Please try again.",
+        error: mintError?.message || s.errorFallback,
       };
     }
     ({ error } = await send(fresh as string));
@@ -80,7 +88,8 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
   if (error) {
     // The RPC raises friendly messages for the cases a member can cause
     // (empty body, dead placard, flood control); anything else is ours.
-    return { ok: false, error: error.message || "Something went wrong. Please try again." };
+    // Those messages are English today — the RPC does not know the language.
+    return { ok: false, error: error.message || s.errorFallback };
   }
 
   return { ok: true };

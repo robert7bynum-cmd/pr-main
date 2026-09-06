@@ -49,7 +49,8 @@
     "verify": "npm run verify:offline && npm run verify:live",
     "test:placard-origin": "tsx scripts/test-placard-origin.mts",
     "test:account-guards": "tsx scripts/test-account-guards.mts",
-    "test:badges": "tsx scripts/test-card-badges.mts"
+    "test:badges": "tsx scripts/test-card-badges.mts",
+    "test:table-authz": "tsx scripts/test-table-authz.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

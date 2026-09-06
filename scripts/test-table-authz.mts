@@ -217,5 +217,79 @@ console.log("\n7. the write grants are gone, not merely unreachable");
     policies.length === 0, policies.map((p) => `${p.tablename}.${p.policyname}`).join(", "));
 }
 
+/**
+ * The five tables 20260906070000 left open because mgmt_write was "still their
+ * only write path". Nothing in the app wrote them; a manager with a session
+ * could re-point a placard, deactivate every code in the club, or rewrite a
+ * pending invitation's role before it was claimed, with no audit row.
+ * 20260906100000 drops the policy and the grants. Reads must survive: the
+ * placard sheet, the staff page and the rules editor all read these tables,
+ * and resetPassword() reads pending_profiles — as management only.
+ */
+console.log("\n8. club configuration is read-only through the API");
+{
+  const FIVE = ["departments", "locations", "qr_codes", "venues", "pending_profiles"];
+
+  // Something on every table for the manager to read. The seed fills four of
+  // them; pending_profiles is empty, so an invitation goes in through the
+  // function, as the app would send it.
+  await uid(manager);
+  await db.query(`select invite_staff('posture-probe@beaconhillgolfva.com', 'Posture Probe', 'staff')`);
+
+  for (const t of FIVE) {
+    const upd = await asUser(manager, `update ${t} set course_id = course_id where course_id = $1`, [course]);
+    check(`a manager's direct UPDATE ${t} is refused with permission denied`,
+      refused(upd, "permission denied"), describe(upd));
+    const del = await asUser(manager, `delete from ${t} where course_id = $1`, [course]);
+    check(`and DELETE ${t} likewise`, refused(del, "permission denied"), describe(del));
+
+    await uid(manager);
+    await db.query(`set role authenticated`);
+    try {
+      const { rows } = await db.query(`select * from ${t} where course_id = $1 limit 5`, [course]);
+      check(`SELECT ${t} as a manager still returns rows`, rows.length > 0, `${rows.length} row(s)`);
+    } catch (e) {
+      check(`SELECT ${t} as a manager still returns rows`, false, (e as Error).message);
+    } finally {
+      await db.query(`reset role`);
+    }
+  }
+
+  // An unclaimed invitation carries a colleague's email and phone: management
+  // reads it, ordinary staff see nothing — the read mgmt_write's ALL used to
+  // provide, now stated as mgmt_read and nothing more.
+  await uid(staff);
+  await db.query(`set role authenticated`);
+  try {
+    const { rows } = await db.query(`select * from pending_profiles`);
+    check("SELECT pending_profiles as staff returns no rows, without error", rows.length === 0, `${rows.length} row(s)`);
+  } catch (e) {
+    check("SELECT pending_profiles as staff returns no rows, without error", false, (e as Error).message);
+  } finally {
+    await db.query(`reset role`);
+  }
+
+  const { rows: held } = await db.query<{ tbl: string; priv: string }>(`
+    select t.tbl, p.priv
+      from (values ${FIVE.map((t) => `('${t}')`).join(",")}) t(tbl)
+      cross join (values ('insert'),('update'),('delete')) p(priv)
+     where has_table_privilege('authenticated', 'public.' || t.tbl, p.priv)`);
+  check("authenticated holds no insert/update/delete on the five configuration tables",
+    held.length === 0, held.map((h) => `${h.priv} ${h.tbl}`).join(", "));
+
+  const { rows: unreadable } = await db.query<{ tbl: string }>(`
+    select t.tbl from (values ${FIVE.map((t) => `('${t}')`).join(",")}) t(tbl)
+     where not has_table_privilege('authenticated', 'public.' || t.tbl, 'select')`);
+  check("but still holds SELECT on all five (the app reads them)",
+    unreadable.length === 0, unreadable.map((u) => u.tbl).join(", "));
+
+  const { rows: policies } = await db.query<{ tablename: string; policyname: string; cmd: string }>(`
+    select tablename, policyname, cmd from pg_policies
+     where schemaname='public' and cmd <> 'SELECT'
+       and tablename in (${FIVE.map((t) => `'${t}'`).join(",")})`);
+  check("no write policy remains on any of the five",
+    policies.length === 0, policies.map((p) => `${p.tablename}.${p.policyname} (${p.cmd})`).join(", "));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

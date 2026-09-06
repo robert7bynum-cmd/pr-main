@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/queue/actions-db";
-import { getReportDetail } from "@/lib/queue/reports";
+import { getReportDetail, getTeam, getDepartments, type TimelineEvent } from "@/lib/queue/reports";
+import { CLOSE_REASONS, isCloseReason } from "@/lib/queue/close-reasons";
 import { Badge } from "@/components/ui/badge";
+import { CardActions } from "@/components/staff/card-actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Report — ProResponse" };
@@ -29,6 +31,26 @@ const EVENT_LABEL: Record<string, string> = {
   reopened: "Reopened",
 };
 
+/**
+ * Three actions share event types with others and are told apart by payload:
+ * start_report and close_no_action both write 'note', and a re-route to a
+ * department is 'reassigned' like a hand-over to a person. Without this every
+ * one of them reads "Note", and a history that says "Note · Note · Note" has
+ * settled nothing.
+ */
+function eventLabel(e: TimelineEvent): string {
+  const p = e.payload ?? {};
+  if (e.type === "note") {
+    if (typeof p.closed_no_action === "string") {
+      const reason = p.closed_no_action;
+      return `Closed without action — ${isCloseReason(reason) ? CLOSE_REASONS[reason] : reason}`;
+    }
+    if (p.note === "started work") return "Work started";
+  }
+  if (e.type === "reassigned" && p.kind !== "person") return "Sent to another team";
+  return EVENT_LABEL[e.type] ?? e.type;
+}
+
 const time = (iso: string) =>
   new Date(iso).toLocaleString("en-US", {
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
@@ -44,6 +66,14 @@ export default async function ReportPage({
   if (!me) redirect("/login");
 
   const r = await getReportDetail(id);
+
+  // Still somebody's job. The same actions as the queue card sit under the
+  // report here, so a person who arrived from a notification link does not
+  // have to go back to the queue to act on it.
+  const open = r ? !["resolved", "closed_no_action"].includes(r.status) : false;
+  const [team, departments] = open
+    ? await Promise.all([getTeam(), getDepartments()])
+    : [[], []];
 
   // A report that is gone is not a broken address. It can disappear from under
   // somebody legitimately — resolved and cleared by a colleague, or removed —
@@ -96,6 +126,17 @@ export default async function ReportPage({
             <Badge variant="status">{time(r.created_at)}</Badge>
           </div>
           <p className="mt-5 text-[16px] leading-relaxed text-ink">{r.body}</p>
+          {open && (
+            <CardActions
+              reportId={r.id}
+              claimed={!!r.claimed_by}
+              status={r.status}
+              departmentKey={r.department_key}
+              team={team}
+              departments={departments}
+              meId={me.profile_id}
+            />
+          )}
         </div>
 
         {r.resolution_note && (
@@ -122,7 +163,7 @@ export default async function ReportPage({
                 <span className="relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-accent ring-4 ring-surface-raised" />
                 <div className="min-w-0">
                   <p className="text-[14px] leading-tight">
-                    {EVENT_LABEL[e.type] ?? e.type}
+                    {eventLabel(e)}
                     {e.actor_name && (
                       <span className="text-ink-muted"> · {e.actor_name}</span>
                     )}

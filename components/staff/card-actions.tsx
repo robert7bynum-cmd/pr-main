@@ -1,17 +1,25 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   acknowledgeAction,
   resolveAction,
   scheduleAction,
   assignAction,
+  rerouteAction,
+  closeAction,
+  startAction,
 } from "@/app/actions/report-actions";
-import type { Teammate } from "@/lib/queue/reports";
+import type { Department, Teammate } from "@/lib/queue/reports";
+import { CLOSE_REASONS, type CloseReason } from "@/lib/queue/close-reasons";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 
 /**
  * Actions on a report card.
@@ -20,20 +28,33 @@ import { Badge } from "@/components/ui/badge";
  * app faster than a radio call. Only Resolve asks for anything, and its
  * member-facing message is a deliberate choice from a short list rather than
  * free text by default.
+ *
+ * The three under "More" are the ones that used to exist only as SQL: start
+ * work, re-route, and close with nothing done. They live behind a sheet, not
+ * in the row, because the row is for the common case and a fourth button
+ * across a 375px card makes every button small.
  */
 
 export function CardActions({
   reportId,
   claimed,
+  status,
+  departmentKey,
   team,
+  departments,
   meId,
 }: {
   reportId: string;
   claimed: boolean;
+  status: string;
+  /** Where the report is now; disabled in the re-route picker. */
+  departmentKey: string | null;
   team: Teammate[];
+  departments: Department[];
   /** Excluded from the picker: handing a report to yourself is "I've got this". */
   meId: string;
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
   const [mode, setMode] = useState<"idle" | "resolve" | "schedule" | "assign">("idle");
@@ -41,13 +62,145 @@ export function CardActions({
   const [assignee, setAssignee] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [more, setMore] = useState(false);
+  const [dept, setDept] = useState("");
+  const [reason, setReason] = useState<CloseReason | "">("");
+  const [moreError, setMoreError] = useState<string | null>(null);
+
   const run = (fn: () => Promise<{ ok: boolean; message?: string }>) =>
     start(async () => {
       setError(null);
       const res = await fn();
       if (!res.ok) setError(res.message ?? "Something went wrong");
-      else setMode("idle");
+      else {
+        setMode("idle");
+        // The queue is revalidated by the action; the report page this same
+        // component sits on is re-read here so it never shows a stale status.
+        router.refresh();
+      }
     });
+
+  const runMore = (fn: () => Promise<{ ok: boolean; message?: string }>) =>
+    start(async () => {
+      setMoreError(null);
+      const res = await fn();
+      if (!res.ok) setMoreError(res.message ?? "Something went wrong");
+      else {
+        setMore(false);
+        setDept("");
+        setReason("");
+        router.refresh();
+      }
+    });
+
+  const pill = (active: boolean, disabled = false) =>
+    `rounded-pill border px-3.5 py-2 text-[14px] transition ${
+      disabled
+        ? "cursor-default border-line bg-surface-sunken text-ink-subtle"
+        : active
+          ? "border-accent-border bg-accent-surface font-medium text-ink"
+          : "border-line bg-surface text-ink-secondary hover:border-line-strong"
+    }`;
+
+  const moreSheet = (
+    <Sheet open={more} onOpenChange={(o) => { setMore(o); if (!o) setMoreError(null); }}>
+      <SheetContent
+        side="bottom"
+        className="max-h-[88dvh] overflow-y-auto rounded-t-card border-line bg-surface-raised px-5 pb-8 pt-1 text-ink"
+      >
+        <SheetHeader className="px-0">
+          <SheetTitle className="font-display text-[1.4rem] tracking-tight text-ink">
+            More
+          </SheetTitle>
+          <SheetDescription className="text-[13px] text-ink-muted">
+            Everything here is written to the report&apos;s history.
+          </SheetDescription>
+        </SheetHeader>
+
+        {moreError && <p className="text-[13px] text-urgent">{moreError}</p>}
+
+        {status !== "in_progress" && (
+          <section className="border-t border-line pt-4">
+            <p className="text-[13px] font-medium text-ink-secondary">Start work</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+              Marks it in progress, so the team can see it is being handled now.
+            </p>
+            <button
+              disabled={pending}
+              onClick={() => runMore(() => startAction(reportId))}
+              className="mt-3 w-full rounded-control border border-line bg-surface px-4 py-3.5 text-[15px] font-medium text-ink-secondary transition hover:border-line-strong disabled:opacity-40"
+            >
+              {pending ? "…" : "I'm on it now"}
+            </button>
+          </section>
+        )}
+
+        <section className="border-t border-line pt-4">
+          <p className="text-[13px] font-medium text-ink-secondary">Re-route</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+            Wrong team? Send it to the right one. They are paged straight away and
+            any claim on it is dropped.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {departments.map((d) => {
+              const current = d.key === departmentKey;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  disabled={current}
+                  aria-pressed={dept === d.id}
+                  onClick={() => setDept(d.id)}
+                  className={pill(dept === d.id, current)}
+                >
+                  {d.name}
+                  {current && <span className="ml-1.5 text-[11px]">now</span>}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            disabled={pending || !dept}
+            onClick={() => runMore(() => rerouteAction(reportId, dept))}
+            className="mt-3 w-full rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
+          >
+            {pending
+              ? "Sending…"
+              : dept
+                ? `Send to ${departments.find((d) => d.id === dept)?.name ?? "them"}`
+                : "Send it on"}
+          </button>
+        </section>
+
+        <section className="border-t border-line pt-4">
+          <p className="text-[13px] font-medium text-ink-secondary">Close without action</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+            Nothing to fix. It leaves the queue and stays out of the response times.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(Object.keys(CLOSE_REASONS) as CloseReason[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={reason === r}
+                onClick={() => setReason(r)}
+                className={pill(reason === r)}
+              >
+                {CLOSE_REASONS[r]}
+              </button>
+            ))}
+          </div>
+          <button
+            disabled={pending || !reason}
+            onClick={() => runMore(() => closeAction(reportId, reason))}
+            className="mt-3 w-full rounded-control border border-line bg-surface px-4 py-3.5 text-[15px] font-medium text-ink-secondary transition hover:border-line-strong disabled:opacity-40"
+          >
+            {pending ? "Closing…" : "Close it"}
+          </button>
+        </section>
+      </SheetContent>
+    </Sheet>
+  );
 
   if (mode === "resolve") {
     return (
@@ -214,8 +367,16 @@ export function CardActions({
               Assign
             </button>
           )}
+          <button
+            onClick={() => setMore(true)}
+            aria-haspopup="dialog"
+            className="flex-1 rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"
+          >
+            More
+          </button>
         </div>
       </div>
+      {moreSheet}
     </div>
   );
 }

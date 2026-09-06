@@ -239,6 +239,36 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
   } as ReportDetail;
 }
 
+export interface Department { id: string; key: string; name: string }
+
+/**
+ * The club's departments, in the order the club lists them.
+ *
+ * Read once per page and passed down to every card, for the same reason as
+ * getTeam: a re-route picker on thirty cards must not be thirty identical
+ * reads. RLS confines the Supabase path to the caller's own club, so a
+ * department id that reaches reroute_report from here is one of theirs — and
+ * the function checks again anyway.
+ */
+export async function getDepartments(): Promise<Department[]> {
+  if (usingDevDb()) {
+    const db = await devDb();
+    const res = await db.query<Department>(
+      `select id, key, name from departments order by sort_order, name`,
+    );
+    return res.rows;
+  }
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("departments")
+    .select("id, key, name")
+    .order("sort_order")
+    .order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Department[];
+}
+
 export interface Teammate { id: string; full_name: string; on_duty: boolean }
 
 /**

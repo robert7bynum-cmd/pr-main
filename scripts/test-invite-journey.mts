@@ -216,4 +216,58 @@ const peek = (peekRows as { email: string; valid: boolean }[] | null)?.[0];
 check("and the landing page would now say so", !peekErr && peek?.valid === false,
   peekErr?.message ?? `valid=${JSON.stringify(peek?.valid)}`);
 
+// ------------------------------------------ 8. locked out, and back in alone
+step(8, "a locked-out person gets back in on their own");
+// requestPasswordReset() in app/actions/auth.ts makes this exact call with the
+// publishable key. The email itself cannot be read here, so the link it would
+// carry is minted the way redeemInvite() mints one — a recovery link from the
+// admin API — and exchanged the way /auth/callback exchanges it. What matters
+// is the end: the session belongs to the person who asked.
+//
+// The supervisor, not the staff member: step 5 minted a recovery token for
+// the staff address seconds ago, and Supabase allows one per address per
+// minute — asking again is refused as "you can only request this after 59
+// seconds", which is the limit working, not the reset failing.
+const lockedOut = fixtures.supervisor;
+const locked = anonClient();
+const { error: askErr } = await locked.auth.resetPasswordForEmail(lockedOut.email);
+// The fixtures live at proresponse.test, a reserved TLD nothing can deliver
+// to, and Supabase checks deliverability before it sends — but only once it
+// has found the account, so the refusal it gives here is "Email address is
+// invalid": about the domain, and silent on whether anyone is registered
+// there. A staff member's real address passes that check and gets a 200, the
+// same 200 an unknown address gets. What is asserted is that the reply, either
+// way, says nothing about the account.
+const revealing = /not found|no user|does not exist|not registered|unknown/i;
+check("asking for a reset link says nothing about whether the account exists",
+  !askErr || (/invalid/i.test(askErr.message) && !revealing.test(askErr.message)),
+  askErr?.message ?? "");
+note(askErr
+  ? `Supabase: "${askErr.message}" — the .test address is undeliverable; the account is not mentioned`
+  : "accepted");
+
+const { error: strangerErr } = await locked.auth.resetPasswordForEmail(nobody);
+check("and asking for one at an address on no staff list looks exactly the same",
+  !strangerErr, `an outsider can tell who works here: ${strangerErr?.message}`);
+
+const { data: recovery, error: recoveryErr } = await admin.auth.admin.generateLink({
+  type: "recovery", email: lockedOut.email,
+});
+const recoveryHash = recovery?.properties?.hashed_token;
+check("the link the email would carry can be minted", !recoveryErr && Boolean(recoveryHash),
+  recoveryErr?.message ?? "no hashed_token");
+
+const back = anonClient();
+const { data: backIn, error: backErr } = await back.auth.verifyOtp({
+  token_hash: String(recoveryHash), type: "recovery",
+});
+check("it signs the browser in", !backErr && Boolean(backIn?.session), backErr?.message ?? "no session");
+const { data: backRows, error: backMeErr } = await back.rpc("me");
+const backMe = (backRows as { profile_id: string; role: string }[] | null)?.[0];
+check("as the locked-out person's own profile",
+  !backMeErr && backMe?.profile_id === lockedOut.id,
+  backMeErr?.message ?? `${backMe?.profile_id} != ${lockedOut.id}`);
+check("with their own role", backMe?.role === lockedOut.role, String(backMe?.role));
+await back.auth.signOut();
+
 await finish();

@@ -148,6 +148,61 @@ try {
   const { error: ownDelErr } = await admin.from("push_subscriptions").delete().eq("endpoint", ownEndpoint);
   if (ownDelErr) console.log(`  !! could not remove own probe device: ${ownDelErr.message}`);
 
+  // The three actions that existed as SQL with no button in front of them —
+  // reroute_report and close_no_action here, sent through PostgREST by the
+  // same line staff session the buttons now use. Before the offboarding
+  // section below, because assert_actor refuses a deactivated caller and the
+  // point here is that an active one is allowed.
+  console.log("\nthe actions a line staff member may take on their own club's report");
+  if (probeReportId) {
+    const { data: deptRows } = await admin.from("departments").select("id, name, course_id");
+    const current = (await admin.from("reports").select("department_id, course_id")
+      .eq("id", probeReportId).single()).data;
+    const target = ((deptRows ?? []) as { id: string; name: string; course_id: string }[])
+      .find((d) => d.course_id === current?.course_id && d.id !== current?.department_id);
+    check("there is another department at the club to send it to", Boolean(target), "none found");
+
+    if (target) {
+      const { error: rrErr } = await me.rpc("reroute_report", {
+        p_report_id: probeReportId, p_actor: f.staff.id, p_department_id: target.id,
+      });
+      check(`can re-route it to ${target.name}`, !rrErr, rrErr?.message ?? "");
+      const moved = (await admin.from("reports").select("department_id, claimed_by")
+        .eq("id", probeReportId).single()).data;
+      check("and the report now belongs to that department", moved?.department_id === target.id,
+        `department_id=${moved?.department_id}`);
+      const reassigned = (await admin.from("report_events").select("actor_id, payload")
+        .eq("report_id", probeReportId).eq("type", "reassigned")).data as
+        { actor_id: string; payload: Record<string, unknown> }[] | null;
+      check("and the re-route is written down, in their name",
+        reassigned?.length === 1 && reassigned[0].actor_id === f.staff.id
+          && reassigned[0].payload?.to === target.id,
+        JSON.stringify(reassigned));
+    }
+
+    const { error: fakeErr } = await me.rpc("reroute_report", {
+      p_report_id: probeReportId, p_actor: f.staff.id,
+      p_department_id: "00000000-0000-4000-8000-00000000dead",
+    });
+    check("a department that does not exist is refused", Boolean(fakeErr), "ACCEPTED");
+    check("with 'department not found'", /department not found/i.test(fakeErr?.message ?? ""),
+      fakeErr?.message ?? "(no error)");
+
+    const { error: closeErr } = await me.rpc("close_no_action", {
+      p_report_id: probeReportId, p_actor: f.staff.id, p_reason: "duplicate",
+    });
+    check("can close it as a duplicate", !closeErr, closeErr?.message ?? "");
+    const closed = (await admin.from("reports").select("status, close_reason, resolved_by, resolved_at")
+      .eq("id", probeReportId).single()).data;
+    check("and it is closed_no_action, not resolved", closed?.status === "closed_no_action",
+      String(closed?.status));
+    check("with the reason kept and the closer named",
+      closed?.close_reason === "duplicate" && closed?.resolved_by === f.staff.id && Boolean(closed?.resolved_at),
+      JSON.stringify(closed));
+  } else {
+    check("the action checks had a report to run against", false, "no probe report");
+  }
+
   console.log("\noffboarding ends access, it does not just mark it");
   const mgr = createClient(URL_, PUB, { auth: { persistSession: false } });
   await mgr.auth.signInWithPassword({ email: f.manager.email, password: f.password });

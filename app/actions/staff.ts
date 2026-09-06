@@ -204,14 +204,37 @@ export async function setDepartments(id: string, departmentIds: string[]): Promi
   return call("set_staff_departments", { p_profile_id: id, p_department_ids: departmentIds });
 }
 
-/** Email someone a link to set a new password. Used when they are locked out. */
-export async function resetPassword(id: string, email: string): Promise<StaffResult> {
+/**
+ * Email someone a link to set a new password. Used when they are locked out.
+ *
+ * The address is resolved here from the id, never taken from the client. The
+ * roster and pending_profiles are both scoped to the caller's club by the
+ * database, so an id from anywhere else resolves to nothing — the same shape as
+ * the invitation guard in create_staff_invite, kept on this path too so a reset
+ * email cannot be aimed at an address the caller has no business with.
+ */
+export async function resetPassword(id: string): Promise<StaffResult> {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const actor = Array.isArray(me) ? me[0] : me;
   if (!actor || !["manager", "owner"].includes(actor.role)) {
     return { ok: false, message: "You do not manage staff at this club." };
   }
+
+  const { data: roster } = await supabase.rpc("staff_roster");
+  const rows = (roster ?? []) as { profile_id: string; email: string | null }[];
+  let email = rows.find((r) => r.profile_id === id)?.email ?? null;
+
+  if (!email) {
+    // Not on the roster: perhaps invited and never signed in. RLS limits this
+    // read to unclaimed invitations at the caller's own club.
+    const { data: pending } = await supabase
+      .from("pending_profiles").select("email").eq("id", id).maybeSingle();
+    email = (pending as { email: string } | null)?.email ?? null;
+  }
+
+  if (!email) return { ok: false, message: "That person is not at your club." };
+
   const sent = await sendPasswordLink(email.trim().toLowerCase());
   revalidatePath("/app/staff");
   return sent;

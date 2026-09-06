@@ -60,7 +60,7 @@ export function PendingInvites({ invites }: { invites: PendingInvite[] }) {
               </button>
               <button
                 disabled={pending}
-                onClick={() => run(p.email, () => resetPassword(p.id, p.email))}
+                onClick={() => run(p.email, () => resetPassword(p.id))}
                 className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink-secondary transition hover:border-line-strong disabled:opacity-40"
               >
                 Send the invite again

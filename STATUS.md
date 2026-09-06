@@ -105,6 +105,7 @@ the monitoring gaps), plus:
 | `CRON_SECRET` in Vercel Production | the external watchdog — the route answers 503 until it exists | `openssl rand -hex 32`; Settings → Environment Variables, exactly this name; redeploy |
 | Leaked-password protection in Supabase Auth | staff choosing a password already in a breach corpus | Authentication → Settings → Password |
 | Custom domain for placards | printing any placard | QR codes encode the origin permanently; a `vercel.app` placard dies with the project name |
+| Custom SMTP in Supabase Auth | onboarding a whole roster in one sitting | the built-in mailer caps emails per hour (invites and reset links share it) — configure the club's own SMTP before staff onboarding day |
 | Twilio A2P 10DLC | go-live, not the demo | 1–3 weeks, can be rejected — file early |
 | Beacon Hill logo / hole names / staff | demo polish | seed has plausible stand-ins |
 

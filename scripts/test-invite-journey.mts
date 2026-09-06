@@ -239,8 +239,12 @@ const { error: askErr } = await locked.auth.resetPasswordForEmail(lockedOut.emai
 // same 200 an unknown address gets. What is asserted is that the reply, either
 // way, says nothing about the account.
 const revealing = /not found|no user|does not exist|not registered|unknown/i;
+// Supabase's built-in mailer also caps emails per hour project-wide, and the
+// accounts suite sends invitations minutes before this runs. "email rate limit
+// exceeded" is the cap working, and it names no account either.
+const silentEnough = (m: string) => (/invalid|rate limit|too many/i.test(m)) && !revealing.test(m);
 check("asking for a reset link says nothing about whether the account exists",
-  !askErr || (/invalid/i.test(askErr.message) && !revealing.test(askErr.message)),
+  !askErr || silentEnough(askErr.message),
   askErr?.message ?? "");
 note(askErr
   ? `Supabase: "${askErr.message}" — the .test address is undeliverable; the account is not mentioned`
@@ -248,7 +252,8 @@ note(askErr
 
 const { error: strangerErr } = await locked.auth.resetPasswordForEmail(nobody);
 check("and asking for one at an address on no staff list looks exactly the same",
-  !strangerErr, `an outsider can tell who works here: ${strangerErr?.message}`);
+  !strangerErr || silentEnough(strangerErr.message),
+  `an outsider can tell who works here: ${strangerErr?.message}`);
 
 const { data: recovery, error: recoveryErr } = await admin.auth.admin.generateLink({
   type: "recovery", email: lockedOut.email,

@@ -1,18 +1,34 @@
 // lib/triage/keywords.ts
 //
-// Deterministic keyword pass for ProResponse triage.
+// Keyword rules for ProResponse triage. DATA ONLY.
 //
 // A member scans a QR code on a hole and types free text describing a
-// problem. This module tries to classify that text CHEAPLY, with pattern
-// matching only — no network, no model call. Anything it can't match with
-// reasonable confidence returns null, and the caller escalates to the AI
-// model. Category keys and their routing are defined in docs/taxonomy.md —
-// this file must only ever emit keys from that list.
+// problem. The first triage pass classifies that text cheaply with phrase
+// matching — no network, no model call — and anything it cannot match with
+// reasonable confidence falls through to the AI model. Category keys and
+// their routing are defined in docs/taxonomy.md; this file must only ever
+// emit keys from that list.
+//
+// The matcher is the SQL function `match_keywords` (latest definition in
+// supabase/migrations/*_one_matcher.sql). It is the ONLY matcher. This file
+// used to carry a TypeScript copy of it, which is what the eval suite tested
+// while production ran the SQL — and the two disagreed on 35 of 397 inputs
+// (idiom guard, apostrophes, a duplicate rule swallowed by `on conflict`).
+// Rules, misspellings and idioms are written and reviewed here, loaded into
+// `triage_keywords` / `triage_misspellings` / `triage_safety_idioms` by
+// lib/triage/load-rules.ts, and evaluated by `select * from match_keywords(..)`
+// — in production, in `npm run triage:eval`, and in `npm run triage:coverage`.
 //
 // Design principle: false "no match" is cheap (falls through to the model).
 // False positive category/urgency is expensive (misroutes a real problem,
-// or cries wolf on a safety alert). When in doubt, prefer null or a lower
-// confidence score over a guess.
+// or cries wolf on a safety alert). When in doubt, prefer a lower
+// confidence score over a guess; anything under 0.6 is never returned.
+//
+// Matching semantics (implemented once, in SQL): the text is lowercased,
+// apostrophes are removed ("won't" -> "wont"), every other non-alphanumeric
+// becomes a space, whitespace collapses, and each word is repaired through
+// MISSPELLINGS. Phrases match as whole-phrase substrings of the space-padded
+// result, so write phrases here lowercase and without apostrophes.
 
 /**
  * The exact category keys from docs/taxonomy.md. Keep in sync with that
@@ -32,17 +48,8 @@ export type Category =
 
 export type Urgency = "low" | "normal" | "high" | "urgent";
 
-export interface KeywordMatch {
-  category: Category;
-  urgency: Urgency;
-  /** 0..1. High (0.9+) for unambiguous multi-word phrases, lower for single generic words. */
-  confidence: number;
-  /** The literal rule text (or pattern description) that fired, for debugging/audit trail. */
-  matched: string;
-}
-
 // ---------------------------------------------------------------------------
-// Normalization
+// Misspellings (loaded into triage_misspellings)
 // ---------------------------------------------------------------------------
 
 /**
@@ -50,7 +57,7 @@ export interface KeywordMatch {
  * often one-handed while holding a club. Mapped whole-word so we don't
  * corrupt substrings inside other words. Keys and values are lowercase.
  */
-const MISSPELLINGS: Record<string, string> = {
+export const MISSPELLINGS: Record<string, string> = {
   // maintenance / course
   sprinkeler: "sprinkler",
   sprinker: "sprinkler",
@@ -102,32 +109,12 @@ const MISSPELLINGS: Record<string, string> = {
   injurd: "injured",
 };
 
-/**
- * Lowercase, strip punctuation (keep letters/digits/spaces/apostrophes so
- * "won't" survives as a token boundary cue), collapse whitespace, and
- * repair known misspellings word-by-word.
- */
-export function normalize(text: string): string {
-  const lowered = text.toLowerCase();
-  // Strip punctuation except apostrophes (so "won't" -> "wont" after we
-  // drop the apostrophe too — simpler downstream matching). We drop
-  // apostrophes entirely rather than treat them as boundaries.
-  const stripped = lowered
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const words = stripped.split(" ").map((w) => MISSPELLINGS[w] ?? w);
-  return words.join(" ");
-}
-
 // ---------------------------------------------------------------------------
 // Rule model
 // ---------------------------------------------------------------------------
 
 export interface Rule {
-  /** Phrase to look for. Matched as a substring against normalized, space-padded text. */
+  /** Phrase to look for. Matched as a whole-phrase substring of the normalized, space-padded text. */
   phrase: string;
   category: Category;
   urgency: Urgency;
@@ -140,14 +127,10 @@ export interface Rule {
   exclude?: string[];
 }
 
-// Helper to count words in a phrase, used for "longer/more specific wins".
-function wordCount(phrase: string): number {
-  return phrase.trim().split(/\s+/).length;
-}
-
 // ---------------------------------------------------------------------------
-// SAFETY — checked first, always. Urgent, and worth being conservative
-// about false positives (see EXCLUDE list below for "killer hole" etc.)
+// SAFETY — outranks every other category in match_keywords. Urgent, and
+// worth being conservative about false positives (see the idiom list below
+// for "killer hole" etc.)
 // ---------------------------------------------------------------------------
 
 const SAFETY_RULES: Rule[] = [
@@ -220,9 +203,10 @@ const SAFETY_RULES: Rule[] = [
 ];
 
 // Idioms that LOOK like safety keywords but are ordinary golf talk. If any
-// of these appear, we suppress a safety match unless a stronger, more
-// specific safety phrase is also present (handled in matchKeywords).
-const SAFETY_FALSE_POSITIVE_IDIOMS: string[] = [
+// of these appear, match_keywords suppresses safety rules with confidence
+// under 0.8; a stronger, more specific safety phrase ("call 911") still
+// stands. Loaded into triage_safety_idioms.
+export const SAFETY_FALSE_POSITIVE_IDIOMS: string[] = [
   "killer hole",
   "killer course",
   "killer round",
@@ -315,7 +299,6 @@ const COURSE_MAINTENANCE_RULES: Rule[] = [
   { phrase: "tree limb down across the path", category: "course_maintenance", urgency: "normal", confidence: 0.95 },
   { phrase: "tree limb down", category: "course_maintenance", urgency: "normal", confidence: 0.9 },
   { phrase: "branch down on the fairway", category: "course_maintenance", urgency: "normal", confidence: 0.9 },
-  { phrase: "tree down", category: "course_maintenance", urgency: "normal", confidence: 0.85 },
   { phrase: "cart path is cracked", category: "course_maintenance", urgency: "low", confidence: 0.85 },
   { phrase: "cart path is flooded", category: "course_maintenance", urgency: "normal", confidence: 0.87 },
   { phrase: "standing water on the fairway", category: "course_maintenance", urgency: "normal", confidence: 0.87 },
@@ -335,6 +318,10 @@ const COURSE_MAINTENANCE_RULES: Rule[] = [
   { phrase: "divot mix", category: "course_maintenance", urgency: "low", confidence: 0.8 },
   { phrase: "limb down", category: "course_maintenance", urgency: "normal", confidence: 0.85 },
   { phrase: "branch down", category: "course_maintenance", urgency: "normal", confidence: 0.85 },
+  // A whole tree down blocks play and carts; a limb is a nuisance. This rule
+  // existed twice (normal and high) and `on conflict do nothing` kept the
+  // first, so production quietly ran `normal`. loadRules now rejects any
+  // duplicate (phrase, category) outright.
   { phrase: "tree down", category: "course_maintenance", urgency: "high", confidence: 0.85 },
 ];
 
@@ -343,8 +330,8 @@ const COURSE_MAINTENANCE_RULES: Rule[] = [
 // ---------------------------------------------------------------------------
 
 const CART_ISSUE_RULES: Rule[] = [
-  // Note: input is normalized (apostrophes stripped) before matching, so
-  // "won't" becomes "wont" — write phrases here without apostrophes.
+  // Input is normalized (apostrophes stripped) before matching, so "won't"
+  // becomes "wont" — write phrases here without apostrophes.
   { phrase: "cart wont start", category: "cart_issue", urgency: "normal", confidence: 0.95 },
   { phrase: "cart battery is dead", category: "cart_issue", urgency: "normal", confidence: 0.94 },
   { phrase: "cart is dead", category: "cart_issue", urgency: "normal", confidence: 0.85 },
@@ -534,9 +521,13 @@ const PLAY_INTERFERENCE_RULES: Rule[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Assemble the full rule table. Order within a category doesn't matter for
-// selection (we score every rule and pick the best), but we keep SAFETY
+// Assemble the full rule table. Order does not affect selection —
+// match_keywords scores every rule and picks the best — but SAFETY stays
 // first for readability since it's the highest-stakes category.
+//
+// (phrase, category) must be unique across the whole table; loadRules
+// throws otherwise, because a duplicate silently swallowed is how a rule's
+// urgency drifted between what was reviewed and what ran.
 // ---------------------------------------------------------------------------
 
 export const ALL_RULES: Rule[] = [
@@ -551,89 +542,3 @@ export const ALL_RULES: Rule[] = [
   ...CADDIE_VALET_RULES,
   ...PLAY_INTERFERENCE_RULES,
 ];
-
-// Minimum confidence we're willing to hand back as a real classification.
-// Below this, we consider the signal too weak and return null so the model
-// gets a shot instead of us guessing.
-const ACCEPT_THRESHOLD = 0.6;
-
-/**
- * Run the deterministic keyword pass. Returns the single best match, or
- * null if nothing clears the confidence bar — the caller should escalate
- * to the AI model in that case.
- */
-export function matchKeywords(text: string): KeywordMatch | null {
-  if (!text || !text.trim()) return null;
-
-  const normalized = normalize(text);
-  // Pad with spaces so every phrase search is a whole-word/whole-phrase
-  // substring match (avoids "cart" matching inside "cartography", etc.,
-  // though on this domain that's mostly theoretical — still correct).
-  const padded = ` ${normalized} `;
-
-  // 1. Safety idiom guard: if a known false-positive idiom is present,
-  // note it so we can suppress weak safety rules that would otherwise
-  // fire on a shared word (e.g. "killing me" containing "kill").
-  const hasFalsePositiveIdiom = SAFETY_FALSE_POSITIVE_IDIOMS.some((idiom) =>
-    padded.includes(` ${idiom} `)
-  );
-
-  let best: KeywordMatch | null = null;
-  let bestWordCount = 0;
-
-  for (const rule of ALL_RULES) {
-    const needle = ` ${rule.phrase} `;
-    if (!padded.includes(needle)) continue;
-
-    // Disambiguation: skip this rule if an excluded phrase is present.
-    if (rule.exclude && rule.exclude.some((ex) => padded.includes(` ${ex} `))) {
-      continue;
-    }
-
-    // Safety idiom guard: only applies to the two intentionally-fuzzy
-    // safety rules ("hurt" / generic words) — specific multi-word safety
-    // phrases (e.g. "not breathing") always stand because they don't
-    // collide with the idiom list.
-    if (
-      rule.category === "safety" &&
-      hasFalsePositiveIdiom &&
-      rule.confidence < 0.8
-    ) {
-      continue;
-    }
-
-    const words = wordCount(rule.phrase);
-    const candidate: KeywordMatch = {
-      category: rule.category,
-      urgency: rule.urgency,
-      confidence: rule.confidence,
-      matched: rule.phrase,
-    };
-
-    // Selection precedence:
-    //   1. Safety outranks everything. A safety rule that survived the idiom
-    //      guard wins even against a longer non-safety phrase, because the two
-    //      errors are not symmetric: mistakenly flagging a hazard costs someone
-    //      a glance, missing one costs far more. Without this, "snake near the
-    //      cart path" was routed to grounds as a cart-path issue.
-    //   2. Otherwise more words (more specific) wins.
-    //   3. Ties broken by higher confidence.
-    const bestIsSafety = best?.category === "safety";
-    const candIsSafety = candidate.category === "safety";
-
-    const wins =
-      !best ||
-      (candIsSafety && !bestIsSafety) ||
-      (candIsSafety === bestIsSafety &&
-        (words > bestWordCount ||
-          (words === bestWordCount && candidate.confidence > best.confidence)));
-
-    if (wins) {
-      best = candidate;
-      bestWordCount = words;
-    }
-  }
-
-  if (!best || best.confidence < ACCEPT_THRESHOLD) return null;
-  return best;
-}

@@ -16,9 +16,8 @@ npm run dev            # http://localhost:3000/r/beacon-hill/bh-h07
 | --- | --- | --- |
 | `npm run db:validate` | Applies migrations + seed to throwaway Postgres (PGlite) | nothing |
 | `npm run db:check` | Asserts the seed data is demo-worthy | nothing |
-| `npm run triage:eval` | Keyword regression suite (75 fixtures, free) | nothing |
+| `npm run triage:eval` | Keyword regression suite: 75 fixtures against the SQL matcher in PGlite (free) | nothing |
 | `npm run triage:coverage` | Per-category coverage + adversarial probes (free) | nothing |
-| `npm run triage:model` | Live model triage test — **costs ~$0.025** | `ANTHROPIC_API_KEY` |
 | `npm run test:rls` | **Anonymous-access check on every table and view** | Supabase |
 | `npm run test:routing` / `test:actions` | SQL logic suites (36 cases) | nothing |
 | `npm run db:apply` | Apply new migrations to Supabase (tracked, so safe to re-run) | Supabase |
@@ -33,7 +32,7 @@ npm run dev            # http://localhost:3000/r/beacon-hill/bh-h07
   all, only `submit_report` and `get_report_status`.
 - **Beacon Hill demo seed** — 220 reports over 41 days, 24 locations, 9 staff,
   17 live tickets, median 7 min ack / 69 min resolve. Verified, not assumed.
-- **Triage, both passes** — 229 keyword rules (free, 0 misroutes across 75 fixtures
+- **Triage, both passes** — 226 keyword rules (free, 0 misroutes across 75 fixtures
   and 12 adversarial probes) plus a Claude Haiku pass for the ~21% that fall through.
   Blended cost ≈ $0.0003 per submitted report.
 - **Member reporter page** — `/r/[courseSlug]/[token]`, Beacon Hill branded, scan →

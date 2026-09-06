@@ -10,7 +10,19 @@
  * the worker is allowed to take over — which is what skipWaiting and
  * clients.claim at the bottom are for.
  */
-const SW_VERSION = 2;
+const SW_VERSION = 3;
+
+/**
+ * The one thing this worker caches: a page to show when the phone has no
+ * signal. Versioned by SW_VERSION so a new worker never serves the previous
+ * worker's copy; activate below deletes every cache that is not this one.
+ *
+ * Nothing else is ever cached. Every app page carries RLS-scoped data for
+ * the signed-in person, and a cached queue is a queue shown to whoever picks
+ * up the phone next — and a stale one that looks current, which is worse.
+ */
+const OFFLINE_CACHE = `proresponse-offline-v${SW_VERSION}`;
+const OFFLINE_URL = "/offline.html";
 
 /**
  * How it should feel, by urgency.
@@ -94,5 +106,43 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(OFFLINE_CACHE);
+      // `cache: "reload"` bypasses the HTTP cache so a redeploy's offline
+      // page is the one that gets stored, not the one the browser already had.
+      await cache.add(new Request(OFFLINE_URL, { cache: "reload" }));
+      await self.skipWaiting();
+    })(),
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.all(names.filter((n) => n !== OFFLINE_CACHE).map((n) => caches.delete(n)));
+      await self.clients.claim();
+    })(),
+  );
+});
+
+/**
+ * Only navigations, and only when the network has already failed.
+ *
+ * A dead zone on the course used to be a blank tab with a browser error in
+ * it. Now it is a page in the club's colours that says the report is not
+ * lost. Every other request — data, scripts, the server action that files
+ * the report — goes straight to the network untouched, so a failed submit
+ * still fails loudly in the form instead of being answered from a cache.
+ */
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(
+    fetch(event.request).catch(async () => {
+      const cached = await caches.match(OFFLINE_URL, { cacheName: OFFLINE_CACHE });
+      return cached || Response.error();
+    }),
+  );
+});

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>You're offline — ProResponse</title>
+  <!--
+    Served by public/sw.js when a page navigation fails because the phone has
+    no signal. Entirely self-contained: no fonts, no images, no scripts, since
+    none of those can load either. The palette is app/globals.css by hand —
+    cream, bark and moss — so this reads as the club and not as a browser
+    error. Both languages are shown because the worker cannot know which one
+    the person chose.
+  -->
+  <style>
+    :root {
+      --c-cream: #f9e6bf;
+      --c-bark: #3a3520;
+      --c-moss: #6c844c;
+      --c-white: #ffffff;
+      --surface: color-mix(in srgb, var(--c-cream) 20%, var(--c-white));
+      --surface-raised: color-mix(in srgb, var(--c-white) 60%, var(--surface));
+      --ink: var(--c-bark);
+      --ink-secondary: color-mix(in srgb, var(--ink) 84%, var(--surface));
+      --ink-muted: color-mix(in srgb, var(--ink) 76%, var(--surface));
+      --ink-subtle: color-mix(in srgb, var(--ink) 70%, var(--surface));
+      --line: color-mix(in srgb, var(--ink) 13%, transparent);
+      --accent: var(--c-moss);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: var(--surface);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page {
+      max-width: 30rem;
+      margin: 0 auto;
+      min-height: 100dvh;
+      padding: 3rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .rule { margin-top: 1rem; height: 2px; width: 2.5rem; border-radius: 999px; background: var(--accent); }
+    h1 {
+      margin: 1.75rem 0 0;
+      font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+      font-weight: 400;
+      font-size: 2.3rem;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .card {
+      margin-top: 2rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: var(--surface-raised);
+      padding: 1.5rem 1.5rem 1.6rem;
+      box-shadow: 0 1px 2px rgba(58, 53, 32, 0.06), 0 8px 24px -12px rgba(58, 53, 32, 0.18);
+    }
+    .card + .card { margin-top: 1rem; }
+    .card p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-secondary); }
+    .card p + p { margin-top: 0.75rem; }
+    .card .lang { display: block; margin-bottom: 0.75rem; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-subtle); }
+    .kept { font-weight: 500; color: var(--ink); }
+    footer {
+      margin-top: auto;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-subtle);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <p class="eyebrow">No signal · Sin señal</p>
+      <div class="rule"></div>
+      <h1>You're offline.</h1>
+    </header>
+
+    <section class="card" lang="en">
+      <span class="lang">English</span>
+      <p>The course has dead spots. <span class="kept">Your report was not lost if you did not press send</span> — go back and it is still there.</p>
+      <p>Try again when you have a bar.</p>
+    </section>
+
+    <section class="card" lang="es">
+      <span class="lang">Español</span>
+      <p>Usted está sin conexión. El campo tiene zonas sin señal. <span class="kept">Su reporte no se perdió si no presionó enviar</span> — vuelva atrás y seguirá ahí.</p>
+      <p>Inténtelo de nuevo cuando tenga una barra de señal.</p>
+    </section>
+
+    <footer>ProResponse</footer>
+  </div>
+</body>
+</html>

@@ -42,6 +42,19 @@ and keeps the branch, URL, Supabase host and flags for a caller holding
 go out as one JSON line through `lib/observability/report-error.ts`, with the
 action name and report id and never the note that was typed.
 
+**The member form speaks Spanish, the course has an offline page, and a GM
+can take their data out.** Every word on the member page now comes from one
+table in `lib/i18n/member.ts` (formal usted; hoyo, calle, green, carrito);
+`?lang=es` wins, then the phone's Accept-Language, then English, with an
+EN | ES switch on the page and the choice recorded as `reporter_language`
+instead of the hardcoded `'en'`. `public/sw.js` (v3) caches exactly one thing,
+`/offline.html`, and serves it when a page navigation fails — nothing else is
+cached, because every app page carries someone's RLS-scoped queue.
+`GET /api/export?days=30|90|365` streams a CSV for management only: no
+`body`, no `resolution_note`, no reporter contact, every cell escaped and
+formula-prefixed cells neutralised; linked from the dashboard header.
+`test:i18n` and `test:export` run in `verify:offline`.
+
 ## 6 Sep 2026 — third loop
 
 **[bug] The model decided who was woken up.** `20260906090000` let an `urgent`

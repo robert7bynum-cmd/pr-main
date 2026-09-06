@@ -4,10 +4,29 @@ import { revalidatePath } from "next/cache";
 import { callFn, currentStaffId, getMe } from "@/lib/queue/actions-db";
 import { getDepartments } from "@/lib/queue/reports";
 import { CLOSE_REASONS, isCloseReason } from "@/lib/queue/close-reasons";
+import { reportError } from "@/lib/observability/report-error";
 
 export interface ActionResult {
   ok: boolean;
   message?: string;
+}
+
+/**
+ * Every action's database call, reported when it fails and then rethrown, so
+ * behaviour is exactly what it was and the failure is on the record with the
+ * function and report it concerned. Only identifiers go into the context —
+ * never the note a member of staff typed.
+ */
+async function call(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return await callFn(name, args);
+  } catch (e) {
+    reportError(`action.${name}`, e, { reportId: args.p_report_id });
+    throw e;
+  }
 }
 
 export async function acknowledgeAction(reportId: string): Promise<ActionResult> {
@@ -24,7 +43,7 @@ export async function acknowledgeAction(reportId: string): Promise<ActionResult>
   }
 
   const actor = await currentStaffId();
-  const row = await callFn("acknowledge_report", {
+  const row = await call("acknowledge_report", {
     p_report_id: reportId,
     p_actor: actor,
   });
@@ -46,7 +65,7 @@ export async function resolveAction(
     return { ok: false, message: "Add a short note about what you did." };
   }
 
-  await callFn("resolve_report", {
+  await call("resolve_report", {
     p_report_id: reportId,
     p_actor: await currentStaffId(),
     p_internal_note: internalNote.trim(),
@@ -63,7 +82,7 @@ export async function scheduleAction(
   date: string,
 ): Promise<ActionResult> {
   if (!date) return { ok: false, message: "Pick a date." };
-  await callFn("schedule_report", {
+  await call("schedule_report", {
     p_report_id: reportId,
     p_actor: await currentStaffId(),
     p_date: date,
@@ -87,7 +106,7 @@ export async function assignAction(
 ): Promise<ActionResult> {
   if (!assigneeId) return { ok: false, message: "Pick someone." };
 
-  const row = await callFn("assign_report", {
+  const row = await call("assign_report", {
     p_report_id: reportId,
     p_actor: await currentStaffId(),
     p_assignee: assigneeId,
@@ -148,7 +167,7 @@ export async function rerouteAction(
   if (!target) return { ok: false, message: "That department isn't at this club." };
 
   try {
-    await callFn("reroute_report", {
+    await call("reroute_report", {
       p_report_id: reportId,
       p_actor: await currentStaffId(),
       p_department_id: departmentId,
@@ -175,7 +194,7 @@ export async function closeAction(
   if (!isCloseReason(reason)) return { ok: false, message: "Pick a reason." };
 
   try {
-    await callFn("close_no_action", {
+    await call("close_no_action", {
       p_report_id: reportId,
       p_actor: await currentStaffId(),
       p_reason: reason,
@@ -191,7 +210,7 @@ export async function closeAction(
 /** "I'm on it now": the report is in progress, and claimed by whoever said so. */
 export async function startAction(reportId: string): Promise<ActionResult> {
   try {
-    await callFn("start_report", {
+    await call("start_report", {
       p_report_id: reportId,
       p_actor: await currentStaffId(),
     });

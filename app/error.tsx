@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { reportError } from "@/lib/observability/report-error";
 
 /**
  * Fallback for the member and sign-in surfaces. The staff app has its own
  * under app/app. As there, error.message is logged and never shown: a member
  * scanning a placard should see a sentence, not an exception.
+ *
+ * Reported in the same JSON shape the server uses. In production Next strips
+ * a server error's message and stack before it reaches the browser and leaves
+ * the digest, which is the handle for finding the server-side line.
  */
 export default function RootError({
   error,
@@ -16,7 +21,7 @@ export default function RootError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("public surface error", error.digest ?? "", error);
+    reportError("surface.public", error, error.digest ? { digest: error.digest } : undefined);
   }, [error]);
 
   return (

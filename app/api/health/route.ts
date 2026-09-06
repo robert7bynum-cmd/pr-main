@@ -10,8 +10,16 @@ import { deploymentRef } from "@/lib/deployment";
  * wired to nothing looks like a preview wired to production right up until a
  * page fails to load.
  *
+ * Two answers, by who is asking. Anyone gets `env`, `commit` and `database` —
+ * that is what the ship gate needs to read the deployed commit back, and a
+ * short SHA plus "ok" tells a stranger nothing they could use. The branch
+ * name, the deployment URL, the Supabase host and the configuration flags are
+ * for the operator, and come back only to a caller sending the project's
+ * CRON_SECRET as a bearer — the same token that guards /api/watchdog. Until
+ * this change all of it was public: the branch names in flight, which
+ * Supabase project to aim at, whether push was configured.
+ *
  * Returns configuration and reachability only — no secrets, and no row data.
- * The Supabase host it names is already in the client bundle.
  */
 export const dynamic = "force-dynamic";
 
@@ -28,7 +36,14 @@ async function pushConfigured(): Promise<boolean> {
   }
 }
 
-export async function GET() {
+/** The operator, proven by the same secret Vercel Cron sends the watchdog. */
+function isOperator(request: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  return request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
+export async function GET(request: Request) {
   const ref = deploymentRef();
 
   // A HEAD count: proves the credentials work and the database answers,
@@ -45,10 +60,18 @@ export async function GET() {
     }
   }
 
+  const status = database === "unreachable" ? 503 : 200;
+  const headers = { "cache-control": "no-store" };
+
+  if (!isOperator(request)) {
+    return Response.json({ env: ref.env, commit: ref.commit, database }, { status, headers });
+  }
+
   const body = {
     ...ref,
     database,
-    // Which project, not which key. The host is public either way.
+    // Which project, not which key. The host is in the client bundle either
+    // way; it is kept behind the bearer so this route is not the index of it.
     supabase: process.env.NEXT_PUBLIC_SUPABASE_URL
       ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
       : null,
@@ -71,8 +94,5 @@ export async function GET() {
     scheduledWork: ref.env === "production" ? "if app_settings.triage_function_url points at this project's edge function" : "no — cron never targets a preview",
   };
 
-  return Response.json(body, {
-    status: database === "unreachable" ? 503 : 200,
-    headers: { "cache-control": "no-store" },
-  });
+  return Response.json(body, { status, headers });
 }

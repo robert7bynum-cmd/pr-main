@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getMe } from "@/lib/queue/actions-db";
 import { getReportDetail } from "@/lib/queue/reports";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +44,38 @@ export default async function ReportPage({
   if (!me) redirect("/login");
 
   const r = await getReportDetail(id);
-  if (!r) notFound();
+
+  // A report that is gone is not a broken address. It can disappear from under
+  // somebody legitimately — resolved and cleared by a colleague, or removed —
+  // and a queue open on a phone can be a minute out of date. A raw 404 tells a
+  // groundskeeper the app is broken; this tells them what happened and puts
+  // them one tap from the queue.
+  if (!r) {
+    return (
+      <main className="app-ground flex min-h-dvh items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[25rem] rounded-card border border-line bg-surface-raised px-7 py-9 shadow-pop">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+            {me.course_name}
+          </p>
+          <h1 className="mt-4 font-display text-[1.9rem] leading-tight tracking-tight">
+            This report is no longer here
+          </h1>
+          <div className="mt-4 h-0.5 w-8 rounded-pill bg-accent" />
+          <p className="mt-5 text-[15px] leading-relaxed text-ink-secondary">
+            It was probably closed by someone else while you had this open. If
+            you were part-way through something, check the queue — it may
+            already be handled.
+          </p>
+          <a
+            href="/app"
+            className="mt-7 inline-block rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card"
+          >
+            Back to open reports
+          </a>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main>

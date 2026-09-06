@@ -8,6 +8,10 @@ import {
   assignAction,
 } from "@/app/actions/report-actions";
 import type { Teammate } from "@/lib/queue/reports";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Actions on a report card.
@@ -131,23 +135,26 @@ export function CardActions({
     return (
       <div className="mt-5 border-t border-line pt-4">
         {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
-        <label className="block text-[13px] text-ink-secondary" htmlFor={`assign-${reportId}`}>
-          Hand this to
-        </label>
-        <select
-          id={`assign-${reportId}`}
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-          className="mt-2 w-full rounded-control border border-line bg-surface px-4 py-3.5 text-[15px] outline-none focus:border-line-strong"
-        >
-          <option value="">Choose someone…</option>
-          {sorted.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.full_name}
-              {t.on_duty ? " — on duty" : ""}
-            </option>
-          ))}
-        </select>
+        <p className="text-[13px] text-ink-secondary">Hand this to</p>
+        <Select value={assignee} onValueChange={(v) => setAssignee(v ?? "")}>
+          <SelectTrigger className="mt-2 h-auto w-full px-4 py-3.5 text-[15px]">
+            <SelectValue placeholder="Choose someone…" />
+          </SelectTrigger>
+          <SelectContent>
+            {sorted.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                <span className="flex items-center gap-2">
+                  {t.full_name}
+                  {/* On duty said as a badge rather than a suffix in the text:
+                      it is the thing being scanned for, not a footnote. */}
+                  {t.on_duty && (
+                    <Badge variant="department" size="sm">On duty</Badge>
+                  )}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
           They are told straight away, and the response clock starts again for them.
         </p>

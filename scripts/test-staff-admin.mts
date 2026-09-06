@@ -225,5 +225,49 @@ console.log("\n9. invitations are scoped to people you may manage");
     await throws(`select invite_staff($1, 'Again', 'staff')`, [staffEmail]));
 }
 
+/**
+ * invite_staff upserts on (course, email) and overwrites the role. It used to
+ * ask assert_can_manage about the NEW role only, so a manager could re-invite
+ * a pending owner as 'staff', demote the unclaimed row, and then mint a link
+ * for it — create_staff_invite trusts the pending row's role. The guard is now
+ * asked about greatest(existing, new), as set_staff_role already was.
+ */
+console.log("\n10. re-inviting cannot demote a pending owner");
+{
+  const errorOf = async (sql: string, p: unknown[] = []) => {
+    try { await db.query(sql, p); return null; } catch (e) { return (e as Error).message; }
+  };
+  const incoming = "incoming-owner@beaconhillgolfva.com";
+  const owner = (await one<{ id: string }>(
+    `select id from profiles where role = 'owner' and active limit 1`))!.id;
+
+  await act(owner);
+  await db.query(`select invite_staff($1, 'Incoming Owner', 'owner')`, [incoming]);
+  const pending = await one<{ role: string }>(`select role from pending_profiles where email = $1`, [incoming]);
+  check("an owner can invite an owner", pending?.role === "owner", String(pending?.role));
+
+  await act(manager);
+  const demote = await errorOf(`select invite_staff($1, 'Incoming Owner', 'staff')`, [incoming]);
+  check("a manager re-inviting that address as staff is refused", demote !== null, "accepted");
+  check("for the owner reason, not a generic one", Boolean(demote?.includes("only an owner")), demote ?? "");
+  const still = await one<{ role: string; claimed_at: string | null }>(
+    `select role, claimed_at from pending_profiles where email = $1`, [incoming]);
+  check("the pending row still says owner", still?.role === "owner", JSON.stringify(still));
+  check("and the manager still cannot mint a link for it",
+    await throws(`select create_staff_invite($1)`, [incoming]));
+  const audited = await one<{ n: number }>(
+    `select count(*)::int n from admin_events where type = 'staff_invited' and actor_id = $1
+       and detail->>'email' = $2`, [manager, incoming]);
+  check("nothing was recorded as invited by the manager", (audited?.n ?? -1) === 0, String(audited?.n));
+
+  // The legitimate case is untouched: a manager may change a pending
+  // invitation they are allowed to manage.
+  await db.query(`select invite_staff('newhire@beaconhillgolfva.com', 'New Hire', 'supervisor')`);
+  const changed = await one<{ role: string }>(
+    `select role from pending_profiles where email = 'newhire@beaconhillgolfva.com'`);
+  check("a manager can still re-invite pending staff at a role they manage",
+    changed?.role === "supervisor", String(changed?.role));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

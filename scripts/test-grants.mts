@@ -49,10 +49,14 @@ check("no anon or authenticated privileges on service-role tables",
 // legitimately granted on several of these (staff_read policies), so only the
 // write privileges are asserted. 20260906070000 revoked them after dropping the
 // first-day policies that let any signed-in staff member set their own
-// resolved_by or append to the table every metric derives from.
+// resolved_by or append to the table every metric derives from. 20260906100000
+// finished the job on the five configuration tables it had left open: nothing
+// in the app wrote them, and a manager could re-point a placard or rewrite a
+// pending invitation's role by hand.
 const WRITE_LOCKED = [
   "reports", "report_events", "routing_rules", "admin_events", "notifications",
   "system_alerts", "system_heartbeats", "triage_keywords", "staff_departments", "courses",
+  "departments", "locations", "qr_codes", "venues", "pending_profiles",
 ];
 
 const { rows: writes } = await db.query<{ role: string; tbl: string; priv: string }>(`

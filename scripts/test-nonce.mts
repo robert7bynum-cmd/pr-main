@@ -91,5 +91,93 @@ console.log("\nplacard validity");
 const dead = await fails(`select issue_scan_nonce($1)`, ["bh-not-a-real-placard"]);
 check("an unknown placard mints nothing", Boolean(dead?.includes("not active")), dead ?? "accepted");
 
+/**
+ * The per-placard limit on submission itself. The nonce rewrite dropped it,
+ * and the re-mint above means a nonce is never the scarce thing — the twenty
+ * scans per five minutes were. Five reports per placard per two minutes is
+ * back (20260906100000), checked before the nonce is consumed so a refusal
+ * does not also cost the member their scan.
+ */
+console.log("\nflood control on submission");
+{
+  const failsWith = async (s: string, p: unknown[] = []) => {
+    try { await db.query(s, p); return null; }
+    catch (e) { return { message: (e as Error).message, code: (e as { code?: string }).code }; }
+  };
+  const placard = (await one<{ id: string; token: string }>(
+    `select id, token from qr_codes where active and token not in ($1, $2) limit 1`, [token, floodToken]))!;
+  // Whatever the seed filed here recently must not count against this test.
+  await db.query(
+    `update reports set created_at = created_at - interval '1 day'
+      where qr_code_id = $1 and created_at > now() - interval '2 minutes'`, [placard.id]);
+
+  const nonces: string[] = [];
+  for (let i = 0; i < 6; i++)
+    nonces.push((await one<{ issue_scan_nonce: string }>(`select issue_scan_nonce($1)`, [placard.token]))!.issue_scan_nonce);
+
+  let filed = 0;
+  for (let i = 0; i < 5; i++) {
+    const e = await failsWith(`select submit_report($1,$2,$3)`, [placard.token, nonces[i], `Report ${i + 1} from one bench`]);
+    if (!e) filed++;
+  }
+  check("five reports in two minutes from one placard are accepted", filed === 5, `${filed} filed`);
+
+  const sixth = await failsWith(`select submit_report($1,$2,$3)`, [placard.token, nonces[5], "The sixth in two minutes"]);
+  check("the sixth is refused", sixth !== null, "accepted");
+  check("with the flood-control message",
+    Boolean(sixth?.message.includes("Too many reports from this location just now.")), sixth?.message ?? "");
+  check("and errcode 53400, as the scan limiter uses", sixth?.code === "53400", String(sixth?.code));
+  check("it is not the stale-nonce message, so the app will not re-mint and retry",
+    !sixth?.message.includes("This form has expired"), sixth?.message ?? "");
+
+  const kept = await one<{ used_at: string | null }>(`select used_at from scan_nonces where nonce = $1`, [nonces[5]]);
+  check("the refused submission did not consume its nonce", kept !== undefined && kept.used_at === null, JSON.stringify(kept));
+
+  // Time passes: the window empties. Backdated rather than slept.
+  await db.query(
+    `update reports set created_at = now() - interval '3 minutes'
+      where qr_code_id = $1 and created_at > now() - interval '2 minutes'`, [placard.id]);
+  const n = await reportCount();
+  const retry = await failsWith(`select submit_report($1,$2,$3)`, [placard.token, nonces[5], "The sixth, two minutes later"]);
+  check("once the window has passed the same nonce files the report",
+    retry === null && (await reportCount()) === n + 1, retry?.message ?? `count ${await reportCount()} vs ${n + 1}`);
+}
+
+/**
+ * scan_nonces grew without bound: 149 rows for 13 reports on the live database.
+ * purge_scan_nonces() deletes anything older than a day and runs from the
+ * escalate sweep. PGlite has no pg_cron, so the schedule is asserted on the
+ * migration text, the way test-delivery-gate does for the triage gate.
+ */
+console.log("\nnonce retention");
+{
+  await db.query(`update scan_nonces set issued_at = now() - interval '2 days' where nonce = $1`, [n2]);
+  const total = Number((await one<{ n: string }>(`select count(*) n from scan_nonces`))!.n);
+  const old = Number((await one<{ n: string }>(
+    `select count(*) n from scan_nonces where issued_at < now() - interval '1 day'`))!.n);
+  check("a backdated nonce is what the purge will see", old >= 1, `${old} old row(s)`);
+
+  const purged = (await one<{ purge_scan_nonces: number }>(`select purge_scan_nonces()`))!.purge_scan_nonces;
+  check("purge_scan_nonces() returns how many it deleted", purged === old, `returned ${purged}, expected ${old}`);
+  const gone = await one<{ nonce: string }>(`select nonce from scan_nonces where nonce = $1`, [n2]);
+  check("the backdated nonce is gone", gone === undefined);
+  const remaining = Number((await one<{ n: string }>(`select count(*) n from scan_nonces`))!.n);
+  check("and nothing younger than a day went with it", remaining === total - old, `${total} -> ${remaining}`);
+
+  const { rows: callers } = await db.query<{ role: string }>(`
+    select r.rolname as role from (values ('anon'),('authenticated'),('service_role')) r(rolname)
+     where has_function_privilege(r.rolname, 'purge_scan_nonces()', 'execute')`);
+  check("only the service role may call it",
+    callers.length === 1 && callers[0].role === "service_role", callers.map((c) => c.role).join(", "));
+
+  const MIGRATION = "supabase/migrations/20260906100000_finish_table_posture.sql";
+  const sql = readFileSync(MIGRATION, "utf8");
+  const job = /cron\.schedule\('proresponse-escalate',\s*'\* \* \* \* \*',\s*\$job\$([\s\S]*?)\$job\$\)/.exec(sql)?.[1] ?? "";
+  check("the escalate sweep is rescheduled in the migration", job.length > 0, "no cron.schedule('proresponse-escalate') body found");
+  check("its body still runs escalate_reports()", /select escalate_reports\(\);/.test(job), job);
+  check("and still writes the sweep heartbeat", /select record_heartbeat\('sweep',/.test(job), job);
+  check("and now purges nonces", /select purge_scan_nonces\(\);/.test(job), job);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

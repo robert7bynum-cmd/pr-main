@@ -2,6 +2,7 @@ import type { QueueRow } from "@/lib/queue/reports";
 import { Badge } from "@/components/ui/badge";
 import { CardActions } from "./card-actions";
 import type { Teammate } from "@/lib/queue/reports";
+import { ownership } from "@/lib/queue/ownership";
 
 /**
  * One report, sized for a phone held one-handed outdoors.
@@ -26,14 +27,6 @@ const URGENCY: Record<
   low:    { label: "Low",    bar: "bg-quiet-bar",   tone: "low",    loud: false },
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  new: "New",
-  triaged: "Unclaimed",
-  acknowledged: "Claimed",
-  in_progress: "In progress",
-  scheduled: "Scheduled",
-};
-
 /** "2026-09-08" reads as a database row on a phone; "Sep 8" reads as a day. */
 function day(iso: string) {
   const d = new Date(`${iso}T12:00:00`);
@@ -53,7 +46,7 @@ export function QueueCard({
   row, team, meId,
 }: { row: QueueRow; team: Teammate[]; meId: string }) {
   const u = URGENCY[row.urgency] ?? URGENCY.normal;
-  const unclaimed = !row.claimed_by;
+  const own = ownership(row);
 
   return (
     <article className="relative overflow-hidden rounded-card border border-line bg-surface-raised shadow-card">
@@ -68,7 +61,9 @@ export function QueueCard({
               </h2>
             </a>
             {row.claimed_by_name && (
-              <p className="mt-2 text-[13px] text-ink-muted">{row.claimed_by_name}</p>
+              <p className="mt-2 text-[13px] text-ink-muted">
+                {row.acknowledged_at ? row.claimed_by_name : `Handed to ${row.claimed_by_name}`}
+              </p>
             )}
           </div>
 
@@ -87,14 +82,7 @@ export function QueueCard({
               "Unclaimed" beside "Nobody has this", are each the same thing said
               twice — and on a 390px card every wasted badge pushes the age onto
               another line. */}
-          {row.scheduled_for ? (
-            <Badge variant="status">Scheduled {day(row.scheduled_for)}</Badge>
-          ) : (
-            <Badge variant="status">{STATUS_LABEL[row.status] ?? row.status}</Badge>
-          )}
-          {unclaimed && row.status !== "triaged" && (
-            <Badge variant="low">Nobody has this</Badge>
-          )}
+          <Badge variant={own.tone}>{own.label}</Badge>
 
           {/* Overdue is stated plainly rather than colour-coded alone —
               colour is unreliable in bright sun. */}

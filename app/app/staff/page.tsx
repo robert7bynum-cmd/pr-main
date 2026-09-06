@@ -3,7 +3,7 @@ import { getMe } from "@/lib/queue/actions-db";
 import { getStaffPage } from "@/lib/staff/queries";
 import { StaffTable } from "@/components/staff-admin/staff-table";
 import { InviteForm } from "@/components/staff-admin/invite-form";
-import { Badge } from "@/components/ui/badge";
+import { PendingInvites } from "@/components/staff-admin/pending-invites";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Staff — ProResponse" };
@@ -34,24 +34,7 @@ export default async function StaffPage() {
 
         {/* Somebody invited who has never signed in is a gap a manager would
             otherwise not see — they believe that person is covered. */}
-        {pending.length > 0 && (
-          <div className="mb-5 rounded-card border border-tone-high-border bg-tone-high-fill px-5 py-4 shadow-card">
-            <Badge variant="high" size="sm">Gap</Badge>
-            <p className="mt-2.5 text-[13px] font-medium text-tone-high-ink">
-              Invited, not signed in yet
-            </p>
-            <ul className="mt-2 space-y-1.5">
-              {pending.map((p) => (
-                <li key={p.id} className="text-[13px] text-ink-secondary">
-                  {p.full_name} · {p.email} · {p.role}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-[12px] leading-relaxed text-ink-secondary">
-              They will not receive alerts until they sign in.
-            </p>
-          </div>
-        )}
+        {pending.length > 0 && <PendingInvites invites={pending} />}
 
         <StaffTable
           roster={roster}

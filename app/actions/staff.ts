@@ -103,30 +103,54 @@ export async function inviteStaff(
  */
 export async function createSignInLink(email: string): Promise<StaffResult> {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
-  const actor = Array.isArray(me) ? me[0] : me;
-  if (!actor || !["manager", "owner"].includes(actor.role)) {
-    return { ok: false, message: "You do not manage staff at this club." };
-  }
+  const { data: token, error } = await supabase.rpc("create_staff_invite", {
+    p_email: email.trim().toLowerCase(),
+  });
+  if (error) return { ok: false, message: error.message };
 
-  const address = email.trim().toLowerCase();
+  const base = (await callbackUrl("/account/password")).replace("/auth/callback", "/join");
+  return {
+    ok: true,
+    link: `${base.split("?")[0]}?t=${encodeURIComponent(token as string)}`,
+    message: "Send this to them. It lasts seven days.",
+  };
+}
+
+/**
+ * Turn an invitation into a signed-in session.
+ *
+ * Called from the /join page when somebody presses the button — never on page
+ * load, because a link sent by text or email is fetched before a human sees it
+ * and a preview must not spend the invitation.
+ *
+ * Our token is spent here, and only then is a Supabase token minted, used, and
+ * discarded inside this one request. That token is the fragile part: generating
+ * another invalidates it, and a single extra fetch consumes it. Keeping its
+ * whole life inside one server call is what stops either from mattering.
+ */
+export async function redeemInvite(
+  token: string,
+): Promise<{ ok: boolean; message?: string; tokenHash?: string }> {
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
 
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email: address,
-  });
-  if (error || !data.properties?.hashed_token) {
-    return { ok: false, message: error?.message ?? "Could not create a link." };
+  const { data: email, error } = await admin.rpc("redeem_staff_invite", { p_token: token });
+  if (error || !email) {
+    return {
+      ok: false,
+      message: "That invitation has already been used or has expired. Ask your manager for another.",
+    };
   }
 
-  const base = (await callbackUrl("/account/password")).split("?")[0];
-  const link =
-    `${base}?token_hash=${encodeURIComponent(data.properties.hashed_token)}` +
-    `&type=recovery&next=${encodeURIComponent("/account/password")}`;
+  const { data, error: linkError } = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email: email as string,
+  });
+  if (linkError || !data.properties?.hashed_token) {
+    return { ok: false, message: linkError?.message ?? "Could not sign you in." };
+  }
 
-  return { ok: true, link, message: `Link for ${address} — send it to them directly.` };
+  return { ok: true, tokenHash: data.properties.hashed_token };
 }
 
 /**

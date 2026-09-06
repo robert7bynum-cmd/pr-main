@@ -62,66 +62,167 @@ interface Classification {
   source: "keyword" | "model";
 }
 
-async function classifyWithModel(apiKey: string, body: string): Promise<Classification> {
-  const text = body.trim();
-  if (text.length < 3) {
-    return { category: "needs_review", urgency: "normal", summary: "Empty report", confidence: 0, source: "model" };
-  }
+const URGENCIES: Urgency[] = ["low", "normal", "high", "urgent"];
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5",
-      max_tokens: 200,
-      system: SYSTEM,
-      tools: [{
-        name: "classify_report",
-        description: "Record the classification of a member's report.",
-        strict: true,
-        input_schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            category: { type: "string", enum: CATEGORIES },
-            urgency: { type: "string", enum: ["low", "normal", "high", "urgent"] },
-            summary: { type: "string" },
-            confidence: { type: "number" },
-          },
-          required: ["category", "urgency", "summary", "confidence"],
-        },
-      }],
-      tool_choice: { type: "tool", name: "classify_report" },
-      // Truncated: a pasted essay should not be able to run up the bill.
-      messages: [{ role: "user", content: text.slice(0, 1200) }],
-    }),
+/**
+ * What the model said, checked before it touches the database.
+ *
+ * The tool schema asks for these enums, but the schema is a request to the
+ * API, not a guarantee from it. An out-of-range value used to be cast straight
+ * into route_report, where the Postgres enum cast threw, the item retried five
+ * times and dead-lettered — a report nobody saw, because the model said
+ * "critical" instead of "urgent". Anything malformed becomes needs_review at
+ * confidence 0: a human looks, the report is not lost. The confidence gate
+ * (< 0.6 → needs_review, the prompt's own instruction) runs after the shape
+ * check so it only ever sees a real number.
+ *
+ * Pure and exported so it can be exercised without Deno or a network.
+ */
+export function validateClassification(input: unknown, fallbackSummary: string): Classification {
+  const reject = (): Classification => ({
+    category: "needs_review", urgency: "normal", summary: fallbackSummary, confidence: 0, source: "model",
   });
+  if (typeof input !== "object" || input === null) return reject();
+  const o = input as Record<string, unknown>;
 
-  if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 160)}`);
-
-  const json = await res.json();
-  const block = json.content?.find((b: { type: string }) => b.type === "tool_use");
-  if (!block) {
-    return { category: "needs_review", urgency: "normal", summary: text.slice(0, 80), confidence: 0, source: "model" };
+  const category = o.category;
+  if (typeof category !== "string" || !(CATEGORIES as string[]).includes(category)) return reject();
+  const urgency = o.urgency;
+  if (typeof urgency !== "string" || !(URGENCIES as string[]).includes(urgency)) return reject();
+  const confidence = o.confidence;
+  if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    return reject();
   }
-  const out = block.input as Classification;
+  const summary = typeof o.summary === "string" && o.summary.trim() !== "" ? o.summary : fallbackSummary;
+
   return {
-    category: out.confidence < 0.6 ? "needs_review" : out.category,
-    urgency: out.urgency,
-    summary: out.summary,
-    confidence: out.confidence,
+    category: confidence < 0.6 ? "needs_review" : (category as Category),
+    urgency: urgency as Urgency,
+    summary,
+    confidence,
     source: "model",
   };
 }
 
+/** The classification plus what is kept in reports.ai_raw to explain it. */
+interface Classified {
+  c: Classification;
+  raw: Record<string, unknown>;
+}
+
+/**
+ * A hung request used to hold the whole claimed batch until the five-minute
+ * stale-lock reclaim. Twenty seconds is several times a normal call; past it,
+ * this item fails into fail_triage and the rest of the batch proceeds.
+ */
+const MODEL_TIMEOUT_MS = 20_000;
+
+async function classifyWithModel(apiKey: string, body: string): Promise<Classified> {
+  const text = body.trim();
+  if (text.length < 3) {
+    return {
+      c: { category: "needs_review", urgency: "normal", summary: "Empty report", confidence: 0, source: "model" },
+      raw: { skipped: "empty report" },
+    };
+  }
+
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), MODEL_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: abort.signal,
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 200,
+        system: SYSTEM,
+        tools: [{
+          name: "classify_report",
+          description: "Record the classification of a member's report.",
+          strict: true,
+          input_schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              category: { type: "string", enum: CATEGORIES },
+              urgency: { type: "string", enum: URGENCIES },
+              summary: { type: "string" },
+              confidence: { type: "number" },
+            },
+            required: ["category", "urgency", "summary", "confidence"],
+          },
+        }],
+        tool_choice: { type: "tool", name: "classify_report" },
+        // Truncated: a pasted essay should not be able to run up the bill.
+        messages: [{ role: "user", content: text.slice(0, 1200) }],
+      }),
+    });
+  } catch (err) {
+    if (abort.signal.aborted) throw new Error(`anthropic timeout after ${MODEL_TIMEOUT_MS / 1000}s`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 160)}`);
+
+  const json = await res.json();
+  // Enough to reconstruct why the model answered as it did, and what it cost;
+  // not the whole body, which repeats the request.
+  const raw = { model: json.model, stop_reason: json.stop_reason, content: json.content, usage: json.usage };
+  const block = json.content?.find((b: { type: string }) => b.type === "tool_use");
+  const fallbackSummary = text.slice(0, 80);
+  if (!block) {
+    return {
+      c: { category: "needs_review", urgency: "normal", summary: fallbackSummary, confidence: 0, source: "model" },
+      raw,
+    };
+  }
+  return { c: validateClassification(block.input, fallbackSummary), raw };
+}
+
+/**
+ * A short, non-reversible fingerprint of a key, so a mismatch can be diagnosed
+ * from the logs without either key ever being printed.
+ */
+async function fingerprint(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 12);
+}
+
 Deno.serve(async (req: Request) => {
+  // Who is calling. The function is deployed with verify_jwt on, and that was
+  // taken for authentication — it is not. verify_jwt checks that the bearer is
+  // *a* valid JWT signed by this project, and the publishable anon key is
+  // exactly that: a valid JWT, shipped in every client bundle. Anyone holding
+  // it could POST here and run the worker at will. The only legitimate
+  // callers are pg_cron (via pg_net, sending app_settings.service_role_key)
+  // and sendTestPush in the Next app (SUPABASE_SERVICE_ROLE_KEY), so the
+  // bearer must be the service role key itself — nothing less.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const auth = req.headers.get("authorization") ?? "";
+  const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
+  if (!serviceKey || bearer !== serviceKey) {
+    // Fingerprints only: enough to tell "cron holds a stale key" from "an
+    // anon caller", never enough to recover either.
+    console.warn(
+      `triage: rejected caller; expected sha256 ${serviceKey ? await fingerprint(serviceKey) : "(unset)"}, ` +
+        `got ${bearer ? await fingerprint(bearer) : "(no bearer)"}`,
+    );
+    return new Response(JSON.stringify({ error: "service role required" }), {
+      status: 401, headers: { "content-type": "application/json" },
+    });
+  }
+
   const db = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    serviceKey,
     { auth: { persistSession: false } },
   );
 
@@ -134,7 +235,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const result = {
-    claimed: 0, routed: 0, skipped: 0, failed: 0, unstaffed: 0,
+    claimed: 0, routed: 0, skipped: 0, failed: 0, unstaffed: 0, aiRawUnsaved: 0,
     pushSent: 0, pushFailed: 0, pushRetried: 0, pushPruned: 0,
   };
 
@@ -150,14 +251,20 @@ Deno.serve(async (req: Request) => {
     try {
       // Free pass first: most reports never reach the model.
       const { data: kwRows } = await db.rpc("match_keywords", { p_text: item.body });
-      const kw = (kwRows as { category: Category; urgency: Urgency; confidence: number }[] | null)?.[0] ?? null;
+      const kw = (kwRows as { category: Category; urgency: Urgency; confidence: number; matched: string }[] | null)?.[0] ?? null;
 
-      const c: Classification = kw
-        ? { category: kw.category, urgency: kw.urgency, summary: item.body.slice(0, 80), confidence: Number(kw.confidence), source: "keyword" }
+      const { c, raw }: Classified = kw
+        ? {
+          c: { category: kw.category, urgency: kw.urgency, summary: item.body.slice(0, 80), confidence: Number(kw.confidence), source: "keyword" },
+          raw: { matched: kw.matched, confidence: Number(kw.confidence) },
+        }
         : apiKey
           ? await classifyWithModel(apiKey, item.body)
           // No key configured: a human decides rather than the report vanishing.
-          : { category: "needs_review", urgency: "normal", summary: item.body.slice(0, 80), confidence: 0, source: "model" };
+          : {
+            c: { category: "needs_review", urgency: "normal", summary: item.body.slice(0, 80), confidence: 0, source: "model" },
+            raw: { skipped: "no api key configured" },
+          };
 
       const { data, error: routeError } = await db.rpc("route_report", {
         p_report_id: item.report_id,
@@ -179,6 +286,17 @@ Deno.serve(async (req: Request) => {
       } else {
         result.routed++;
         if (row?.reason === "unstaffed_all_leadership") result.unstaffed++;
+        // The evidence behind the triaged event: what matched, or what the
+        // model actually said. Written only when this classification is the
+        // one that routed the report, so ai_raw never describes a decision
+        // discarded as already_triaged. The report is routed and its people
+        // paged by now, so a failure here is counted and logged, not retried —
+        // re-running the item would only find already_triaged.
+        const { error: rawError } = await db.from("reports").update({ ai_raw: raw }).eq("id", item.report_id);
+        if (rawError) {
+          result.aiRawUnsaved++;
+          console.error(`triage: ai_raw not saved for ${item.report_id}: ${rawError.message}`);
+        }
       }
     } catch (err) {
       result.failed++;

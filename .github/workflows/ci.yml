@@ -1,0 +1,26 @@
+# Runs on every push and pull request, without secrets. Anything here that
+# fails blocks merging. The live suites (verify:live) need a real Supabase
+# project and are deliberately not run here.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # app/layout.tsx uses LayoutProps, a global that Next generates into
+      # .next/types. A fresh checkout has no .next, so tsc fails without this.
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm run verify:offline

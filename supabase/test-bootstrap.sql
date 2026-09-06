@@ -9,6 +9,15 @@ create role anon;
 create role authenticated;
 create role service_role;
 
+-- Mirror Supabase's default privileges. A real project grants ALL on every new
+-- table, function and sequence in public to these three roles, and that is the
+-- exact posture the revoke migrations exist to undo. Without these lines a
+-- plain Postgres grants nothing, so test:grants passed with every revoke
+-- deleted — it was asserting the absence of privileges that were never there.
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+
 create schema if not exists auth;
 
 create table auth.users (

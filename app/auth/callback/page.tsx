@@ -30,6 +30,13 @@ export default function AuthCallbackPage() {
     const supabase = createClient();
     let done = false;
 
+    // Deferred a tick, as queue-live does: setting state synchronously inside
+    // an effect cascades renders (and the linter refuses it). Only the two
+    // failures below that fire before any await need this; the ones inside
+    // .then() callbacks already run after the effect has returned.
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const failSoon = (msg: string) => { pending = setTimeout(() => setProblem(msg), 0); };
+
     const proceed = async () => {
       if (done) return;
       done = true;
@@ -88,18 +95,19 @@ export default function AuthCallbackPage() {
     const refresh_token = frag.get("refresh_token");
     const linkError = frag.get("error_description");
 
-    if (linkError) { setProblem(decodeURIComponent(linkError.replace(/\+/g, " "))); return; }
-    if (!access_token || !refresh_token) {
-      setProblem("That link didn't work. It may have expired — ask your manager to send another.");
-      return;
+    if (linkError) {
+      failSoon(decodeURIComponent(linkError.replace(/\+/g, " ")));
+    } else if (!access_token || !refresh_token) {
+      failSoon("That link didn't work. It may have expired — ask your manager to send another.");
+    } else {
+      void supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+        if (error) { setProblem(error.message); return; }
+        // The tokens have done their job; do not leave them in the history.
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        void proceed();
+      });
     }
-
-    void supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
-      if (error) { setProblem(error.message); return; }
-      // The tokens have done their job; do not leave them in the history.
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-      void proceed();
-    });
+    return () => clearTimeout(pending);
   }, [router]);
 
   return (

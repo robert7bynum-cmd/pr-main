@@ -111,6 +111,17 @@ seed changed. The keyword matcher existed in TypeScript and SQL and disagreed
 silently. *If logic must run in two places, one is generated from the other or
 a test asserts they agree.*
 
+**Every push runs lint, the type check, and the offline suite in CI, and a red
+CI blocks merging.**
+`.github/workflows/ci.yml` runs `npm run lint`, `npx tsc --noEmit` and
+`npm run verify:offline` (which now includes `db:validate` and `db:check`) on
+every push and pull request, with no secrets. Before it existed, `main` carried
+a lint error, and `test:grants` passed on every run while proving nothing — the
+local bootstrap granted no privileges, so the revokes it asserts had nothing to
+revoke. Both shipped because nothing ran them anywhere but a developer's
+terminal, and only when someone remembered. *A suite that runs on request runs
+when it is convenient, which is never when it would have failed.*
+
 ## CC9 / Confidentiality
 
 **Internal notes and member-facing text are separate columns, always.**

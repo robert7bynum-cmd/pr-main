@@ -1,27 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { callbackUrl } from "@/lib/auth/callback-url";
 
 export interface StaffResult { ok: boolean; message?: string; link?: string }
-
-/**
- * Where an emailed link should bring someone back to.
- *
- * The origin the manager is on right now, which for invitations is the right
- * answer: they are on the club's real site when they press the button. The
- * link only works if this origin is on the Supabase project's redirect
- * allow-list; otherwise Supabase quietly sends the person to its configured
- * Site URL instead, which on a fresh project is localhost — the reason the
- * first invitations ever sent from this app would have gone nowhere.
- */
-async function callbackUrl(next: string): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const host = h.get("host") ?? "localhost:3000";
-  return `${proto}://${host}/auth/callback?next=${encodeURIComponent(next)}`;
-}
 
 /**
  * Every one of these calls a SECURITY DEFINER function that enforces the

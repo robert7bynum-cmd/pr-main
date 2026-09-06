@@ -1,7 +1,7 @@
 import type { QueueRow } from "@/lib/queue/reports";
 import { Badge } from "@/components/ui/badge";
 import { CardActions } from "./card-actions";
-import type { Teammate } from "@/lib/queue/reports";
+import type { Department, Teammate } from "@/lib/queue/reports";
 import { ownership } from "@/lib/queue/ownership";
 
 /**
@@ -43,8 +43,8 @@ function age(minutes: number) {
 }
 
 export function QueueCard({
-  row, team, meId,
-}: { row: QueueRow; team: Teammate[]; meId: string }) {
+  row, team, departments, meId,
+}: { row: QueueRow; team: Teammate[]; departments: Department[]; meId: string }) {
   const u = URGENCY[row.urgency] ?? URGENCY.normal;
   const own = ownership(row);
 
@@ -99,7 +99,15 @@ export function QueueCard({
           </span>
         </div>
 
-        <CardActions reportId={row.id} claimed={!!row.claimed_by} team={team} meId={meId} />
+        <CardActions
+          reportId={row.id}
+          claimed={!!row.claimed_by}
+          status={row.status}
+          departmentKey={row.department_key}
+          team={team}
+          departments={departments}
+          meId={meId}
+        />
       </div>
     </article>
   );

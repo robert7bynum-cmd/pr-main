@@ -23,6 +23,7 @@ export interface MemberStrings {
   bodyPlaceholder: string;
   optionalToggle: string;
   optionalNote: string;
+  privacyLink: string;
   namePlaceholder: string;
   memberNoPlaceholder: string;
   phonePlaceholder: string;
@@ -49,6 +50,7 @@ export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
     bodyPlaceholder: "Tell us what's wrong — a sentence is plenty.",
     optionalToggle: "Add your name or number (optional)",
     optionalNote: "Only used if the team needs to ask you something about this report.",
+    privacyLink: "How we use this",
     namePlaceholder: "Name",
     memberNoPlaceholder: "Member number",
     phonePlaceholder: "Mobile number",
@@ -69,6 +71,7 @@ export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
     bodyPlaceholder: "Cuéntenos qué ocurre — con una frase basta.",
     optionalToggle: "Agregar su nombre o número (opcional)",
     optionalNote: "Solo se usa si el equipo necesita consultarle algo sobre este reporte.",
+    privacyLink: "Cómo usamos sus datos",
     namePlaceholder: "Nombre",
     memberNoPlaceholder: "Número de socio",
     phonePlaceholder: "Número de celular",

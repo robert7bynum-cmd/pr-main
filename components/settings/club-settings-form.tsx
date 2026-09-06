@@ -9,6 +9,8 @@ export interface CourseSettings {
   publicUrl: string;
   quietStart: string;
   quietEnd: string;
+  /** Days, as typed; blank means the default of 90. */
+  retentionDays: string;
 }
 
 // The zones a US club is actually in. The current value is always offered
@@ -47,6 +49,9 @@ export function ClubSettingsForm({ initial }: { initial: CourseSettings }) {
   // Mirrors the database guards so the obvious mistakes are caught before a
   // round trip. The function's refusal is the actual protection.
   const halfQuiet = (form.quietStart.trim() === "") !== (form.quietEnd.trim() === "");
+  const retention = form.retentionDays.trim();
+  const badRetention =
+    retention !== "" && !(/^\d+$/.test(retention) && Number(retention) >= 30 && Number(retention) <= 3650);
 
   return (
     <div className="space-y-4">
@@ -137,12 +142,42 @@ export function ClubSettingsForm({ initial }: { initial: CourseSettings }) {
         )}
       </section>
 
+      <section className="rounded-card border border-line bg-surface-raised px-5 py-5 shadow-card">
+        <h2 className="font-display text-[17px] tracking-tight">Member contact details</h2>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">
+          A member&rsquo;s name, number and email are collected only so the team
+          can ask about a report. After this many days they are removed from the
+          report automatically; the report itself stays, and its history records
+          that the details were cleared. Members read the same promise at
+          /privacy.
+        </p>
+        <div className="mt-4 max-w-[16rem]">
+          <label className={label} htmlFor="retention-days">Keep contact details for</label>
+          <div className="mt-2 flex items-center gap-3">
+            <input
+              id="retention-days" type="number" inputMode="numeric" min={30} max={3650} step={1}
+              value={form.retentionDays} placeholder="90"
+              onChange={(e) => set({ retentionDays: e.target.value })}
+              className={field}
+            />
+            <span className="text-[14px] text-ink-secondary">days</span>
+          </div>
+          {badRetention ? (
+            <p className="mt-2 text-[12px] text-urgent">Between 30 and 3650 days.</p>
+          ) : (
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
+              Between 30 days and ten years. Leave blank for the default of 90.
+            </p>
+          )}
+        </div>
+      </section>
+
       {/* Sticky, as on the rules page: a save button below the fold is a save
           button nobody presses. */}
       <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-card border border-line
                       bg-surface-raised px-4 py-3.5 shadow-pop">
         <button
-          disabled={pending || !dirty || halfQuiet || form.name.trim().length < 2}
+          disabled={pending || !dirty || halfQuiet || badRetention || form.name.trim().length < 2}
           onClick={() =>
             start(async () => {
               const res = await saveCourseSettings(form);

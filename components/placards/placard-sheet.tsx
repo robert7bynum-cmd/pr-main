@@ -62,6 +62,10 @@ export async function PlacardSheet({ set }: { set: PlacardSet }) {
 
           <p className="cta">Something needs attention?</p>
           <p className="sub">Scan to tell the team. No app, no account.</p>
+          {/* The privacy notice at the point of collection, on the sign as well
+              as in the form: the same origin the code encodes, so it survives
+              printing for exactly as long as the code does. */}
+          <p className="sub">Privacy: {set.origin}/privacy</p>
           {!p.active && <p className="retired">RETIRED — do not post</p>}
         </article>
       ))}

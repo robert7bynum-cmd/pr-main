@@ -169,9 +169,73 @@ console.log("\nretention");
        ($1, 'retention: still open',        'warning', 'purge test', null)`, [course]);
   const alertsBefore = Number((await one<{ n: string }>(`select count(*) n from system_alerts`))!.n);
 
-  const purged = (await one<{ nonces: number; alerts: number }>(`select * from purge_expired()`))!;
+  // Contact details (20260906170000). Four reports with a name, phone and
+  // email: one 100 days old at Beacon Hill (default 90 — goes), one 10 days
+  // old (stays), one 100 days old at a club that keeps details for 400 days
+  // (stays), and one 100 days old with only a phone (goes; the note names only
+  // the phone). Whatever the seed left with details older than 90 days is
+  // counted too, so the expected total is measured, not assumed.
+  const hole = (await one<{ location_id: string; qr_code_id: string }>(
+    `select location_id, id qr_code_id from qr_codes where active limit 1`))!;
+  const fileAged = async (courseId: string, locationId: string, qrId: string | null, days: number,
+                          who: { name?: string; phone?: string; email?: string }) =>
+    (await one<{ id: string }>(
+      `insert into reports (course_id, location_id, qr_code_id, body, reporter_name, reporter_phone, reporter_email, created_at)
+       values ($1,$2,$3,'retention probe',$4,$5,$6, now() - make_interval(days => $7)) returning id`,
+      [courseId, locationId, qrId, who.name ?? null, who.phone ?? null, who.email ?? null, days]))!.id;
+  const full = { name: "Pat Member", phone: "+15555550100", email: "pat@example.com" };
+  const oldReport   = await fileAged(course, hole.location_id, hole.qr_code_id, 100, full);
+  const youngReport = await fileAged(course, hole.location_id, hole.qr_code_id, 10, full);
+  const phoneOnly   = await fileAged(course, hole.location_id, hole.qr_code_id, 100, { phone: "+15555550199" });
+
+  const longKeeper = (await one<{ id: string }>(
+    `insert into courses (slug, name, settings) values ('long-keeper','Long Keeper GC','{"retention_days": 400}') returning id`))!.id;
+  const longLoc = (await one<{ id: string }>(
+    `insert into locations (course_id, kind, hole_number, name) values ($1,'hole',1,'Hole 1') returning id`, [longKeeper]))!.id;
+  const keptReport = await fileAged(longKeeper, longLoc, null, 100, full);
+
+  const dueBefore = Number((await one<{ n: string }>(`
+    select count(*) n from reports r join courses c on c.id = r.course_id
+     where r.created_at < now() - make_interval(days => coalesce((c.settings->>'retention_days')::int, 90))
+       and (r.reporter_name is not null or r.reporter_phone is not null or r.reporter_email is not null)`))!.n);
+  check("the two aged Beacon Hill probes are due and the other two are not", dueBefore >= 2, `${dueBefore} due`);
+
+  const purged = (await one<{ nonces: number; alerts: number; contacts: number }>(`select * from purge_expired()`))!;
   check("purge_expired() returns how many nonces it deleted", purged.nonces === old, `returned ${purged.nonces}, expected ${old}`);
   check("and how many alerts", purged.alerts === 1, `returned ${purged.alerts}, expected 1`);
+  check("and how many reports lost their contact details", purged.contacts === dueBefore, `returned ${purged.contacts}, expected ${dueBefore}`);
+
+  const contact = (id: string) => one<{ reporter_name: string | null; reporter_phone: string | null; reporter_email: string | null; body: string }>(
+    `select reporter_name, reporter_phone, reporter_email, body from reports where id = $1`, [id]);
+  const anon = await contact(oldReport);
+  check("a 100-day-old report has no name, phone or email",
+    anon?.reporter_name === null && anon?.reporter_phone === null && anon?.reporter_email === null, JSON.stringify(anon));
+  check("but the report itself is still there", anon?.body === "retention probe");
+  const young = await contact(youngReport);
+  check("a 10-day-old report keeps all three",
+    young?.reporter_name === full.name && young?.reporter_phone === full.phone && young?.reporter_email === full.email, JSON.stringify(young));
+  const kept = await contact(keptReport);
+  check("a 100-day-old report at a club keeping details for 400 days keeps them",
+    kept?.reporter_name === full.name && kept?.reporter_phone === full.phone && kept?.reporter_email === full.email, JSON.stringify(kept));
+
+  const noteOf = (id: string) => db.query<{ actor_id: string | null; payload: { retention?: boolean; cleared?: string[] } }>(
+    `select actor_id, payload from report_events where report_id = $1 and type = 'note'`, [id]);
+  const { rows: oldNotes } = await noteOf(oldReport);
+  check("exactly one note event records the anonymisation", oldNotes.length === 1, `${oldNotes.length} note(s)`);
+  check("with retention true and the three fields named, and no actor",
+    oldNotes[0]?.actor_id === null && oldNotes[0]?.payload.retention === true
+      && JSON.stringify([...(oldNotes[0]?.payload.cleared ?? [])].sort()) === JSON.stringify(["reporter_email", "reporter_name", "reporter_phone"]),
+    JSON.stringify(oldNotes[0]));
+  const { rows: phoneNotes } = await noteOf(phoneOnly);
+  check("a report that only had a phone says only the phone was cleared",
+    phoneNotes.length === 1 && JSON.stringify(phoneNotes[0].payload.cleared) === JSON.stringify(["reporter_phone"]), JSON.stringify(phoneNotes));
+  check("the young report and the long-keeper's report got no note",
+    (await noteOf(youngReport)).rows.length === 0 && (await noteOf(keptReport)).rows.length === 0);
+
+  const again = (await one<{ contacts: number }>(`select contacts from purge_expired()`))!;
+  check("running it again clears nothing more, and says zero", again.contacts === 0, `returned ${again.contacts}`);
+  check("and writes no second note",
+    (await noteOf(oldReport)).rows.length === 1, `${(await noteOf(oldReport)).rows.length} note(s)`);
   const gone = await one<{ nonce: string }>(`select nonce from scan_nonces where nonce = $1`, [n2]);
   check("the backdated nonce is gone", gone === undefined);
   const remaining = Number((await one<{ n: string }>(`select count(*) n from scan_nonces`))!.n);

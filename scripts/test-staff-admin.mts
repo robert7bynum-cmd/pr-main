@@ -358,6 +358,9 @@ console.log("\n11. club settings: staff refused on every function");
   await refused("an hour of 24", `'Beacon Hill Golf Club','America/New_York',null,'24:00','06:00'`, "quiet hours must be HH:MM");
   await refused("a start with no end", `'Beacon Hill Golf Club','America/New_York',null,'20:00',null`, "both a start and an end");
   await refused("a one-letter club name", `'B','America/New_York',null,null,null`, "between 2 and 80");
+  await refused("retention shorter than a month", `'Beacon Hill Golf Club','America/New_York',null,null,null,29`, "between 30 and 3650");
+  await refused("retention longer than ten years", `'Beacon Hill Golf Club','America/New_York',null,null,null,3651`, "between 30 and 3650");
+  await refused("negative retention", `'Beacon Hill Golf Club','America/New_York',null,null,null,-1`, "between 30 and 3650");
   const beforeCount = await one<{ n: number }>(
     `select count(*)::int n from admin_events where course_id = $1 and type = 'settings_changed'`, [course]);
   check("none of those wrote a settings_changed row", beforeCount?.n === 0, String(beforeCount?.n));
@@ -396,6 +399,30 @@ console.log("\n11. club settings: staff refused on every function");
     JSON.stringify(clearedSettings?.settings));
   check("with no quiet hours the club is never in quiet hours",
     (await one<{ q: boolean }>(`select within_quiet_hours($1) q`, [course]))!.q === false);
+
+  // Retention (20260906170000): a valid value is stored, audited, and cleared
+  // back to the default by leaving it out. The five-argument call above is the
+  // old signature; it must still work with the new parameter defaulting.
+  const withRetention = await one<{ n: number }>(
+    `select update_course_settings('Beacon Hill Golf Club','America/New_York',null,null,null,365) n`);
+  check("setting retention to 365 days is one change", withRetention?.n === 1, String(withRetention?.n));
+  const retSettings = await one<{ settings: Record<string, unknown> }>(`select settings from courses where id = $1`, [course]);
+  check("stored as settings.retention_days", retSettings?.settings.retention_days === 365, JSON.stringify(retSettings?.settings));
+  const retEv = await one<{ detail: { kind: string; from: Record<string, unknown>; to: Record<string, unknown> } }>(
+    `select detail from admin_events where course_id = $1 and type = 'settings_changed'
+      order by created_at desc, id desc limit 1`, [course]);
+  check("audited: retention_days from null to 365",
+    retEv?.detail?.to?.retention_days === 365 && retEv?.detail?.from?.retention_days === null
+      && JSON.stringify(Object.keys(retEv?.detail?.to ?? {})) === JSON.stringify(["retention_days"]),
+    JSON.stringify(retEv?.detail));
+  const backToDefault = await one<{ n: number }>(
+    `select update_course_settings('Beacon Hill Golf Club','America/New_York',null,null,null) n`);
+  const defSettings = await one<{ settings: Record<string, unknown> }>(`select settings from courses where id = $1`, [course]);
+  check("leaving it out clears the key, back to the default of 90",
+    backToDefault?.n === 1 && !("retention_days" in defSettings!.settings), JSON.stringify(defSettings?.settings));
+  const oneSig = await one<{ n: number }>(
+    `select count(*)::int n from pg_proc where proname = 'update_course_settings'`);
+  check("exactly one update_course_settings signature exists, so PostgREST cannot be ambiguous", oneSig?.n === 1, String(oneSig?.n));
   await db.query(`select update_course_settings('Beacon Hill Golf Club','America/New_York','https://pr-main-dun.vercel.app','20:00','06:00')`);
 
   console.log("\n15. locations: add, rename, and the friendly duplicate");

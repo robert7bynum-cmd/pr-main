@@ -111,8 +111,16 @@ export function ReportForm({
             <input name="email" type="email" placeholder={s.emailPlaceholder} autoComplete="email"
               className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px]
                          outline-none placeholder:text-ink-subtle focus:border-accent-border" />
-            {/* Privacy link goes here, under the optional details. Its text
-                belongs in lib/i18n/member.ts like everything else on this page. */}
+            {/* The notice at the point of collection: what these fields are
+                for, who sees them, and that they are removed after the club's
+                retention period. Opens in a new tab so the half-typed report
+                is not lost to a tap. Text lives in lib/i18n/member.ts. */}
+            <p className="text-[12px] leading-relaxed text-ink-subtle">
+              <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                className="underline underline-offset-4 hover:text-ink-secondary">
+                {s.privacyLink}
+              </a>
+            </p>
           </div>
         )}
       </div>

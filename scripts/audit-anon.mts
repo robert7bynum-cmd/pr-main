@@ -25,6 +25,6 @@ await q("\nVIEWS not running as the caller (would bypass RLS):", `
   select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='public' and c.relkind='v'
      and coalesce((select option_value from pg_options_to_table(c.reloptions)
-                    where option_name='security_invoker'),'off') <> 'true'
+                    where option_name='security_invoker'),'off') not in ('on','true')
    order by 1`);
 await c.end();

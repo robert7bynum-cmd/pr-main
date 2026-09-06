@@ -54,6 +54,11 @@ Set confidence below 0.6 when the report is ambiguous.
 
 The summary is one short line for a staff member's phone. No pleasantries.`;
 
+// Bumped whenever SYSTEM changes, and written into ai_raw beside the response,
+// so a classification can later be read against the exact instructions that
+// produced it rather than whatever the prompt says today.
+const PROMPT_VERSION = "2026-09-06";
+
 interface Classification {
   category: Category;
   urgency: Urgency;
@@ -76,11 +81,21 @@ const URGENCIES: Urgency[] = ["low", "normal", "high", "urgent"];
  * (< 0.6 → needs_review, the prompt's own instruction) runs after the shape
  * check so it only ever sees a real number.
  *
+ * `rejected` says whether that happened. It is a separate flag rather than
+ * something inferred from confidence 0, because a model that honestly answers
+ * confidence 0 has not been rejected — it has been believed.
+ *
  * Pure and exported so it can be exercised without Deno or a network.
  */
-export function validateClassification(input: unknown, fallbackSummary: string): Classification {
-  const reject = (): Classification => ({
-    category: "needs_review", urgency: "normal", summary: fallbackSummary, confidence: 0, source: "model",
+export function validateClassification(
+  input: unknown, fallbackSummary: string,
+): { c: Classification; rejected: boolean } {
+  const reject = () => ({
+    c: {
+      category: "needs_review" as Category, urgency: "normal" as Urgency,
+      summary: fallbackSummary, confidence: 0, source: "model" as const,
+    },
+    rejected: true,
   });
   if (typeof input !== "object" || input === null) return reject();
   const o = input as Record<string, unknown>;
@@ -96,18 +111,25 @@ export function validateClassification(input: unknown, fallbackSummary: string):
   const summary = typeof o.summary === "string" && o.summary.trim() !== "" ? o.summary : fallbackSummary;
 
   return {
-    category: confidence < 0.6 ? "needs_review" : (category as Category),
-    urgency: urgency as Urgency,
-    summary,
-    confidence,
-    source: "model",
+    c: {
+      category: confidence < 0.6 ? "needs_review" : (category as Category),
+      urgency: urgency as Urgency,
+      summary,
+      confidence,
+      source: "model",
+    },
+    rejected: false,
   };
 }
 
-/** The classification plus what is kept in reports.ai_raw to explain it. */
+/**
+ * The classification plus what is kept in reports.ai_raw to explain it, and
+ * whether the model's answer had to be thrown away to get here.
+ */
 interface Classified {
   c: Classification;
   raw: Record<string, unknown>;
+  rejected: boolean;
 }
 
 /**
@@ -123,14 +145,21 @@ async function classifyWithModel(apiKey: string, body: string): Promise<Classifi
     return {
       c: { category: "needs_review", urgency: "normal", summary: "Empty report", confidence: 0, source: "model" },
       raw: { skipped: "empty report" },
+      rejected: false,
     };
   }
 
+  // The timer covers the body as well as the headers. It used to be cleared
+  // as soon as fetch() resolved, which is when the headers arrive; a response
+  // whose body then stalled was unbounded, and the twenty seconds protected
+  // nothing. The body is read inside the same try so one abort covers both.
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), MODEL_TIMEOUT_MS);
-  let res: Response;
+  let status: number;
+  let ok: boolean;
+  let bodyText: string;
   try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       signal: abort.signal,
       headers: {
@@ -163,6 +192,9 @@ async function classifyWithModel(apiKey: string, body: string): Promise<Classifi
         messages: [{ role: "user", content: text.slice(0, 1200) }],
       }),
     });
+    status = res.status;
+    ok = res.ok;
+    bodyText = await res.text();
   } catch (err) {
     if (abort.signal.aborted) throw new Error(`anthropic timeout after ${MODEL_TIMEOUT_MS / 1000}s`);
     throw err;
@@ -170,21 +202,32 @@ async function classifyWithModel(apiKey: string, body: string): Promise<Classifi
     clearTimeout(timer);
   }
 
-  if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  if (!ok) throw new Error(`anthropic ${status}: ${bodyText.slice(0, 160)}`);
 
-  const json = await res.json();
+  const json = JSON.parse(bodyText);
   // Enough to reconstruct why the model answered as it did, and what it cost;
-  // not the whole body, which repeats the request.
-  const raw = { model: json.model, stop_reason: json.stop_reason, content: json.content, usage: json.usage };
+  // not the whole body, which repeats the request. prompt_version names the
+  // SYSTEM text that was in force, since the prompt itself is not stored.
+  const raw = {
+    prompt_version: PROMPT_VERSION,
+    model: json.model,
+    stop_reason: json.stop_reason,
+    content: json.content,
+    usage: json.usage,
+  };
   const block = json.content?.find((b: { type: string }) => b.type === "tool_use");
   const fallbackSummary = text.slice(0, 80);
   if (!block) {
+    // No tool call at all is the model's answer being unusable, the same as a
+    // malformed one: counted as rejected so the run does not read as clean.
     return {
       c: { category: "needs_review", urgency: "normal", summary: fallbackSummary, confidence: 0, source: "model" },
       raw,
+      rejected: true,
     };
   }
-  return { c: validateClassification(block.input, fallbackSummary), raw };
+  const { c, rejected } = validateClassification(block.input, fallbackSummary);
+  return { c, raw, rejected };
 }
 
 /**
@@ -248,8 +291,12 @@ Deno.serve(async (req: Request) => {
     apiKey = data?.value ?? "";
   }
 
+  // modelRejected: the model answered and the answer was thrown away (bad
+  // enum, missing tool call). Those reports land in needs_review and are not
+  // lost, but a run that discarded model output is not a clean run, and a
+  // rising count is the first sign the prompt or the model has changed.
   const result = {
-    claimed: 0, routed: 0, skipped: 0, failed: 0, unstaffed: 0, aiRawUnsaved: 0,
+    claimed: 0, routed: 0, skipped: 0, failed: 0, unstaffed: 0, aiRawUnsaved: 0, modelRejected: 0,
     pushSent: 0, pushFailed: 0, pushRetried: 0, pushPruned: 0,
   };
 
@@ -267,10 +314,11 @@ Deno.serve(async (req: Request) => {
       const { data: kwRows } = await db.rpc("match_keywords", { p_text: item.body });
       const kw = (kwRows as { category: Category; urgency: Urgency; confidence: number; matched: string }[] | null)?.[0] ?? null;
 
-      const { c, raw }: Classified = kw
+      const { c, raw, rejected }: Classified = kw
         ? {
           c: { category: kw.category, urgency: kw.urgency, summary: item.body.slice(0, 80), confidence: Number(kw.confidence), source: "keyword" },
           raw: { matched: kw.matched, confidence: Number(kw.confidence) },
+          rejected: false,
         }
         : apiKey
           ? await classifyWithModel(apiKey, item.body)
@@ -278,7 +326,9 @@ Deno.serve(async (req: Request) => {
           : {
             c: { category: "needs_review", urgency: "normal", summary: item.body.slice(0, 80), confidence: 0, source: "model" },
             raw: { skipped: "no api key configured" },
+            rejected: false,
           };
+      if (rejected) result.modelRejected++;
 
       const { data, error: routeError } = await db.rpc("route_report", {
         p_report_id: item.report_id,

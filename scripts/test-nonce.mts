@@ -144,12 +144,14 @@ console.log("\nflood control on submission");
 }
 
 /**
- * scan_nonces grew without bound: 149 rows for 13 reports on the live database.
- * purge_scan_nonces() deletes anything older than a day and runs from the
- * escalate sweep. PGlite has no pg_cron, so the schedule is asserted on the
- * migration text, the way test-delivery-gate does for the triage gate.
+ * scan_nonces grew without bound: 149 rows for 13 reports on the live database,
+ * and system_alerts had the same shape and no retention either. purge_expired()
+ * (20260906110000, replacing purge_scan_nonces) deletes nonces older than a day
+ * and alerts resolved more than thirty days ago, returns both counts, and runs
+ * from the escalate sweep. PGlite has no pg_cron, so the schedule is asserted
+ * on the migration text, the way test-delivery-gate does for the triage gate.
  */
-console.log("\nnonce retention");
+console.log("\nretention");
 {
   await db.query(`update scan_nonces set issued_at = now() - interval '2 days' where nonce = $1`, [n2]);
   const total = Number((await one<{ n: string }>(`select count(*) n from scan_nonces`))!.n);
@@ -157,26 +159,57 @@ console.log("\nnonce retention");
     `select count(*) n from scan_nonces where issued_at < now() - interval '1 day'`))!.n);
   check("a backdated nonce is what the purge will see", old >= 1, `${old} old row(s)`);
 
-  const purged = (await one<{ purge_scan_nonces: number }>(`select purge_scan_nonces()`))!.purge_scan_nonces;
-  check("purge_scan_nonces() returns how many it deleted", purged === old, `returned ${purged}, expected ${old}`);
+  // Three alerts: one cleared long ago (goes), one cleared yesterday (stays),
+  // one still open (stays — an open alert is still telling somebody something).
+  const course = (await one<{ id: string }>(`select id from courses limit 1`))!.id;
+  await db.query(
+    `insert into system_alerts (course_id, issue, severity, detail, resolved_at) values
+       ($1, 'retention: cleared long ago', 'warning', 'purge test', now() - interval '40 days'),
+       ($1, 'retention: cleared yesterday', 'warning', 'purge test', now() - interval '1 day'),
+       ($1, 'retention: still open',        'warning', 'purge test', null)`, [course]);
+  const alertsBefore = Number((await one<{ n: string }>(`select count(*) n from system_alerts`))!.n);
+
+  const purged = (await one<{ nonces: number; alerts: number }>(`select * from purge_expired()`))!;
+  check("purge_expired() returns how many nonces it deleted", purged.nonces === old, `returned ${purged.nonces}, expected ${old}`);
+  check("and how many alerts", purged.alerts === 1, `returned ${purged.alerts}, expected 1`);
   const gone = await one<{ nonce: string }>(`select nonce from scan_nonces where nonce = $1`, [n2]);
   check("the backdated nonce is gone", gone === undefined);
   const remaining = Number((await one<{ n: string }>(`select count(*) n from scan_nonces`))!.n);
   check("and nothing younger than a day went with it", remaining === total - old, `${total} -> ${remaining}`);
 
+  const { rows: alertsLeft } = await db.query<{ issue: string }>(
+    `select issue from system_alerts where issue like 'retention:%' order by issue`);
+  check("the alert resolved 40 days ago is gone",
+    !alertsLeft.some((a) => a.issue === "retention: cleared long ago"), alertsLeft.map((a) => a.issue).join(", "));
+  check("the alert resolved yesterday stays",
+    alertsLeft.some((a) => a.issue === "retention: cleared yesterday"), alertsLeft.map((a) => a.issue).join(", "));
+  check("the open alert stays",
+    alertsLeft.some((a) => a.issue === "retention: still open"), alertsLeft.map((a) => a.issue).join(", "));
+  const alertsAfter = Number((await one<{ n: string }>(`select count(*) n from system_alerts`))!.n);
+  check("exactly one alert row went", alertsAfter === alertsBefore - 1, `${alertsBefore} -> ${alertsAfter}`);
+
   const { rows: callers } = await db.query<{ role: string }>(`
     select r.rolname as role from (values ('anon'),('authenticated'),('service_role')) r(rolname)
-     where has_function_privilege(r.rolname, 'purge_scan_nonces()', 'execute')`);
+     where has_function_privilege(r.rolname, 'purge_expired()', 'execute')`);
   check("only the service role may call it",
     callers.length === 1 && callers[0].role === "service_role", callers.map((c) => c.role).join(", "));
+  const oldFn = await one<{ n: string }>(`select count(*) n from pg_proc where proname = 'purge_scan_nonces'`);
+  check("purge_scan_nonces() no longer exists", Number(oldFn?.n) === 0, `${oldFn?.n} definition(s) still present`);
 
-  const MIGRATION = "supabase/migrations/20260906100000_finish_table_posture.sql";
+  const MIGRATION = "supabase/migrations/20260906110000_data_owns_the_bypass.sql";
   const sql = readFileSync(MIGRATION, "utf8");
   const job = /cron\.schedule\('proresponse-escalate',\s*'\* \* \* \* \*',\s*\$job\$([\s\S]*?)\$job\$\)/.exec(sql)?.[1] ?? "";
   check("the escalate sweep is rescheduled in the migration", job.length > 0, "no cron.schedule('proresponse-escalate') body found");
   check("its body still runs escalate_reports()", /select escalate_reports\(\);/.test(job), job);
   check("and still writes the sweep heartbeat", /select record_heartbeat\('sweep',/.test(job), job);
-  check("and now purges nonces", /select purge_scan_nonces\(\);/.test(job), job);
+  check("and now runs purge_expired()", /select purge_expired\(\);/.test(job), job);
+  check("and no longer calls purge_scan_nonces()", !/purge_scan_nonces/.test(job), job);
+  // The migration claims the other two statements are byte-for-byte what
+  // 20260906100000 scheduled. Hold it to that.
+  const prior = /cron\.schedule\('proresponse-escalate',\s*'\* \* \* \* \*',\s*\$job\$([\s\S]*?)\$job\$\)/
+    .exec(readFileSync("supabase/migrations/20260906100000_finish_table_posture.sql", "utf8"))?.[1] ?? "";
+  check("the rest of the job body is unchanged from 20260906100000",
+    prior.replace("select purge_scan_nonces();", "select purge_expired();") === job, job);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -3,6 +3,21 @@
 Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 **[bug]** — those are the ones worth reading.
 
+## 6 Sep 2026 — third loop
+
+**[bug] The model decided who was woken up.** `20260906090000` let an `urgent`
+report escalate through quiet hours, but `urgency` is what the classifier said —
+a hallucinated "urgent" on a lost glove at 22:00 would have paged every leader
+an hour later. The bypass now belongs to data: category `safety` (a
+`routing_rules` key the club owns), or `urgent` with the classifier's own
+confidence at 0.8 or better. A guess waits for morning; `test:escalation`
+section 8 pins all four cases. Also: `self_update` on profiles evaluates
+`auth.uid()` once per query (advisor `auth_rls_initplan`); `purge_expired()`
+replaces `purge_scan_nonces()` and retires resolved `system_alerts` after 30
+days, returning both counts; the worker's 20s timeout now covers the response
+body, counts `modelRejected`, and stamps `prompt_version` into `ai_raw`.
+(`20260906110000`)
+
 ## 6 Sep 2026 — two remediation loops
 
 Two passes over the whole codebase by several agents at once, each finding

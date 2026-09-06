@@ -9,7 +9,8 @@
  *
  * Pure functions, no database: this is the decision, isolated.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   resolvePlacardOrigin, isUnprintableOrigin,
   UNPRINTABLE_HOST_PATTERN, UNPRINTABLE_PREVIEW_PATTERN,
@@ -76,17 +77,25 @@ console.log("\nthe failure this exists for");
 // predicate out of its migration. Rewriting either side alone fails here.
 console.log("\nthe database refuses the same addresses, from the same two patterns");
 {
-  const MIGRATION = "supabase/migrations/20260906130000_club_settings.sql";
-  let sql = "";
-  try { sql = readFileSync(MIGRATION, "utf8"); } catch { /* reported by the first check */ }
-  check("the migration that refuses these addresses exists", sql.length > 0, `${MIGRATION} missing`);
-  check("the migration carries UNPRINTABLE_HOST_PATTERN verbatim",
-    sql.includes(`'${UNPRINTABLE_HOST_PATTERN}'`), `${UNPRINTABLE_HOST_PATTERN} not in ${MIGRATION}`);
-  check("and UNPRINTABLE_PREVIEW_PATTERN verbatim",
-    sql.includes(`'${UNPRINTABLE_PREVIEW_PATTERN}'`), `${UNPRINTABLE_PREVIEW_PATTERN} not in ${MIGRATION}`);
-  check("inside update_course_settings, not somewhere else",
-    sql.indexOf("function update_course_settings") < sql.indexOf(`'${UNPRINTABLE_HOST_PATTERN}'`)
-      && sql.indexOf(`'${UNPRINTABLE_HOST_PATTERN}'`) < sql.indexOf("function upsert_location"));
+  // Every migration that (re)defines update_course_settings must carry both
+  // patterns: a later re-creation that dropped them would pass a check pinned
+  // to the first file while the live function stopped refusing anything.
+  const defining = readdirSync("supabase/migrations")
+    .filter((m) => m.endsWith(".sql"))
+    .sort()
+    .filter((m) => readFileSync(join("supabase/migrations", m), "utf8").includes("function update_course_settings"));
+  check("at least one migration defines update_course_settings", defining.length > 0, "none found");
+  for (const m of defining) {
+    const sql = readFileSync(join("supabase/migrations", m), "utf8");
+    check(`${m} carries UNPRINTABLE_HOST_PATTERN verbatim`,
+      sql.includes(`'${UNPRINTABLE_HOST_PATTERN}'`), `${UNPRINTABLE_HOST_PATTERN} not in ${m}`);
+    check(`${m} carries UNPRINTABLE_PREVIEW_PATTERN verbatim`,
+      sql.includes(`'${UNPRINTABLE_PREVIEW_PATTERN}'`), `${UNPRINTABLE_PREVIEW_PATTERN} not in ${m}`);
+    check(`${m}: the host pattern sits inside update_course_settings`,
+      sql.indexOf("function update_course_settings") < sql.indexOf(`'${UNPRINTABLE_HOST_PATTERN}'`));
+  }
+  const sql = readFileSync(join("supabase/migrations", defining[defining.length - 1]), "utf8");
+  void sql;
   // The TS regex is built from the exported string, so this proves the string
   // itself — not a copy — is what isUnprintableOrigin runs. Matched with the
   // scheme stripped, which is how both sides apply it.

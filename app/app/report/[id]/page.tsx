@@ -46,6 +46,8 @@ function eventLabel(e: TimelineEvent): string {
     if (p.source === "phone_relay") return "Logged from a phone call";
   }
   if (e.type === "note") {
+    // Retention: the nightly purge cleared the member's contact details and said so.
+    if (p.retention === true) return "Contact details removed (retention)";
     if (typeof p.closed_no_action === "string") {
       const reason = p.closed_no_action;
       return `Closed without action — ${isCloseReason(reason) ? CLOSE_REASONS[reason] : reason}`;

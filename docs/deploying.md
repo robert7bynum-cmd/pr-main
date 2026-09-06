@@ -43,24 +43,25 @@ to whoever opens the link.
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | required | recommended | Missing means staff cannot subscribe to push |
 | `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | required | optional | Read by the Supabase edge function, not the app |
 | `ANTHROPIC_API_KEY` | required | optional | Second-pass triage. Lives in `app_settings` for the edge function |
-| `TRIAGE_WORKER_SECRET` | required | optional | Guards `/api/triage/run` |
+| `CRON_SECRET` | required | optional | Guards `/api/watchdog`. Vercel sends it as the bearer token on scheduled calls when the project has a variable with exactly this name; the route answers 503 until it is set. `openssl rand -hex 32` |
+| `TRIAGE_WORKER_SECRET` | not needed | not needed | Read by nothing. The worker is the Supabase edge function, which pg_cron calls with the service-role key from `app_settings` — there is no `/api/triage/run` to guard. Delete it if a deployment still has it |
 | `SUPABASE_DB_URL` | not needed | not needed | Migrations are run from a laptop, not from a deploy |
-| `DEMO_SIGNIN` | **never** | `true` | One-click personas. The build fails if this is `true` in production |
+| `DEMO_SIGNIN` | not needed | not needed | One-click demo sign-in was removed from the code, not switched off. The preflight only warns that the variable is inert; delete it |
 
 `npm run check:env` runs the same checks locally.
 
-Beyond the missing-variable check, the preflight hard-fails on three things: a
-service-role key on any `NEXT_PUBLIC_` variable, the service key and the
-publishable key being identical, and `DEMO_SIGNIN=true` in production. It never
-prints a value.
+Beyond the missing-variable check, the preflight hard-fails on two things: a
+service-role key on any `NEXT_PUBLIC_` variable, and the service key and the
+publishable key being identical. A stale `DEMO_SIGNIN` only draws a warning,
+because the code it once enabled no longer exists. It never prints a value.
 
 ## What a preview cannot do
 
 A preview is a full copy of the app, but four things do not follow it:
 
 - **Scheduled work does not run.** Triage and escalation are driven by
-  `pg_cron` inside Supabase, calling the one URL stored in
-  `app_settings.worker_url`. That is production. A report submitted on a
+  `pg_cron` inside Supabase, calling the one edge-function URL stored in
+  `app_settings.triage_function_url`. That is production. A report submitted on a
   preview is triaged by *production's* worker, or not at all — nothing about a
   preview is wired into cron, and nothing will be. To exercise triage on a
   branch, call the endpoint yourself.
@@ -107,11 +108,17 @@ production data, because it is.
   "url": "https://pr-main-git-fix-queue-ordering-....vercel.app",
   "database": "ok",
   "supabase": "abcdefgh.supabase.co",
-  "demoSignIn": true,
+  "demoSignIn": false,
   "push": true,
   "scheduledWork": "no — cron never targets a preview"
 }
 ```
+
+`demoSignIn` is always `false` now; it stays in the response so an old reader
+sees the door closed rather than missing. On production `scheduledWork` reads
+`"if app_settings.triage_function_url points at this project's edge function"`
+— the sweeper never calls the web app at all, so the answer is about the
+Supabase project, not the deployment.
 
 It returns 503 when the database cannot be reached, so a preview that built
 green but cannot talk to Supabase says so without anyone having to sign in. It

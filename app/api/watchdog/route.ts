@@ -29,6 +29,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * It is deliberately dumb: no retries, no state of its own beyond the alert
  * ledger in the database. If this route breaks, the in-database half still
  * shows the same problems on the dashboard.
+ *
+ * WHO MAY CALL IT. Only a caller holding CRON_SECRET, and the route refuses to
+ * run at all when that secret is not configured. The first version treated the
+ * secret as optional — "a watchdog that refuses to run because a variable is
+ * missing is worse than one anybody can ask the time" — which meant every
+ * deployment without the variable shipped a monitor that anyone with the URL
+ * could trigger, and nothing said so. A 503 here is visible in Vercel's cron
+ * logs on the very first scheduled run; an open endpoint is visible nowhere.
  */
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -40,14 +48,14 @@ interface Alert {
 }
 
 export async function GET(request: Request) {
-  // Vercel Cron sends the project's CRON_SECRET as a bearer token. When the
-  // secret is set we require it, so the endpoint cannot be triggered by anyone
-  // who guesses the path. When it is not set the route still works — the alert
-  // ledger's repeat window is what actually prevents this being useful to
-  // someone hammering it, and a watchdog that refuses to run because an
-  // optional variable is missing is worse than one anybody can ask the time.
+  // Vercel Cron sends the project's CRON_SECRET as a bearer token. Fail closed:
+  // no secret configured means no watchdog, said out loud as a 503 rather than
+  // an endpoint anybody can trigger. A wrong secret is a 401 as before.
   const secret = process.env.CRON_SECRET;
-  if (secret && request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret) {
+    return Response.json({ error: "CRON_SECRET is not configured" }, { status: 503 });
+  }
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -192,7 +200,9 @@ async function pushAlerts(
       alerts.length > 1
         ? `${worst.detail} (+${alerts.length - 1} more)`
         : worst.detail,
-    url: "/app/settings/health",
+    // The health panel lives on the dashboard; /app/settings/health was a page
+    // that never existed, so tapping the alert landed on a 404.
+    url: "/app/dashboard",
     urgency: worst.severity === "critical" ? "urgent" : "normal",
     // One tag for the whole watchdog, so a phone shows the current state of the
     // system rather than a stack of every time it was checked.

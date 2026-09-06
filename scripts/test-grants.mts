@@ -45,6 +45,27 @@ check("no anon or authenticated privileges on service-role tables",
   grants.length === 0,
   grants.map(g => `${g.role} can ${g.priv} ${g.tbl}`).join(", "));
 
+// Tables staff may READ but that only functions may write. SELECT is
+// legitimately granted on several of these (staff_read policies), so only the
+// write privileges are asserted. 20260906070000 revoked them after dropping the
+// first-day policies that let any signed-in staff member set their own
+// resolved_by or append to the table every metric derives from.
+const WRITE_LOCKED = [
+  "reports", "report_events", "routing_rules", "admin_events", "notifications",
+  "system_alerts", "system_heartbeats", "triage_keywords", "staff_departments", "courses",
+];
+
+const { rows: writes } = await db.query<{ role: string; tbl: string; priv: string }>(`
+  select r.rolname as role, t.tbl, p.priv
+    from (values ('anon'),('authenticated')) r(rolname)
+    cross join (values ${WRITE_LOCKED.map(t => `('${t}')`).join(",")}) t(tbl)
+    cross join (values ('insert'),('update'),('delete')) p(priv)
+   where to_regclass('public.' || t.tbl) is not null
+     and has_table_privilege(r.rolname, 'public.' || t.tbl, p.priv)`);
+check("no anon or authenticated write privileges on function-only tables",
+  writes.length === 0,
+  writes.map(g => `${g.role} can ${g.priv} ${g.tbl}`).join(", "));
+
 // The secret-bearing one is worth naming on its own, because it is the row
 // that turns a small mistake into a total compromise.
 const { rows: settings } = await db.query<{ role: string }>(`

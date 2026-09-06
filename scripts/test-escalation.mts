@@ -21,14 +21,16 @@ const maint = (await one<{ id: string }>(`select id from departments where key='
 // Quiet hours off, so timing is the only variable under test.
 await db.query(`update courses set settings = settings - 'quiet_hours'`);
 
-const mk = async (agoMins: number, acked: boolean) => (await one<{ id: string }>(
+const mk = async (agoMins: number, acked: boolean, urgency: "normal" | "urgent" = "normal") =>
+  (await one<{ id: string }>(
   `insert into reports (course_id, location_id, body, status, department_id, category,
-                        created_at, acknowledged_at)
+                        created_at, acknowledged_at, urgency)
    values ($1,$2,'escalation test',$3,$4,'course_maintenance',
            now() - make_interval(mins => $5::int),
-           case when $6 then now() - make_interval(mins => ($5/2)::int) else null end)
+           case when $6 then now() - make_interval(mins => ($5/2)::int) else null end,
+           $7::report_urgency)
    returning id`,
-  [course, loc, acked ? "acknowledged" : "triaged", maint, agoMins, acked]))!.id;
+  [course, loc, acked ? "acknowledged" : "triaged", maint, agoMins, acked, urgency]))!.id;
 
 console.log("\n1. inside the SLA — nothing happens");
 let id = await mk(5, false);
@@ -74,6 +76,22 @@ await db.query(`update reports set status='resolved', resolved_at=now() where id
 await db.query(`select * from escalate_reports()`);
 lvl = await one(`select escalation_level from reports where id=$1`, [id]);
 check("closed work is left alone", lvl?.escalation_level === 0, String(lvl?.escalation_level));
+
+console.log("\n7. urgent reports escalate through quiet hours");
+// Quiet hours all day, as in 5. A lightning strike at 20:30 must not wait for
+// 06:00; a bunker rake still does.
+await db.query(`update courses set settings = jsonb_set(settings,'{quiet_hours}',
+  jsonb_build_object('start','00:00','end','23:59'))`);
+const urgentId = await mk(600, false, "urgent");
+const normalId = await mk(600, false, "normal");
+await db.query(`select * from escalate_reports()`);
+lvl = await one(`select escalation_level from reports where id=$1`, [urgentId]);
+check("an urgent report escalates inside quiet hours", (lvl?.escalation_level ?? 0) >= 1, String(lvl?.escalation_level));
+const urgentNotified = await one<{ n: number }>(`select count(*)::int n from notifications where report_id=$1`, [urgentId]);
+check("and somebody was actually paged", (urgentNotified?.n ?? 0) > 0, String(urgentNotified?.n));
+lvl = await one(`select escalation_level from reports where id=$1`, [normalId]);
+check("a normal report still waits for morning", lvl?.escalation_level === 0, String(lvl?.escalation_level));
+await db.query(`update courses set settings = settings - 'quiet_hours'`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

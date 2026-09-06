@@ -68,7 +68,7 @@ export async function GET() {
      * never against a preview. Said here because a preview that quietly
      * routes nothing is indistinguishable from one that works.
      */
-    scheduledWork: ref.env === "production" ? "if app_settings.worker_url points here" : "no — cron never targets a preview",
+    scheduledWork: ref.env === "production" ? "if app_settings.triage_function_url points at this project's edge function" : "no — cron never targets a preview",
   };
 
   return Response.json(body, {

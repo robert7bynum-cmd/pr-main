@@ -135,7 +135,7 @@ Deno.serve(async (req: Request) => {
 
   const result = {
     claimed: 0, routed: 0, skipped: 0, failed: 0, unstaffed: 0,
-    pushSent: 0, pushFailed: 0, pushPruned: 0,
+    pushSent: 0, pushFailed: 0, pushRetried: 0, pushPruned: 0,
   };
 
   const { data: batch, error } = await db.rpc("claim_triage_batch", { p_limit: 10 });
@@ -195,6 +195,7 @@ Deno.serve(async (req: Request) => {
   const push = await deliverQueuedPush(db);
   result.pushSent = push.sent;
   result.pushFailed = push.failed;
+  result.pushRetried = push.retried;
   result.pushPruned = push.pruned;
 
   return new Response(JSON.stringify(result), {
@@ -208,9 +209,32 @@ Deno.serve(async (req: Request) => {
  * Dead endpoints are pruned on 404/410, and a notification with no subscribed
  * device is marked failed rather than left queued — a stuck queue would let a
  * club believe staff were told when they were not.
+ *
+ * Any other delivery error is transient until proven otherwise. The first
+ * version marked the row failed on the first such error, so one 5xx from the
+ * push service lost the page permanently while the row said, truthfully, that
+ * it had failed — nobody revisits a failure. The row now stays `queued` with
+ * `attempt` bumped and `next_retry_at` set (1, 2, 4 minutes), and is picked up
+ * again once due. After MAX_ATTEMPTS it is failed for real, with the last
+ * error on it.
+ *
+ * Two things about how a retry gets picked up, because neither is obvious:
+ *
+ * - The retry UPDATE does not wake this function. kick_triage is an AFTER
+ *   INSERT statement trigger on notifications (20260906040000); an update to
+ *   attempt/next_retry_at fires nothing, on purpose — waking the worker at the
+ *   moment it has just decided to wait would defeat the backoff.
+ * - The retry is delivered by the cron sweep, and the cron gate
+ *   (20260906090000) fires only when a queued notification is *due*
+ *   (`next_retry_at is null or next_retry_at <= now()`). Under the previous
+ *   gate — "any row is queued" — a row waiting out its backoff would have
+ *   called this function every minute to do nothing. The select below asks the
+ *   gate's exact question so the two cannot disagree about what is due.
  */
+const MAX_ATTEMPTS = 3;
+
 async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
-  const out = { sent: 0, failed: 0, pruned: 0 };
+  const out = { sent: 0, failed: 0, retried: 0, pruned: 0 };
 
   const [{ data: pubRow }, { data: privRow }, { data: subjRow }] = await Promise.all([
     db.from("app_settings").select("value").eq("key", "vapid_public_key").maybeSingle(),
@@ -222,12 +246,16 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
   if (!pub || !priv) return out;
   webpush.setVapidDetails(subjRow?.value ?? "mailto:ops@example.com", pub, priv);
 
+  // Queued and due: a row inside its retry backoff is left alone. Same
+  // predicate as the cron gate, deliberately.
   const { data: queued } = await db
-    .from("notifications").select("id, report_id, profile_id")
-    .eq("channel", "push").eq("status", "queued").limit(50);
+    .from("notifications").select("id, report_id, profile_id, attempt")
+    .eq("channel", "push").eq("status", "queued")
+    .or("next_retry_at.is.null,next_retry_at.lte." + new Date().toISOString())
+    .limit(50);
   if (!queued?.length) return out;
 
-  for (const n of queued) {
+  for (const n of queued as { id: string; report_id: string; profile_id: string; attempt: number }[]) {
     const { data: report } = await db
       .from("reports").select("id, body, urgency, location_id")
       .eq("id", n.report_id).maybeSingle();
@@ -265,6 +293,8 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
     });
 
     let delivered = false;
+    let prunedHere = 0;
+    let lastError = "";
     for (const sub of subs) {
       try {
         await webpush.sendNotification(
@@ -275,19 +305,56 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
       } catch (err) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) {
+          // The device is gone. Not a retry: this endpoint will never answer.
           await db.from("push_subscriptions").delete().eq("id", sub.id);
           out.pruned++;
+          prunedHere++;
+        } else {
+          lastError = status
+            ? `push service ${status}: ${(err as Error).message ?? ""}`.trim()
+            : (err instanceof Error ? err.message : String(err));
         }
       }
     }
 
-    await db.from("notifications").update(
-      delivered
-        ? { status: "sent", sent_at: new Date().toISOString() }
-        : { status: "failed", failed_at: new Date().toISOString(), error: "all endpoints failed" },
-    ).eq("id", n.id);
+    if (delivered) {
+      await db.from("notifications").update({
+        status: "sent", sent_at: new Date().toISOString(),
+      }).eq("id", n.id);
+      out.sent++;
+      continue;
+    }
 
-    delivered ? out.sent++ : out.failed++;
+    // Every endpoint this person had was just pruned: there is nothing left to
+    // retry against, so this is the same "no push subscription" failure as
+    // above, reached one step later.
+    if (prunedHere === subs.length) {
+      await db.from("notifications").update({
+        status: "failed", failed_at: new Date().toISOString(), error: "no push subscription",
+      }).eq("id", n.id);
+      out.failed++;
+      continue;
+    }
+
+    const attempt = Number(n.attempt ?? 0);
+    if (attempt < MAX_ATTEMPTS) {
+      // Still 'queued'. Backoff doubles per attempt: 1, 2, 4 minutes.
+      const delayMinutes = 2 ** attempt;
+      await db.from("notifications").update({
+        attempt: attempt + 1,
+        next_retry_at: new Date(Date.now() + delayMinutes * 60_000).toISOString(),
+        error: lastError || "all endpoints failed",
+      }).eq("id", n.id);
+      out.retried++;
+      continue;
+    }
+
+    await db.from("notifications").update({
+      status: "failed",
+      failed_at: new Date().toISOString(),
+      error: `${lastError || "all endpoints failed"} (after ${attempt} retries)`,
+    }).eq("id", n.id);
+    out.failed++;
   }
 
   return out;

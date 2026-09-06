@@ -291,5 +291,88 @@ console.log("\n8. club configuration is read-only through the API");
     policies.length === 0, policies.map((p) => `${p.tablename}.${p.policyname} (${p.cmd})`).join(", "));
 }
 
+/**
+ * Native devices (20260906150000). Same posture as push_subscriptions —
+ * own-row policy and an explicit grant — reached through register_device /
+ * unregister_device rather than a hand-written upsert. A token is a capability
+ * to page someone, so the interesting cases are the cross-person ones: another
+ * person's token cannot be planted, read, or removed, and unregistering it
+ * says false rather than claiming to have done something.
+ */
+console.log("\n9. a native device token is yours or nothing");
+{
+  await uid(manager);
+  const managerDevice = await one<{ id: string }>(
+    `select register_device('ios', 'apns-manager-phone', '1.0.0') id`);
+  check("register_device as the manager returns an id", Boolean(managerDevice?.id), JSON.stringify(managerDevice));
+
+  await uid(staff);
+  const first = await one<{ id: string }>(`select register_device('android', 'fcm-staff-phone', '1.0.0') id`);
+  await db.query(`update device_tokens set failure_count = 2, last_seen_at = now() - interval '1 day' where token = 'fcm-staff-phone'`);
+  const second = await one<{ id: string }>(`select register_device('android', 'fcm-staff-phone', '1.0.1') id`);
+  const own = await one<{ n: number; failure_count: number; app_version: string; fresh: boolean }>(
+    `select count(*)::int n, max(failure_count) failure_count, max(app_version) app_version,
+            bool_and(last_seen_at > now() - interval '1 minute') fresh
+       from device_tokens where profile_id=$1 and token='fcm-staff-phone'`, [staff]);
+  check("registering your OWN device twice is one row, id stable, failure_count reset, version and last_seen refreshed",
+    first?.id === second?.id && own?.n === 1 && own?.failure_count === 0 && own?.app_version === "1.0.1" && own?.fresh === true,
+    `${first?.id} / ${second?.id}; ${JSON.stringify(own)}`);
+
+  const bad = await db.query(`select register_device('windows', 'x', null)`).then(() => "ran", (e: Error) => e.message);
+  check("an unknown platform is refused", /platform must be ios or android/.test(bad), bad);
+
+  const forge = await asUser(staff,
+    `insert into device_tokens (profile_id, platform, token) values ($1, 'ios', 'apns-forged')`, [manager]);
+  const forged = (await one<{ n: number }>(`select count(*)::int n from device_tokens where token='apns-forged'`))!.n;
+  check("registering a device under the manager's profile_id is refused or writes nothing",
+    ("error" in forge || forge.rows === 0) && forged === 0, `${describe(forge)}, ${forged} row(s) exist`);
+
+  const peek = await asUser(staff, `select token from device_tokens where token='apns-manager-phone'`);
+  check("the manager's token is not readable by staff", !("error" in peek) && peek.rows === 0, describe(peek));
+
+  const del = await asUser(staff, `delete from device_tokens where token='apns-manager-phone'`);
+  const still = (await one<{ n: number }>(`select count(*)::int n from device_tokens where token='apns-manager-phone'`))!.n;
+  check("deleting the manager's device directly affects 0 rows", !("error" in del) && del.rows === 0 && still === 1,
+    `${describe(del)}, ${still} row(s) remain`);
+
+  await uid(staff);
+  const foreign = await one<{ ok: boolean }>(`select unregister_device('apns-manager-phone') ok`);
+  const stillAfterRpc = (await one<{ n: number }>(`select count(*)::int n from device_tokens where token='apns-manager-phone'`))!.n;
+  check("unregister_device on the manager's token returns false and leaves it",
+    foreign?.ok === false && stillAfterRpc === 1, `${JSON.stringify(foreign)}, ${stillAfterRpc} row(s) remain`);
+
+  const mine = await one<{ ok: boolean }>(`select unregister_device('fcm-staff-phone') ok`);
+  const gone = (await one<{ n: number }>(`select count(*)::int n from device_tokens where token='fcm-staff-phone'`))!.n;
+  check("unregister_device on your own token returns true and removes it", mine?.ok === true && gone === 0,
+    `${JSON.stringify(mine)}, ${gone} row(s) remain`);
+
+  // Deactivation cuts off the phone as well as the browser, and the audit row
+  // counts both. A second staff member is deactivated so the one used above
+  // stays available to later sections.
+  const other = (await one<{ id: string }>(
+    `select id from profiles where course_id=$1 and role='staff' and active and id<>$2 limit 1`, [course, staff]))!.id;
+  await uid(other);
+  await db.query(`select register_device('ios', 'apns-other-phone', '1.0.0')`);
+  await db.query(`insert into push_subscriptions (profile_id, endpoint, p256dh, auth) values ($1, 'https://example.test/other-browser', 'p', 'a')`, [other]);
+  await uid(manager);
+  await db.query(`select set_staff_active($1, false)`, [other]);
+  const left = await one<{ native: number; web: number }>(
+    `select (select count(*)::int from device_tokens where profile_id=$1) native,
+            (select count(*)::int from push_subscriptions where profile_id=$1) web`, [other]);
+  check("deactivation removes the person's device_tokens and push_subscriptions", left?.native === 0 && left?.web === 0, JSON.stringify(left));
+  const audit = await one<{ removed: number }>(
+    `select (detail->>'devices_removed')::int removed from admin_events
+      where type='staff_deactivated' and subject_id=$1 order by created_at desc limit 1`, [other]);
+  check("and the audit row counts both as devices_removed", audit?.removed === 2, JSON.stringify(audit));
+  await db.query(`select set_staff_active($1, true)`, [other]);
+
+  const { rows: held } = await db.query<{ role: string; priv: string }>(`
+    select r.rolname as role, p.priv
+      from (values ('anon')) r(rolname)
+      cross join (values ('select'),('insert'),('update'),('delete')) p(priv)
+     where has_table_privilege(r.rolname, 'public.device_tokens', p.priv)`);
+  check("anon holds nothing on device_tokens", held.length === 0, held.map((h) => `${h.role} can ${h.priv}`).join(", "));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

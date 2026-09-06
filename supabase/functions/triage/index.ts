@@ -295,9 +295,15 @@ Deno.serve(async (req: Request) => {
   // enum, missing tool call). Those reports land in needs_review and are not
   // lost, but a run that discarded model output is not a clean run, and a
   // rising count is the first sign the prompt or the model has changed.
+  //
+  // native*: the same four questions for FCM/APNs devices, plus nativeSkipped —
+  // a device token that could not be tried because neither transport is
+  // configured. That is counted rather than swallowed so the body of a run
+  // says "there were phones and nothing spoke to them".
   const result = {
     claimed: 0, routed: 0, skipped: 0, failed: 0, unstaffed: 0, aiRawUnsaved: 0, modelRejected: 0,
     pushSent: 0, pushFailed: 0, pushRetried: 0, pushPruned: 0,
+    nativeSent: 0, nativeFailed: 0, nativePruned: 0, nativeSkipped: 0,
   };
 
   const { data: batch, error } = await db.rpc("claim_triage_batch", { p_limit: 10 });
@@ -379,6 +385,10 @@ Deno.serve(async (req: Request) => {
   result.pushFailed = push.failed;
   result.pushRetried = push.retried;
   result.pushPruned = push.pruned;
+  result.nativeSent = push.nativeSent;
+  result.nativeFailed = push.nativeFailed;
+  result.nativePruned = push.nativePruned;
+  result.nativeSkipped = push.nativeSkipped;
 
   return new Response(JSON.stringify(result), {
     headers: { "content-type": "application/json" },
@@ -386,7 +396,8 @@ Deno.serve(async (req: Request) => {
 });
 
 /**
- * Web push for anything routing just queued.
+ * Push for anything routing just queued: web push to browsers, FCM and APNs
+ * to phones (see the native section at the bottom of this file).
  *
  * Dead endpoints are pruned on 404/410, and a notification with no subscribed
  * device is marked failed rather than left queued — a stuck queue would let a
@@ -416,7 +427,10 @@ Deno.serve(async (req: Request) => {
 const MAX_ATTEMPTS = 3;
 
 async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
-  const out = { sent: 0, failed: 0, retried: 0, pruned: 0 };
+  const out = {
+    sent: 0, failed: 0, retried: 0, pruned: 0,
+    nativeSent: 0, nativeFailed: 0, nativePruned: 0, nativeSkipped: 0,
+  };
 
   const [{ data: pubRow }, { data: privRow }, { data: subjRow }] = await Promise.all([
     db.from("app_settings").select("value").eq("key", "vapid_public_key").maybeSingle(),
@@ -425,8 +439,20 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
   ]);
   const pub = Deno.env.get("VAPID_PUBLIC_KEY") ?? pubRow?.value;
   const priv = Deno.env.get("VAPID_PRIVATE_KEY") ?? privRow?.value;
-  if (!pub || !priv) return out;
-  webpush.setVapidDetails(subjRow?.value ?? "mailto:ops@example.com", pub, priv);
+  const webReady = Boolean(pub && priv);
+  if (webReady) webpush.setVapidDetails(subjRow?.value ?? "mailto:ops@example.com", pub, priv);
+
+  // The native transports (FCM for Android, APNs for iOS) come from the
+  // function's secrets and are optional until the apps exist. A misconfigured
+  // secret is logged and treated as absent: every phone it would have reached
+  // is then counted under nativeSkipped, so the run says so.
+  let native: NativeSenders | null = null;
+  try {
+    native = await loadNativeSenders();
+  } catch (err) {
+    console.error(`triage: native push disabled this run: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!webReady && !native) return out;
 
   // Queued and due: a row inside its retry backoff is left alone. Same
   // predicate as the cron gate, deliberately.
@@ -450,11 +476,16 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
       continue;
     }
 
-    const { data: subs } = await db
-      .from("push_subscriptions").select("id, endpoint, p256dh, auth")
-      .eq("profile_id", n.profile_id);
+    // Everything this person can be reached on: browser subscriptions and
+    // native device tokens. Delivery to any one of them is delivery.
+    const [{ data: subRows }, { data: deviceRows }] = await Promise.all([
+      db.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("profile_id", n.profile_id),
+      db.from("device_tokens").select("id, platform, token, failure_count").eq("profile_id", n.profile_id),
+    ]);
+    const subs = (subRows ?? []) as { id: string; endpoint: string; p256dh: string; auth: string }[];
+    const devices = (deviceRows ?? []) as { id: string; platform: "ios" | "android"; token: string; failure_count: number }[];
 
-    if (!subs?.length) {
+    if (!subs.length && !devices.length) {
       await db.from("notifications").update({
         status: "failed", failed_at: new Date().toISOString(), error: "no push subscription",
       }).eq("id", n.id);
@@ -466,18 +497,27 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
       .from("locations").select("name, hole_number").eq("id", report.location_id).maybeSingle();
     const where = loc?.hole_number ? `Hole ${loc.hole_number}` : (loc?.name ?? "The course");
 
-    const payload = JSON.stringify({
+    const note: Note = {
       title: report.urgency === "urgent" ? `Urgent · ${where}` : where,
       body: String(report.body).slice(0, 120),
       url: `/app/report/${report.id}`,
-      urgency: report.urgency,
-      tag: report.id,
-    });
+      urgency: String(report.urgency),
+      tag: String(report.id),
+    };
+    const payload = JSON.stringify(note);
 
     let delivered = false;
     let prunedHere = 0;
     let lastError = "";
+
+    // Web push, as before.
     for (const sub of subs) {
+      if (!webReady) {
+        // A browser is subscribed and there are no VAPID keys to sign for it.
+        // Not silently skipped: the row records why nothing reached it.
+        lastError = "web push not configured (no VAPID keys)";
+        break;
+      }
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -499,6 +539,33 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
       }
     }
 
+    // Native push. Each platform has its own transport; a device whose
+    // transport is not configured is counted, not passed over.
+    for (const d of devices) {
+      const send = d.platform === "ios" ? native?.apns : native?.fcm;
+      if (!send) {
+        out.nativeSkipped++;
+        lastError = `${d.platform} push not configured`;
+        continue;
+      }
+      const r = await send(d.token, note);
+      if (r.outcome === "sent") {
+        delivered = true;
+        out.nativeSent++;
+      } else if (r.outcome === "gone") {
+        // The service says this token will never work again. Same as a web
+        // 410: delete it, do not retry against it.
+        await db.from("device_tokens").delete().eq("id", d.id);
+        out.nativePruned++;
+        prunedHere++;
+      } else {
+        await db.from("device_tokens")
+          .update({ failure_count: Number(d.failure_count ?? 0) + 1 }).eq("id", d.id);
+        out.nativeFailed++;
+        lastError = r.error;
+      }
+    }
+
     if (delivered) {
       await db.from("notifications").update({
         status: "sent", sent_at: new Date().toISOString(),
@@ -507,10 +574,10 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
       continue;
     }
 
-    // Every endpoint this person had was just pruned: there is nothing left to
+    // Every device this person had was just pruned: there is nothing left to
     // retry against, so this is the same "no push subscription" failure as
     // above, reached one step later.
-    if (prunedHere === subs.length) {
+    if (prunedHere === subs.length + devices.length) {
       await db.from("notifications").update({
         status: "failed", failed_at: new Date().toISOString(), error: "no push subscription",
       }).eq("id", n.id);
@@ -540,4 +607,259 @@ async function deliverQueuedPush(db: ReturnType<typeof createClient>) {
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Native push: FCM for Android, APNs for iOS.
+//
+// Both services authenticate the sender with a JWT the sender signs itself —
+// RS256 with a Google service-account key for FCM, ES256 with an Apple .p8 key
+// for APNs. The helpers between the JWT-HELPERS markers build those with
+// WebCrypto alone, no library, and are deliberately free of anything Deno- or
+// Supabase-specific: an offline Node harness copies them verbatim and checks
+// the header and claims shape with a throwaway key, which is the only test
+// possible without Apple's or Google's servers on the line.
+//
+// Configuration is entirely from the function's secrets:
+//   FCM_SERVICE_ACCOUNT  the service-account JSON, as one string
+//   APNS_KEY             the .p8 PEM (a literal "\n" between lines is accepted)
+//   APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID
+//   APNS_ENV             production (default) or sandbox
+// Neither set: no native delivery, and every device that would have been
+// tried is counted under nativeSkipped.
+// ---------------------------------------------------------------------------
+
+/** What the worker wants a phone to show. The same fields the web payload carries. */
+interface Note { title: string; body: string; url: string; urgency: string; tag: string }
+
+/**
+ * sent: the service accepted it. gone: the token is dead — delete it, do not
+ * retry. failed: transient until proven otherwise; bump failure_count and let
+ * the notification's retry schedule decide.
+ */
+type NativeResult = { outcome: "sent" } | { outcome: "gone" } | { outcome: "failed"; error: string };
+type NativeSender = (token: string, note: Note) => Promise<NativeResult>;
+interface NativeSenders { fcm?: NativeSender; apns?: NativeSender }
+
+// ---- JWT-HELPERS (copied verbatim into the offline harness; keep self-contained) ----
+
+/** base64url without padding, of bytes or of a UTF-8 string. */
+function b64url(input: ArrayBuffer | Uint8Array | string): string {
+  const bytes = typeof input === "string" ? new TextEncoder().encode(input) : new Uint8Array(input);
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * A PEM private key ("BEGIN PRIVATE KEY", PKCS#8 — what both Google's JSON and
+ * Apple's .p8 contain) to the DER bytes WebCrypto imports. A key pasted into a
+ * one-line secret arrives with literal backslash-n; that is accepted too.
+ */
+function pemToPkcs8(pem: string): ArrayBuffer {
+  const body = pem.replace(/\\n/g, "\n").replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, "");
+  const bin = atob(body);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function importRs256Key(pem: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "pkcs8", pemToPkcs8(pem), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"],
+  );
+}
+
+function importEs256Key(pem: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "pkcs8", pemToPkcs8(pem), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"],
+  );
+}
+
+/**
+ * header.claims.signature, compact serialisation. The algorithm follows the
+ * key: an ECDSA key signs ES256, an RSA key RS256. WebCrypto's ECDSA output is
+ * already the raw r||s that JOSE wants, so no DER unwrapping is needed.
+ */
+async function signJwt(
+  header: Record<string, unknown>, claims: Record<string, unknown>, key: CryptoKey,
+): Promise<string> {
+  const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claims))}`;
+  const alg = key.algorithm.name === "ECDSA"
+    ? { name: "ECDSA", hash: "SHA-256" }
+    : { name: "RSASSA-PKCS1-v1_5" };
+  const sig = await crypto.subtle.sign(alg, key, new TextEncoder().encode(signingInput));
+  return `${signingInput}.${b64url(sig)}`;
+}
+
+/** The assertion Google exchanges for an OAuth2 access token: RS256, one hour. */
+function fcmAssertionClaims(clientEmail: string, nowSeconds: number) {
+  return {
+    iss: clientEmail,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+  };
+}
+
+/** APNs provider token claims: ES256, the team as issuer. Apple honours one for up to an hour. */
+function apnsTokenClaims(teamId: string, nowSeconds: number) {
+  return { iss: teamId, iat: nowSeconds };
+}
+
+// ---- end JWT-HELPERS ----
+
+interface FcmConfig { projectId: string; clientEmail: string; key: CryptoKey }
+
+async function loadFcm(): Promise<FcmConfig | null> {
+  const raw = Deno.env.get("FCM_SERVICE_ACCOUNT");
+  if (!raw) return null;
+  const sa = JSON.parse(raw) as { project_id?: string; client_email?: string; private_key?: string };
+  if (!sa.project_id || !sa.client_email || !sa.private_key) {
+    throw new Error("FCM_SERVICE_ACCOUNT lacks project_id, client_email or private_key");
+  }
+  return { projectId: sa.project_id, clientEmail: sa.client_email, key: await importRs256Key(sa.private_key) };
+}
+
+/** One access token per invocation: signed assertion in, bearer token out. */
+async function fcmAccessToken(cfg: FcmConfig): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const assertion = await signJwt({ alg: "RS256", typ: "JWT" }, fcmAssertionClaims(cfg.clientEmail, now), cfg.key);
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+  });
+  const body = await res.json().catch(() => ({})) as { access_token?: string; error?: string; error_description?: string };
+  if (!res.ok || !body.access_token) {
+    throw new Error(`google oauth ${res.status}: ${String(body.error_description ?? body.error ?? "").slice(0, 120)}`);
+  }
+  return body.access_token;
+}
+
+/**
+ * FCM HTTP v1. `notification` is what the OS shows; `data` is what the app
+ * reads when the person taps it. High priority so a locked phone wakes.
+ */
+async function sendFcm(cfg: FcmConfig, accessToken: string, token: string, note: Note): Promise<NativeResult> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${cfg.projectId}/messages:send`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      message: {
+        token,
+        notification: { title: note.title, body: note.body },
+        data: { url: note.url, urgency: note.urgency, tag: note.tag },
+        android: { priority: "high" },
+      },
+    }),
+  });
+  if (res.ok) return { outcome: "sent" };
+  const text = await res.text();
+  // UNREGISTERED is FCM's "this token will never work again"; a 404 from the
+  // send endpoint says the same thing about the token.
+  if (res.status === 404 || /UNREGISTERED/.test(text)) return { outcome: "gone" };
+  return { outcome: "failed", error: `fcm ${res.status}: ${text.replace(/\s+/g, " ").slice(0, 160)}` };
+}
+
+interface ApnsConfig { key: CryptoKey; keyId: string; teamId: string; bundleId: string; host: string }
+
+async function loadApns(): Promise<ApnsConfig | null> {
+  const pem = Deno.env.get("APNS_KEY");
+  if (!pem) return null;
+  const keyId = Deno.env.get("APNS_KEY_ID");
+  const teamId = Deno.env.get("APNS_TEAM_ID");
+  const bundleId = Deno.env.get("APNS_BUNDLE_ID");
+  if (!keyId || !teamId || !bundleId) {
+    throw new Error("APNS_KEY is set but APNS_KEY_ID, APNS_TEAM_ID or APNS_BUNDLE_ID is not");
+  }
+  const env = Deno.env.get("APNS_ENV") ?? "production";
+  if (env !== "production" && env !== "sandbox") {
+    throw new Error(`APNS_ENV must be production or sandbox, not "${env}"`);
+  }
+  return {
+    key: await importEs256Key(pem), keyId, teamId, bundleId,
+    host: env === "sandbox" ? "https://api.sandbox.push.apple.com" : "https://api.push.apple.com",
+  };
+}
+
+/** One provider token per invocation. */
+function apnsProviderToken(cfg: ApnsConfig): Promise<string> {
+  return signJwt({ alg: "ES256", kid: cfg.keyId }, apnsTokenClaims(cfg.teamId, Math.floor(Date.now() / 1000)), cfg.key);
+}
+
+/**
+ * APNs over HTTP/2, which Deno's fetch negotiates on its own. An urgent report
+ * is time-sensitive so it breaks through a Focus mode; everything else is an
+ * ordinary alert. `url` and `tag` ride beside `aps` for the app to read.
+ */
+async function sendApns(cfg: ApnsConfig, providerToken: string, token: string, note: Note): Promise<NativeResult> {
+  const res = await fetch(`${cfg.host}/3/device/${token}`, {
+    method: "POST",
+    headers: {
+      authorization: `bearer ${providerToken}`,
+      "apns-topic": cfg.bundleId,
+      "apns-push-type": "alert",
+      "apns-priority": "10",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      aps: {
+        alert: { title: note.title, body: note.body },
+        sound: "default",
+        "interruption-level": note.urgency === "urgent" ? "time-sensitive" : "active",
+      },
+      url: note.url,
+      tag: note.tag,
+    }),
+  });
+  if (res.ok) return { outcome: "sent" };
+  const text = await res.text();
+  let reason = "";
+  try { reason = String((JSON.parse(text) as { reason?: string }).reason ?? ""); } catch { /* not JSON */ }
+  // 410 is "the device token is no longer active for the topic"; BadDeviceToken
+  // and Unregistered are the reasons that mean the same at other statuses.
+  if (res.status === 410 || reason === "BadDeviceToken" || reason === "Unregistered") return { outcome: "gone" };
+  return { outcome: "failed", error: `apns ${res.status}${reason ? " " + reason : ""}` };
+}
+
+/**
+ * The per-platform senders for this invocation, or null when neither is
+ * configured. Each mints its bearer once and reuses it for every device in
+ * the run; a minting failure surfaces as a failed delivery on the device that
+ * needed it, and the next device tries afresh.
+ */
+async function loadNativeSenders(): Promise<NativeSenders | null> {
+  const [fcm, apns] = await Promise.all([loadFcm(), loadApns()]);
+  if (!fcm && !apns) return null;
+  const senders: NativeSenders = {};
+  const failed = (err: unknown): NativeResult => ({
+    outcome: "failed", error: err instanceof Error ? err.message : String(err),
+  });
+  if (fcm) {
+    let accessToken: Promise<string> | null = null;
+    senders.fcm = async (token, note) => {
+      try {
+        accessToken ??= fcmAccessToken(fcm);
+        return await sendFcm(fcm, await accessToken, token, note);
+      } catch (err) {
+        accessToken = null;
+        return failed(err);
+      }
+    };
+  }
+  if (apns) {
+    let providerToken: Promise<string> | null = null;
+    senders.apns = async (token, note) => {
+      try {
+        providerToken ??= apnsProviderToken(apns);
+        return await sendApns(apns, await providerToken, token, note);
+      } catch (err) {
+        providerToken = null;
+        return failed(err);
+      }
+    };
+  }
+  return senders;
 }

@@ -3,6 +3,26 @@
 Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 **[bug]** — those are the ones worth reading.
 
+## 6 Sep 2026 — fifth loop
+
+**Phones can be paged, and the API is written down.** iOS and Android apps are
+next, and the backend had nowhere for one to register: `push_subscriptions` is
+a browser's endpoint and keys, and the worker spoke VAPID only. `device_tokens`
+(own-row RLS, explicit grant — default privileges deny new tables — anon holds
+nothing) with `register_device` / `unregister_device`; the worker now sends to
+FCM (HTTP v1, service-account RS256 assertion) and APNs (ES256 provider token
+over HTTP/2) beside web push, prunes a token on `UNREGISTERED` / 410 /
+`BadDeviceToken`, bumps `failure_count` otherwise, and reports `nativeSent`,
+`nativeFailed`, `nativePruned` and `nativeSkipped` — skipped meaning a phone
+was registered and no transport was configured, which is reported rather than
+counted as nothing. Deactivation drops native tokens too, counted in the audit
+row's `devices_removed`. `docs/api.md` is generated from a throwaway Postgres
+with every migration applied (`npm run api:doc`: every function `anon` or
+`authenticated` may execute, signature, roles, the migration that defined it;
+the staff views with columns; the auth flows), and `test:api-doc` fails
+`verify:offline` if the committed copy differs. Secrets for FCM/APNs are
+optional until the apps exist. (`20260906150000`)
+
 ## 6 Sep 2026 — third loop
 
 **[bug] The model decided who was woken up.** `20260906090000` let an `urgent`

@@ -78,6 +78,45 @@ const { rows: settings } = await db.query<{ role: string }>(`
 check("nobody but the service role can read app_settings", settings.length === 0,
   settings.map(s => s.role).join(", "));
 
+// Tables a signed-in person writes directly, own rows only: the browser's push
+// subscription and the native app's device token. These are the one place
+// `authenticated` legitimately holds write privileges, so the assertion is the
+// other half — anon holds nothing, RLS is on, and the policy that admits the
+// writes checks the row against auth.uid() on both sides. A policy with a
+// USING clause but no WITH CHECK would let a staff member register a phone
+// under the manager's id; that is the exact hole 20260906070000 closed.
+const OWN_ROW = ["push_subscriptions", "device_tokens"];
+
+console.log("\nown-row tables: anon holds nothing, and the policy checks both ways");
+const { rows: ownAnon } = await db.query<{ tbl: string; priv: string }>(`
+  select t.tbl, p.priv
+    from (values ${OWN_ROW.map(t => `('${t}')`).join(",")}) t(tbl)
+    cross join (values ('select'),('insert'),('update'),('delete')) p(priv)
+   where has_table_privilege('anon', 'public.' || t.tbl, p.priv)`);
+check("no anon privileges on push_subscriptions or device_tokens",
+  ownAnon.length === 0, ownAnon.map(g => `anon can ${g.priv} ${g.tbl}`).join(", "));
+
+const { rows: ownMissing } = await db.query<{ tbl: string }>(`
+  select t.tbl from (values ${OWN_ROW.map(t => `('${t}')`).join(",")}) t(tbl)
+   where to_regclass('public.' || t.tbl) is null`);
+check("both own-row tables exist (a typo would pass vacuously)", ownMissing.length === 0,
+  ownMissing.map(m => m.tbl).join(", "));
+
+const { rows: ownRls } = await db.query<{ relname: string }>(`
+  select c.relname from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+   where c.relname in (${OWN_ROW.map(t => `'${t}'`).join(",")}) and not c.relrowsecurity`);
+check("row level security is on for both", ownRls.length === 0, ownRls.map(r => r.relname).join(", "));
+
+const { rows: ownPolicies } = await db.query<{ tablename: string; qual: string | null; with_check: string | null }>(`
+  select tablename, qual, with_check from pg_policies
+   where schemaname = 'public' and tablename in (${OWN_ROW.map(t => `'${t}'`).join(",")})
+     and cmd = 'ALL' and 'authenticated' = any(roles)`);
+check("each has one ALL policy for authenticated whose USING and WITH CHECK both name auth.uid()",
+  ownPolicies.length === OWN_ROW.length
+    && ownPolicies.every(p => /auth\.uid\(\)/.test(p.qual ?? "") && /auth\.uid\(\)/.test(p.with_check ?? "")),
+  ownPolicies.map(p => `${p.tablename}: using=${p.qual} check=${p.with_check}`).join("; ") || "no policies");
+
 console.log("\nRLS is on regardless, so both lines hold");
 const { rows: norls } = await db.query<{ relname: string }>(`
   select c.relname from pg_class c

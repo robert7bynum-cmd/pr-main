@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { QueueRow, Teammate, DepartmentCount } from "@/lib/queue/reports";
+import type { QueueRow, Teammate, DepartmentCount, Department } from "@/lib/queue/reports";
 import { Badge } from "@/components/ui/badge";
 import { QueueCard } from "@/components/staff/queue-card";
 import { QueueLive } from "@/components/staff/queue-live";
@@ -32,6 +32,7 @@ export function StationBoard({
   meKind,
   rows,
   departments,
+  allDepartments,
   team,
   dept,
   elsewhere,
@@ -42,6 +43,8 @@ export function StationBoard({
   meKind: string;
   rows: QueueRow[];
   departments: DepartmentCount[];
+  /** Every department at the club, for the re-route picker on each card. */
+  allDepartments: Department[];
   team: Teammate[];
   dept?: string;
   /** Open reports at the club when this board's own list is empty. */
@@ -111,7 +114,7 @@ export function StationBoard({
         ) : (
           <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
             {rows.map((row) => (
-              <QueueCard key={row.id} row={row} team={team} meId={meId} meKind={meKind} />
+              <QueueCard key={row.id} row={row} team={team} departments={allDepartments} meId={meId} meKind={meKind} />
             ))}
           </div>
         )}

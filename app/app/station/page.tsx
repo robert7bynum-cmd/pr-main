@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getQueue, getDepartmentCounts, getTeam } from "@/lib/queue/reports";
+import { getQueue, getDepartmentCounts, getTeam, getDepartments } from "@/lib/queue/reports";
 import { getMe } from "@/lib/queue/actions-db";
 import { StationBoard } from "@/components/staff/station-board";
 
@@ -22,10 +22,11 @@ export default async function StationPage({
   const me = await getMe();
   if (!me) redirect("/login");
 
-  const [rows, departments, team] = await Promise.all([
+  const [rows, departments, team, allDepartments] = await Promise.all([
     getQueue(dept, "mine"),
     getDepartmentCounts("mine"),
     getTeam(),
+    getDepartments(),
   ]);
 
   // An empty board and a broken one look the same; say which. See /app.
@@ -39,6 +40,7 @@ export default async function StationPage({
       meKind={me.account_kind}
       rows={rows}
       departments={departments}
+      allDepartments={allDepartments}
       team={team}
       dept={dept}
       elsewhere={elsewhere}

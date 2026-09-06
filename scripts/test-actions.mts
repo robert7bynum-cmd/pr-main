@@ -424,6 +424,7 @@ const filedCount = await one<{ n: number }>(
   `select count(*)::int n from reports where filed_by = $1`, [supervisor.id]);
 check("only the three accepted filings exist", filedCount?.n === 3, `${filedCount?.n}`);
 
+/**
  * A shared counter login never owns a report.
  *
  * The pro shop browser is signed in as one account all day, used by whoever is

@@ -136,9 +136,9 @@ check("and it is in the pro shop", stationDepts.rows.some(r => r.department_id =
 check("and not in maintenance", !stationDepts.rows.some(r => r.department_id === maint));
 
 await act(station.id);
-const q7 = await db.query<{ id: string }>(`select id from my_queue`);
-check("the station sees the pro shop report", q7.rows.some(r => r.id === theirs));
-check("and not the maintenance report", !q7.rows.some(r => r.id === mine));
+const q8 = await db.query<{ id: string }>(`select id from my_queue`);
+check("the station sees the pro shop report", q8.rows.some(r => r.id === theirs));
+check("and not the maintenance report", !q8.rows.some(r => r.id === mine));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

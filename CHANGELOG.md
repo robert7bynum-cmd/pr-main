@@ -3,6 +3,64 @@
 Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 **[bug]** — those are the ones worth reading.
 
+## 6 Sep 2026 — two remediation loops
+
+Two passes over the whole codebase by several agents at once, each finding
+reproduced in PGlite or against the live project before it was fixed. Nothing
+here is described as deployed; `/api/health` says what production is serving.
+
+**[bug — critical] A manager could sign in as the owner.** `create_staff_invite`
+asked only "are you management", never who the invitation was for, so any
+management account could mint a sign-in link for any email — the owner's, and
+once a second club exists, anyone's at any club. An invitation now resolves to a
+person at the caller's club and the guard is asked about *that* person's role,
+with one refusal message whether the address belongs to another club or to
+nobody. (`20260906060000`)
+
+**[bug — high] Any staff member could rewrite the accountability record by
+hand.** `authenticated` still held INSERT/UPDATE/DELETE on the original tables,
+and four policies from the first day opened them through PostgREST: set
+`resolved_by` with no event, insert a `report_events` row naming any actor, edit
+`routing_rules` past the SLA guards, delete a manager's push device or register
+your own under their id. No code used any of it. Those tables are read-only for
+signed-in users and every write is a definer function; `test:table-authz`
+proves it offline. (`20260906070000`)
+
+**[bug] One matcher.** The TypeScript matcher the suites tested and the SQL
+matcher production ran disagreed on 35 of 397 inputs, every one in the dangerous
+direction. The TypeScript is deleted; `triage:eval` and `triage:coverage` call
+`match_keywords` in a throwaway Postgres and exit 1 on failure.
+(`20260906080000`)
+
+**[bug] An urgent report waited out quiet hours.** Escalation skipped every open
+report inside quiet hours, urgency included, so an injury filed at 20:30 reached
+nobody above the department until 06:00. Urgent now escalates regardless of the
+clock. **[bug] A lost page was lost for good.** Push was marked `failed` on the
+first transient error; it now retries at 1, 2 and 4 minutes, and the cron gate
+asks whether a queued row is *due* rather than merely queued. (`20260906090000`)
+
+**[bug] The watchdog ran open.** `/api/watchdog` treated `CRON_SECRET` as
+optional, so a deployment without it shipped a monitor anyone with the URL could
+trigger, and nothing said so. It answers 503 until the secret exists.
+
+**[bug] A probe account was left in production.** `test:accounts` cleaned up in a
+`finally`, but `deleteUser` failed on the `admin_events` foreign key and the error
+was swallowed. Dependents go first now and a failed removal fails the suite. The
+live suites also assert what the app does today, not what it did on the 4th.
+
+- **CI.** Lint, `next typegen`, `tsc`, and `verify:offline` on every push, with no
+  secrets; `test:grants` can fail now, which it could not before.
+- **This loop, landing alongside this entry:** a live invite journey suite
+  (`test:invite-journey`) that signs in as the invited person; the triage worker
+  requires a service-role bearer, validates the model's output before acting on
+  it, stores `ai_raw`, and has an error boundary; management tables read-only
+  for `authenticated`, an invitation cannot re-role an existing account,
+  per-placard flood control restored, `scan_nonces` purged, indexes on the
+  foreign keys the queue joins; README, STATUS, `.env.example` and CLAUDE.md
+  brought back in line with the code, `scripts/leak-check.mts` deleted (it
+  fetched the member status page removed on the 4th), and three debug
+  `console.log`s removed from the live queue.
+
 ## In progress
 
 ### One keyword matcher

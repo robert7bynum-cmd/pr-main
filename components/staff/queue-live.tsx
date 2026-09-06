@@ -83,7 +83,6 @@ export function QueueLive({
     void (async () => {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      console.log("[queue-live] session token:", token ? `present (${token.length})` : "MISSING");
       if (token) await supabase.realtime.setAuth(token);
 
       // Unique per mount: two subscribes with the same channel name get
@@ -93,13 +92,11 @@ export function QueueLive({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "reports", filter: `course_id=eq.${courseId}` },
-        (payload) => {
-          console.log("[queue-live] event", payload.eventType);
+        () => {
           router.refresh();
         },
       )
-      .subscribe((status, err) => {
-        console.log("[queue-live] status", status, err?.message ?? "");
+      .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setConn("live");
           // Events that happened while the socket was down were never

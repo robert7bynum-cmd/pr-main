@@ -65,9 +65,23 @@ Ten queue items sat in `processing` forever because the sweeper only looked at
 `pending` and nothing reclaimed a dead worker's lock. *Any claim sets a
 timestamp, and stale claims are reclaimed. Reprocessing must be idempotent.*
 
-**A scheduled job needs a dead-man's switch.**
-Escalation and triage run on `pg_cron`. If cron itself stops, nothing currently
-notices. **Not built — this is the largest open gap in operations.**
+**A scheduled job needs a dead-man's switch, and the switch cannot depend on
+the job.**
+Escalation and triage run on `pg_cron`. For a day, if cron itself had stopped,
+nothing would have noticed: reports would pile up untriaged while every screen
+stayed green, and the club would learn from an angry member. There are now two
+halves. Inside the database, every sweep writes a heartbeat and
+`system_health()` reports stuck triage, dead-lettered work, undelivered alerts,
+nobody on duty and a stale heartbeat, shown on the dashboard only when something
+is wrong (`20260905150000`). Outside it, `app/api/watchdog` on Vercel reads the
+same health with the service role, pushes to management directly rather than
+queueing work for the sweep it is watching, and keeps an alert ledger so a
+scheduler that stays down is paged about once (`20260905170000`). The route
+refuses to run — 503, visible in Vercel's cron log — when `CRON_SECRET` is
+unset, because the first version treated the secret as optional and shipped a
+monitor anybody with the URL could trigger. *The external half exists only where
+`CRON_SECRET` is set, and Vercel's Hobby plan runs it once a day; an external
+pinger every five minutes is the intended cadence.*
 
 ## CC8 — Change management
 
@@ -121,6 +135,16 @@ local bootstrap granted no privileges, so the revokes it asserts had nothing to
 revoke. Both shipped because nothing ran them anywhere but a developer's
 terminal, and only when someone remembered. *A suite that runs on request runs
 when it is convenient, which is never when it would have failed.*
+
+**A live test suite removes everything it creates, and a failed removal fails
+the suite.**
+`test:accounts` invites a probe account into the production project, exercises
+it, and deletes it in a `finally`. The invitee's own claim writes an
+`admin_events` row naming them as actor, and that reference does not cascade —
+an audit trail pointing at nobody is worthless — so `deleteUser` failed on the
+foreign key, the error was swallowed, and a probe account sat in production
+under a cleanup line that read correctly. *Cleanup deletes the dependents first,
+checks every error, and counts a leftover as a failed test.*
 
 ## CC9 / Confidentiality
 

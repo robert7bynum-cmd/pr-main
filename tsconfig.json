@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": [".next", "supabase", "scripts", "node_modules"]
+  "exclude": [".next", "supabase", "scripts", "node_modules", ".claude"]
 }

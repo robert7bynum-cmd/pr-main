@@ -424,5 +424,54 @@ const filedCount = await one<{ n: number }>(
   `select count(*)::int n from reports where filed_by = $1`, [supervisor.id]);
 check("only the three accepted filings exist", filedCount?.n === 3, `${filedCount?.n}`);
 
+ * A shared counter login never owns a report.
+ *
+ * The pro shop browser is signed in as one account all day, used by whoever is
+ * behind the counter. If that account claims, "who handled it" is answered by
+ * "Pro Shop Counter", which is nobody — the accountability record this product
+ * is sold on stops at the counter. So a station hands the report to a named
+ * person: they become the owner and are paged, and the hand-over itself is on
+ * the record with the station as its actor. me() has to say the account is a
+ * station for the app to offer that instead of a claim.
+ */
+console.log("\n16. a shared station hands work to a named person, never claims it");
+const stationUser = (await one<{ id: string }>(
+  `insert into auth.users (id, email) values (gen_random_uuid(), 'counter-test@example.com') returning id`))!.id;
+await db.query(
+  `insert into profiles (id, course_id, full_name, role, account_kind)
+   values ($1,$2,'Test Counter','staff','station')`, [stationUser, course]);
+
+await act(stationUser);
+const meAsStation = await one<{ account_kind: string; full_name: string }>(`select * from me()`);
+check("me() says the account is a station", meAsStation?.account_kind === "station",
+  meAsStation?.account_kind ?? "no row");
+
+const viaStation = await mk();
+const handoff = await one<{ ok: boolean; assignee_name: string }>(
+  `select * from assign_report($1,$2,$3)`, [viaStation, stationUser, bob.id]);
+check("the hand-off succeeds", handoff?.ok === true);
+check("and names the person", handoff?.assignee_name === bob.full_name, handoff?.assignee_name);
+
+const afterHandoff = await one<{ claimed_by: string }>(
+  `select claimed_by from reports where id = $1`, [viaStation]);
+check("the named person owns it, not the station", afterHandoff?.claimed_by === bob.id,
+  afterHandoff?.claimed_by === stationUser ? "the station claimed it" : String(afterHandoff?.claimed_by));
+
+const pagedPerson = await one<{ n: number }>(
+  `select count(*)::int n from notifications
+    where report_id = $1 and profile_id = $2 and status = 'queued'`, [viaStation, bob.id]);
+check("a notification is queued for the person", (pagedPerson?.n ?? 0) === 1, `${pagedPerson?.n}`);
+const pagedStation = await one<{ n: number }>(
+  `select count(*)::int n from notifications where report_id = $1 and profile_id = $2`,
+  [viaStation, stationUser]);
+check("and none for the station", (pagedStation?.n ?? -1) === 0, `${pagedStation?.n}`);
+
+const stationEv = await one<{ actor_id: string; payload: Record<string, unknown> }>(
+  `select actor_id, payload from report_events
+    where report_id = $1 and type = 'reassigned' order by created_at desc limit 1`, [viaStation]);
+check("the hand-over is attributed to the station", stationEv?.actor_id === stationUser,
+  String(stationEv?.actor_id));
+check("and says who it went to", stationEv?.payload?.to === bob.id, JSON.stringify(stationEv?.payload ?? {}));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

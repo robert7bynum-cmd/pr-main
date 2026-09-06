@@ -43,8 +43,8 @@ function age(minutes: number) {
 }
 
 export function QueueCard({
-  row, team, departments, meId,
-}: { row: QueueRow; team: Teammate[]; departments: Department[]; meId: string }) {
+  row, team, departments, meId, meKind,
+}: { row: QueueRow; team: Teammate[]; departments: Department[]; meId: string; meKind?: string }) {
   const u = URGENCY[row.urgency] ?? URGENCY.normal;
   const own = ownership(row);
 
@@ -115,6 +115,7 @@ export function QueueCard({
           team={team}
           departments={departments}
           meId={meId}
+          meKind={meKind}
         />
       </div>
     </article>

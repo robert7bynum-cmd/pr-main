@@ -43,6 +43,7 @@ export function CardActions({
   team,
   departments,
   meId,
+  meKind,
 }: {
   reportId: string;
   claimed: boolean;
@@ -53,8 +54,16 @@ export function CardActions({
   departments: Department[];
   /** Excluded from the picker: handing a report to yourself is "I've got this". */
   meId: string;
+  /**
+   * 'station' for a shared counter login. A station never claims in its own
+   * name — "Pro Shop Counter" handling a report answers "who?" with nobody —
+   * so its one-tap action is to say who is taking it, which pages that person
+   * and records the hand-over with the station as the actor.
+   */
+  meKind?: string;
 }) {
   const router = useRouter();
+  const station = meKind === "station";
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
   const [mode, setMode] = useState<"idle" | "resolve" | "schedule" | "assign">("idle");
@@ -288,7 +297,7 @@ export function CardActions({
     return (
       <div className="mt-5 border-t border-line pt-4">
         {error && <p className="mb-2 text-[13px] text-urgent">{error}</p>}
-        <p className="text-[13px] text-ink-secondary">Hand this to</p>
+        <p className="text-[13px] text-ink-secondary">{station ? "Who's taking this?" : "Hand this to"}</p>
         <Select value={assignee} onValueChange={(v) => setAssignee(v ?? "")}>
           <SelectTrigger className="mt-2 h-auto w-full px-4 py-3.5 text-[15px]">
             <SelectValue placeholder="Choose someone…" />
@@ -340,10 +349,10 @@ export function CardActions({
         {!claimed && (
           <button
             disabled={pending}
-            onClick={() => run(() => acknowledgeAction(reportId))}
+            onClick={() => (station ? setMode("assign") : run(() => acknowledgeAction(reportId)))}
             className="w-full rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
-            {pending ? "…" : "I've got this"}
+            {pending ? "…" : station ? "Who's taking this?" : "I've got this"}
           </button>
         )}
         <div className="flex gap-2">
@@ -359,7 +368,7 @@ export function CardActions({
           >
             Later
           </button>
-          {team.length > 1 && (
+          {team.length > 1 && !(station && !claimed) && (
             <button
               onClick={() => setMode("assign")}
               className="flex-1 rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] text-ink-secondary transition hover:border-line-strong"

@@ -120,5 +120,25 @@ const q7b = await db.query<{ id: string }>(`select id from my_queue`);
 check("their pro shop colleague, who did not file it, does not", !q7b.rows.some(r => r.id === filedByShop),
   "a report filed by somebody else in another department is showing");
 
+/**
+ * A shared counter login sees what its departments see. The seed's pro shop
+ * station is in the pro shop department and nothing else, so it should see
+ * the pro shop report and not the maintenance one — the same rule as a
+ * person, because the board it feeds is the same queue at a larger size.
+ */
+console.log("\n8. a shared station sees its own departments");
+const station = (await one<{ id: string }>(
+  `select id from profiles where account_kind = 'station' and active limit 1`))!;
+check("the seed has a station account", Boolean(station?.id));
+const stationDepts = await db.query<{ department_id: string }>(
+  `select department_id from staff_departments where profile_id = $1`, [station.id]);
+check("and it is in the pro shop", stationDepts.rows.some(r => r.department_id === shop));
+check("and not in maintenance", !stationDepts.rows.some(r => r.department_id === maint));
+
+await act(station.id);
+const q7 = await db.query<{ id: string }>(`select id from my_queue`);
+check("the station sees the pro shop report", q7.rows.some(r => r.id === theirs));
+check("and not the maintenance report", !q7.rows.some(r => r.id === mine));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

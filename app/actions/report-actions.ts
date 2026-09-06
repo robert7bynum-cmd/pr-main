@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { callFn, currentStaffId } from "@/lib/queue/actions-db";
+import { callFn, currentStaffId, getMe } from "@/lib/queue/actions-db";
 import { getDepartments } from "@/lib/queue/reports";
 import { CLOSE_REASONS, isCloseReason } from "@/lib/queue/close-reasons";
 
@@ -11,6 +11,18 @@ export interface ActionResult {
 }
 
 export async function acknowledgeAction(reportId: string): Promise<ActionResult> {
+  // A shared counter login never claims in its own name: "Pro Shop Counter"
+  // resolving a report answers "who handled it" with nobody. The card already
+  // offers a station "Who's taking this?" instead, but a browser tab open since
+  // before that change would still send this — so the refusal lives here too.
+  const me = await getMe();
+  if (me?.account_kind === "station") {
+    return {
+      ok: false,
+      message: "Pick who is taking this — a shared login cannot claim in its own name.",
+    };
+  }
+
   const actor = await currentStaffId();
   const row = await callFn("acknowledge_report", {
     p_report_id: reportId,

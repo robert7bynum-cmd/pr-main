@@ -205,10 +205,24 @@ Deno.serve(async (req: Request) => {
   // callers are pg_cron (via pg_net, sending app_settings.service_role_key)
   // and sendTestPush in the Next app (SUPABASE_SERVICE_ROLE_KEY), so the
   // bearer must be the service role key itself — nothing less.
+  //
+  // Two values count as "the service role key": the one the platform injects
+  // into this runtime, and the one the operator stored in app_settings for
+  // pg_cron to send. They are the same key today, but this project uses the
+  // newer sb_secret_ key format and the injected variable is not guaranteed to
+  // be the same string — and a mismatch here would 401 every scheduled run
+  // while every screen stayed green. Both are secrets only the service role
+  // can read, so accepting either does not widen who may call.
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const auth = req.headers.get("authorization") ?? "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
-  if (!serviceKey || bearer !== serviceKey) {
+  let storedKey = "";
+  if (serviceKey && bearer && bearer !== serviceKey) {
+    const probe = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
+    const { data } = await probe.from("app_settings").select("value").eq("key", "service_role_key").maybeSingle();
+    storedKey = data?.value?.trim() ?? "";
+  }
+  if (!serviceKey || !bearer || (bearer !== serviceKey && bearer !== storedKey)) {
     // Fingerprints only: enough to tell "cron holds a stale key" from "an
     // anon caller", never enough to recover either.
     console.warn(

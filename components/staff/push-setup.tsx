@@ -55,6 +55,12 @@ export function PushSetup({ variant = "card" }: { variant?: "card" | "onboarding
         if (!("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
         if (Notification.permission === "denied") return "blocked";
         const reg = await navigator.serviceWorker.getRegistration();
+        // Ask the browser to re-fetch sw.js. A service worker is cached hard,
+        // so a phone that subscribed last week keeps running the version it
+        // installed then — which is how a fix to how an alert behaves reaches
+        // everyone except the people already using it. skipWaiting in the
+        // worker does the rest.
+        if (reg) void reg.update().catch(() => {});
         const sub = await reg?.pushManager.getSubscription();
         return sub ? "on" : "off";
       };

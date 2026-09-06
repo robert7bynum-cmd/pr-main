@@ -35,8 +35,47 @@ export default function AuthCallbackPage() {
       done = true;
       const res = await claimAfterEmailLink();
       if (!res.ok) { setProblem(res.error ?? "Could not sign you in."); return; }
-      router.replace(res.mustChangePassword ? next : "/app");
+      // Always where the link says. This used to be gated on the
+      // must_change_password flag, so anyone who had ever set a password was
+      // sent straight to the queue — which meant a "reset your password" link
+      // did not let you reset your password. The flag answers "are they new",
+      // which is not the same question as "what was this link for", and the
+      // link already carries the answer.
+      router.replace(next);
     };
+
+    // A link we minted ourselves: ?token_hash=…&type=…
+    //
+    // This is the path that does not depend on Supabase's redirect, and it is
+    // the reason the flow works at all right now. Supabase's /verify endpoint
+    // sends people to the project's Site URL and DISCARDS the path, so
+    // ?next=/account/password was thrown away and an invited person landed on a
+    // bare root — which is why "the email link doesn't let you set a password".
+    // verifyOtp exchanges the token here, on our own domain, so no redirect of
+    // theirs is involved.
+    const tokenHash = new URLSearchParams(window.location.search).get("token_hash");
+    const otpType = new URLSearchParams(window.location.search).get("type");
+    if (tokenHash) {
+      void supabase.auth
+        .verifyOtp({
+          token_hash: tokenHash,
+          type: (otpType as "recovery" | "invite" | "email") ?? "recovery",
+        })
+        .then(({ error }) => {
+          if (error) {
+            setProblem(
+              /expired|invalid/i.test(error.message)
+                ? "That link has already been used or has expired. Ask your manager for a new one."
+                : error.message,
+            );
+            return;
+          }
+          // Do not leave a working token in the address bar or history.
+          window.history.replaceState(null, "", window.location.pathname);
+          void proceed();
+        });
+      return;
+    }
 
     // Supabase puts the session in the URL fragment. The browser client is
     // configured for the PKCE flow and does not read an implicit-grant

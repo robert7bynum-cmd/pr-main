@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { RosterRow, Department } from "@/lib/staff/queries";
-import { setActive, setRole, setDepartments, resetPassword } from "@/app/actions/staff";
+import { setActive, setRole, setDepartments, resetPassword, createSignInLink } from "@/app/actions/staff";
 import { Badge } from "@/components/ui/badge";
 
 const ROLES = ["staff", "supervisor", "manager", "owner"] as const;
@@ -16,10 +16,13 @@ export function StaffTable({
   const [open, setOpen] = useState<string | null>(null);
   const [note, setNote] = useState<{ id: string; text: string } | null>(null);
 
-  const run = (id: string, fn: () => Promise<{ ok: boolean; message?: string }>) =>
+  const [link, setLink] = useState<{ id: string; url: string } | null>(null);
+
+  const run = (id: string, fn: () => Promise<{ ok: boolean; message?: string; link?: string }>) =>
     start(async () => {
       const res = await fn();
       setNote({ id, text: res.message ?? (res.ok ? "Saved" : "Something went wrong") });
+      setLink(res.link ? { id, url: res.link } : null);
     });
 
   return (
@@ -149,19 +152,52 @@ export function StaffTable({
                         {p.active ? "Deactivate" : "Reactivate"}
                       </button>
                       {p.email && (
-                        <button
-                          disabled={pending}
-                          onClick={() => run(p.profile_id, () => resetPassword(p.profile_id, p.email!))}
-                          className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink-secondary transition hover:border-line-strong"
-                        >
-                          Email a sign-in link
-                        </button>
+                        <>
+                          {/* Two ways to get somebody in. The link is first
+                              because it is the one that always works: no
+                              mailbox, no spam filter, no dependency on how the
+                              project's redirect URLs happen to be configured. */}
+                          <button
+                            disabled={pending}
+                            onClick={() => run(p.profile_id, () => createSignInLink(p.email!))}
+                            className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink-secondary transition hover:border-line-strong"
+                          >
+                            Get a sign-in link
+                          </button>
+                          <button
+                            disabled={pending}
+                            onClick={() => run(p.profile_id, () => resetPassword(p.profile_id, p.email!))}
+                            className="rounded-control border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink-secondary transition hover:border-line-strong"
+                          >
+                            Email it instead
+                          </button>
+                        </>
                       )}
                     </div>
                   </>
                 )}
 
-                {note?.id === p.profile_id && (
+                {link?.id === p.profile_id && (
+              <div className="mt-3 rounded-control border border-line bg-surface-sunken px-4 py-3">
+                <p className="text-[12px] text-ink-secondary">
+                  Send this to {p.full_name}. It works once, and only for them.
+                </p>
+                <textarea
+                  readOnly
+                  onFocus={(e) => e.currentTarget.select()}
+                  value={link.url}
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-control border border-line bg-surface px-3 py-2 text-[12px] leading-relaxed"
+                />
+                <button
+                  onClick={() => { void navigator.clipboard?.writeText(link.url); setNote({ id: p.profile_id, text: "Copied." }); }}
+                  className="mt-2 rounded-control bg-accent-strong px-4 py-2.5 text-[13px] font-medium text-ink-on-accent"
+                >
+                  Copy link
+                </button>
+              </div>
+            )}
+            {note?.id === p.profile_id && (
                   <p className="rounded-control border border-line bg-surface-sunken px-3.5 py-3 text-[13px] leading-relaxed text-ink-secondary">
                     {note.text}
                   </p>

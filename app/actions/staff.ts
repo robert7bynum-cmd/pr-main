@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
-export interface StaffResult { ok: boolean; message?: string }
+export interface StaffResult { ok: boolean; message?: string; link?: string }
 
 /**
  * Where an emailed link should bring someone back to.
@@ -81,6 +81,52 @@ export async function inviteStaff(
     return { ok: false, message: `Invitation could not be emailed: ${inviteError.message}` };
   }
   return { ok: true, message: `Invitation emailed to ${address}. It lasts 24 hours.` };
+}
+
+/**
+ * A sign-in link on our own domain, for a manager to hand over directly.
+ *
+ * Supabase's own email link goes through its /verify endpoint, which redirects
+ * to the project's Site URL and drops the path — so a person invited today
+ * lands on a bare root instead of the page where they choose a password. That
+ * is a dashboard setting, and a club should not be unable to add staff because
+ * of one.
+ *
+ * generateLink mints the token without sending anything; the URL below is ours,
+ * and /auth/callback exchanges the token with verifyOtp. Nothing of Supabase's
+ * routing is involved, so this works regardless of how the project is
+ * configured — and it sidesteps email deliverability entirely, which for a
+ * club whose staff are on aol.com and yahoo.com addresses is not a small thing.
+ *
+ * The link is single-use and short-lived. It is returned to the manager who
+ * asked for it and never stored.
+ */
+export async function createSignInLink(email: string): Promise<StaffResult> {
+  const supabase = await createClient();
+  const { data: me } = await supabase.rpc("me");
+  const actor = Array.isArray(me) ? me[0] : me;
+  if (!actor || !["manager", "owner"].includes(actor.role)) {
+    return { ok: false, message: "You do not manage staff at this club." };
+  }
+
+  const address = email.trim().toLowerCase();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email: address,
+  });
+  if (error || !data.properties?.hashed_token) {
+    return { ok: false, message: error?.message ?? "Could not create a link." };
+  }
+
+  const base = (await callbackUrl("/account/password")).split("?")[0];
+  const link =
+    `${base}?token_hash=${encodeURIComponent(data.properties.hashed_token)}` +
+    `&type=recovery&next=${encodeURIComponent("/account/password")}`;
+
+  return { ok: true, link, message: `Link for ${address} — send it to them directly.` };
 }
 
 /**

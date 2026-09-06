@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Department } from "@/lib/staff/queries";
-import { inviteStaff } from "@/app/actions/staff";
+import { inviteStaff, createSignInLink } from "@/app/actions/staff";
 
 export function InviteForm({ departments, canInviteOwner }: {
   departments: Department[]; canInviteOwner: boolean;
@@ -13,7 +13,7 @@ export function InviteForm({ departments, canInviteOwner }: {
   const [name, setName] = useState("");
   const [role, setRole] = useState("staff");
   const [depts, setDepts] = useState<string[]>([]);
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
 
   if (!open) {
     return (
@@ -81,14 +81,42 @@ export function InviteForm({ departments, canInviteOwner }: {
         </p>
       )}
 
+      {result?.link && (
+        <div className="mt-3 rounded-control border border-line bg-surface-sunken px-4 py-3">
+          <p className="text-[12px] leading-relaxed text-ink-secondary">
+            Or send them this directly — it works straight away, and does not
+            depend on the email arriving.
+          </p>
+          <textarea
+            readOnly
+            onFocus={(e) => e.currentTarget.select()}
+            value={result.link}
+            rows={3}
+            className="mt-2 w-full resize-none rounded-control border border-line bg-surface px-3 py-2 text-[12px] leading-relaxed"
+          />
+          <button
+            onClick={() => void navigator.clipboard?.writeText(result.link!)}
+            className="mt-2 rounded-control bg-accent-strong px-4 py-2.5 text-[13px] font-medium text-ink-on-accent"
+          >
+            Copy link
+          </button>
+        </div>
+      )}
+
       <div className="mt-6 flex gap-2.5">
         <button
           disabled={pending || !email || !name}
           onClick={() => start(async () => {
             const res = await inviteStaff(email, name, role, depts);
+            // Hand the manager a working link at the same time. The email may
+            // take a minute, may be filtered, or may point somewhere useless if
+            // the project's redirect URLs are not set — none of which the
+            // person standing in front of them should have to care about.
+            const direct = res.ok ? await createSignInLink(email) : null;
             setResult({
               ok: res.ok,
               text: res.message ?? (res.ok ? "Invitation sent." : "Could not invite."),
+              link: direct?.link,
             });
             if (res.ok) { setEmail(""); setName(""); setDepts([]); }
           })}

@@ -162,5 +162,68 @@ console.log("\n8. deactivating ends the session and the pages");
   check("reactivating does not hand the old session back", (after?.n ?? -1) === 0, `${after?.n}`);
 }
 
+/**
+ * An invitation link IS a session for whoever's email is on it. So minting one
+ * is managing that person, and the same guard applies: your club only, and a
+ * manager cannot reach an owner. Before this, create_staff_invite checked only
+ * that the caller was management — a manager could type the owner's address,
+ * redeem the link, and become the owner.
+ */
+console.log("\n9. invitations are scoped to people you may manage");
+{
+  const errorOf = async (sql: string, p: unknown[] = []) => {
+    try { await db.query(sql, p); return null; } catch (e) { return (e as Error).message; }
+  };
+  const owner = (await one<{ id: string; email: string }>(
+    `select id, email from profiles where role = 'owner' and active limit 1`))!;
+  const managerEmail = (await one<{ email: string }>(
+    `select email from profiles where id = $1`, [manager]))!.email;
+  const staffEmail = (await one<{ email: string }>(
+    `select email from profiles where id = $1 and active`, [staff]))!.email;
+  await db.query(`update profiles set email = 'x@other.com' where id = $1`, [otherStaff]);
+
+  await act(manager);
+  check("a manager cannot mint a link for the owner",
+    await throws(`select create_staff_invite($1)`, [owner.email]));
+
+  const foreign = await errorOf(`select create_staff_invite('x@other.com')`);
+  const unknown = await errorOf(`select create_staff_invite('nobody@nowhere.test')`);
+  check("nor for someone at another club", foreign !== null);
+  check("nor for an address that belongs to nobody", unknown !== null);
+  check("and the two refusals read the same, so emails cannot be probed",
+    foreign !== null && foreign === unknown, `${foreign} vs ${unknown}`);
+  check("nothing was recorded for any of them", (await one<{ n: number }>(
+    `select count(*)::int n from staff_invites`))!.n === 0);
+
+  const forStaff = await one<{ t: string }>(`select create_staff_invite($1) t`, [staffEmail]);
+  check("a manager can mint for staff at their own club", Boolean(forStaff?.t));
+
+  await db.query(`select invite_staff('newhire@beaconhillgolfva.com', 'New Hire', 'staff')`);
+  const forPending = await one<{ t: string }>(
+    `select create_staff_invite('newhire@beaconhillgolfva.com') t`);
+  check("and for someone invited who has not signed in yet", Boolean(forPending?.t));
+
+  const again = await one<{ t: string }>(`select create_staff_invite($1) t`, [staffEmail]);
+  const retired = await one<{ used_at: string | null }>(
+    `select used_at from staff_invites where token = $1`, [forStaff!.t]);
+  check("minting again retires the earlier link", Boolean(again?.t) && retired?.used_at !== null);
+
+  await act(owner.id);
+  const forManager = await one<{ t: string }>(`select create_staff_invite($1) t`, [managerEmail]);
+  check("an owner can mint for a manager", Boolean(forManager?.t));
+
+  const redeemed = await one<{ e: string }>(`select redeem_staff_invite($1) e`, [forManager!.t]);
+  check("redeeming returns the address the link was minted for", redeemed?.e === managerEmail,
+    `${redeemed?.e}`);
+  check("and a spent link cannot be redeemed twice",
+    await throws(`select redeem_staff_invite($1)`, [forManager!.t]));
+
+  await act(manager);
+  check("inviting an address that already has an active account is refused",
+    await throws(`select invite_staff($1, 'Impostor', 'staff')`, [owner.email]));
+  check("even at a lower role for an ordinary colleague",
+    await throws(`select invite_staff($1, 'Again', 'staff')`, [staffEmail]));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

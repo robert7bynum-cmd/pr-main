@@ -245,25 +245,27 @@ Deno.serve(async (req: Request) => {
   // *a* valid JWT signed by this project, and the publishable anon key is
   // exactly that: a valid JWT, shipped in every client bundle. Anyone holding
   // it could POST here and run the worker at will. The only legitimate
-  // callers are pg_cron (via pg_net, sending app_settings.service_role_key)
-  // and sendTestPush in the Next app (SUPABASE_SERVICE_ROLE_KEY), so the
-  // bearer must be the service role key itself — nothing less.
+  // callers are pg_cron (via pg_net, sending the key service_role_secret()
+  // returns) and sendTestPush in the Next app (SUPABASE_SERVICE_ROLE_KEY), so
+  // the bearer must be the service role key itself — nothing less.
   //
   // Two values count as "the service role key": the one the platform injects
-  // into this runtime, and the one the operator stored in app_settings for
-  // pg_cron to send. They are the same key today, but this project uses the
-  // newer sb_secret_ key format and the injected variable is not guaranteed to
-  // be the same string — and a mismatch here would 401 every scheduled run
-  // while every screen stayed green. Both are secrets only the service role
-  // can read, so accepting either does not widen who may call.
+  // into this runtime, and the one the operator stored for pg_cron to send.
+  // They are the same key today, but this project uses the newer sb_secret_
+  // key format and the injected variable is not guaranteed to be the same
+  // string — and a mismatch here would 401 every scheduled run while every
+  // screen stayed green. Both are secrets only the service role can read, so
+  // accepting either does not widen who may call. The stored one is asked for
+  // through service_role_secret() (20260906160000), which is the only code
+  // that knows whether it lives in the vault or in app_settings.
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const auth = req.headers.get("authorization") ?? "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
   let storedKey = "";
   if (serviceKey && bearer && bearer !== serviceKey) {
     const probe = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
-    const { data } = await probe.from("app_settings").select("value").eq("key", "service_role_key").maybeSingle();
-    storedKey = data?.value?.trim() ?? "";
+    const { data } = await probe.rpc("service_role_secret");
+    storedKey = typeof data === "string" ? data.trim() : "";
   }
   if (!serviceKey || !bearer || (bearer !== serviceKey && bearer !== storedKey)) {
     // Fingerprints only: enough to tell "cron holds a stale key" from "an
@@ -283,12 +285,14 @@ Deno.serve(async (req: Request) => {
     { auth: { persistSession: false } },
   );
 
-  // Prefer a real platform secret; fall back to the settings row so the system
-  // works before anyone has run the CLI.
+  // Prefer a real platform secret; fall back to the database so the system
+  // works before anyone has run the CLI. anthropic_key() answers from the
+  // vault or, before the move, from app_settings — this code does not know
+  // which, on purpose.
   let apiKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
   if (!apiKey) {
-    const { data } = await db.from("app_settings").select("value").eq("key", "anthropic_api_key").maybeSingle();
-    apiKey = data?.value ?? "";
+    const { data } = await db.rpc("anthropic_key");
+    apiKey = typeof data === "string" ? data : "";
   }
 
   // modelRejected: the model answered and the answer was thrown away (bad

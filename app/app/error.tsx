@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { reportError } from "@/lib/observability/report-error";
 
 /**
  * A staff action that did not go through.
@@ -10,7 +11,8 @@ import { useEffect } from "react";
  * server function said "report not found" and the action threw. Without this
  * file that surfaced as Next's default error page — a groundskeeper reading a
  * stack trace. The message never includes error.message, which can carry SQL
- * text; it goes to console.error so it reaches the Vercel logs instead.
+ * text; it is reported in the same JSON shape the server uses, with the
+ * digest that pairs it with the server-side line in the Vercel logs.
  */
 export default function StaffError({
   error,
@@ -20,7 +22,7 @@ export default function StaffError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("staff surface error", error.digest ?? "", error);
+    reportError("surface.staff", error, error.digest ? { digest: error.digest } : undefined);
   }, [error]);
 
   return (

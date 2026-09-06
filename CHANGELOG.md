@@ -23,6 +23,25 @@ the staff views with columns; the auth flows), and `test:api-doc` fails
 `verify:offline` if the committed copy differs. Secrets for FCM/APNs are
 optional until the apps exist. (`20260906150000`)
 
+**Two secrets came out of a plaintext table.** `app_settings` had held the
+service-role key (so `pg_cron` could call the edge function) and the Anthropic
+key (so the function could classify) as ordinary text rows since the worker
+moved into Supabase; three audits flagged it. `20260906160000` moves both into
+Supabase Vault inside the database — the values never pass through a script —
+and puts one accessor in front of each (`service_role_secret()`,
+`anthropic_key()`: vault when present, `app_settings` otherwise, executable by
+the job owner and `service_role` only). The cron job, `kick_triage()` and the
+edge function's two lookups all ask the accessor; nothing reads the rows by
+name any more, and `test:secrets` reads the migration text to keep it that
+way. Alongside: every response now carries HSTS, `nosniff`, `X-Frame-Options:
+DENY`, a referrer policy and a permissions policy (no CSP yet — a wrong one
+breaks push and realtime silently, so it waits for a report-only pass);
+`/api/health` tells an anonymous caller only `env`, `commit` and `database`
+and keeps the branch, URL, Supabase host and flags for a caller holding
+`CRON_SECRET`; and errors from both error boundaries and every report action
+go out as one JSON line through `lib/observability/report-error.ts`, with the
+action name and report id and never the note that was typed.
+
 ## 6 Sep 2026 — third loop
 
 **[bug] The model decided who was woken up.** `20260906090000` let an `urgent`

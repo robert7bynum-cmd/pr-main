@@ -3,6 +3,25 @@
 Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 **[bug]** — those are the ones worth reading.
 
+## 6 Sep 2026 — fifth loop
+
+**Contact details expire; a club can be created.** The placard form collects a
+member's name, phone and email so the team can ask a question, and until now
+nothing ever removed them — a March report still carried a mobile number in
+September, readable by every member of staff. `purge_expired()` now clears the
+three columns from reports older than the club's retention period
+(`settings.retention_days`, 30–3650, default 90, on the settings screen) and
+writes one `note` event per report with `{"retention": true, "cleared": [...]}`
+and no actor, so the timeline says why the number is gone; the report and every
+metric stay. `/privacy` is the notice, linked under the optional fields on the
+form and printed as a footer on every placard. `create_club` builds a second
+club — the seven departments and ten rules from `docs/taxonomy.md`, a pending
+owner — service-role only, run from `npm run club:create`, which also sends the
+owner's invitation and re-sends it on a re-run if the mailer refused.
+`test:club-create` parses the taxonomy tables and holds the function to them,
+and asserts that a report at the empty club raises `routed to nobody` rather
+than succeeding. (`20260906170000`)
+
 ## 6 Sep 2026 — third loop
 
 **[bug] The model decided who was woken up.** `20260906090000` let an `urgent`

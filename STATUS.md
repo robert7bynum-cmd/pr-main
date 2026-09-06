@@ -77,6 +77,12 @@ moment is whatever `/api/health` says.
   is set.
 - **Deployment** — Vercel, previews per branch; CI runs lint, types and
   `verify:offline` on every push.
+- **Retention and a second club** — `purge_expired()` clears a member's name,
+  phone and email from reports older than the club's retention period (default
+  90 days, set in `/app/settings`, 30–3650) and writes a `note` event saying so;
+  `/privacy` is the notice linked from the form and printed on every placard;
+  `npm run club:create -- <slug> "<Name>" <tz> <owner email> "<Owner>"` builds a
+  club from `docs/taxonomy.md` and invites its owner.
 
 ## Not built
 

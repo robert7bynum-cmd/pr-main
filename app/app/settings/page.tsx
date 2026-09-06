@@ -29,6 +29,9 @@ export default async function SettingsPage() {
     publicUrl: typeof settings.public_url === "string" ? settings.public_url : "",
     quietStart: quiet.start ?? "",
     quietEnd: quiet.end ?? "",
+    // Absent means the default (90); the form shows blank for that so a club
+    // that never chose a number is not shown one as if it had.
+    retentionDays: typeof settings.retention_days === "number" ? String(settings.retention_days) : "",
   };
 
   return (

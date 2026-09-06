@@ -34,15 +34,22 @@ export interface CourseSettingsInput {
   publicUrl: string;
   quietStart: string;
   quietEnd: string;
+  /** Days as typed; blank means the default. The function holds the 30..3650 rule. */
+  retentionDays: string;
 }
 
 export async function saveCourseSettings(input: CourseSettingsInput): Promise<SettingsResult> {
+  // Blank clears the setting (back to the default of 90). Anything that is
+  // not a whole number is handed to the function as-is so it is refused
+  // there with the message a manager sees, not coerced into a value.
+  const retention = input.retentionDays.trim();
   const { data, error } = await call<number>("update_course_settings", {
     p_name: input.name.trim(),
     p_timezone: input.timezone.trim(),
     p_public_url: input.publicUrl.trim() || null,
     p_quiet_start: input.quietStart.trim() || null,
     p_quiet_end: input.quietEnd.trim() || null,
+    p_retention_days: retention === "" ? null : /^\d+$/.test(retention) ? Number(retention) : retention,
   });
   if (error) return { ok: false, message: error };
   const changed = Number(data ?? 0);

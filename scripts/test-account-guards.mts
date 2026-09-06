@@ -17,7 +17,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 config({ path: ".env.local" });
-import { provisionTestStaff } from "@/lib/dev/test-staff";
+import { provisionTestStaff, deleteReport } from "@/lib/dev/test-staff";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PUB = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -28,6 +28,10 @@ const check = (n: string, ok: boolean, d = "") => { ok ? pass++ : fail++; consol
 
 const admin = createClient(URL_, SVC, { auth: { persistSession: false } });
 const f = await provisionTestStaff(admin);
+const stamp = Date.now().toString(36);
+// A report of this suite's own to attempt against — never a real one. Filed
+// the way a member files it, and removed in the finally block below.
+let probeReportId: string | null = null;
 
 try {
   const me = createClient(URL_, PUB, { auth: { persistSession: false } });
@@ -80,6 +84,70 @@ try {
   const stillThere = (await admin.from("profiles").select("id").eq("id", f.staff.id)).data?.length === 1;
   check("cannot delete their own profile", Boolean(delErr) || stillThere, "the profile was deleted");
 
+  // 20260906070000_table_write_posture.sql closed the direct table writes that
+  // let a staff member set their own resolved_by, append a report_events row
+  // with anyone's actor_id, or park a phone under a manager's profile_id. That
+  // is proven offline with `set role authenticated`; this is the same attack
+  // sent through PostgREST by a real session, which is the only place a person
+  // could actually make it.
+  console.log("\nthe accountability record is not theirs to write");
+  const member = createClient(URL_, PUB, { auth: { persistSession: false } });
+  const { data: nonce } = await member.rpc("issue_scan_nonce", { p_token: "bh-h11" });
+  const { data: filed, error: fileErr } = await member.rpc("submit_report", {
+    p_token: "bh-h11", p_nonce: nonce,
+    p_body: `GUARDS PROBE ${stamp} — bunker rake missing on 11, sand washed onto the green`,
+    p_language: "en",
+  });
+  probeReportId = typeof filed === "string" ? filed : null;
+  check("there is a report of our own to attempt against", !fileErr && Boolean(probeReportId),
+    fileErr?.message ?? `submit_report returned ${JSON.stringify(filed)}`);
+
+  if (probeReportId) {
+    const before = (await admin.from("reports")
+      .select("status, resolved_by, resolved_at, course_id").eq("id", probeReportId).single()).data;
+
+    const { error: updErr, data: updRows } = await me.from("reports")
+      .update({ resolved_by: f.supervisor.id, status: "resolved" }).eq("id", probeReportId).select("id");
+    const after = (await admin.from("reports")
+      .select("status, resolved_by, resolved_at").eq("id", probeReportId).single()).data;
+    check("cannot mark a report resolved by hand", Boolean(updErr) || (updRows?.length ?? 0) === 0,
+      `ACCEPTED — ${updRows?.length} row(s) updated`);
+    check("and the report is exactly as it was",
+      after?.status === before?.status && after?.resolved_by === before?.resolved_by
+        && after?.resolved_at === before?.resolved_at,
+      `${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+
+    const { error: evErr } = await me.from("report_events").insert({
+      report_id: probeReportId, course_id: before?.course_id, type: "acknowledged", actor_id: f.supervisor.id,
+    });
+    const forged = (await admin.from("report_events").select("id")
+      .eq("report_id", probeReportId).eq("type", "acknowledged")).data?.length ?? -1;
+    check("cannot write an event in a colleague's name", Boolean(evErr), "ACCEPTED — the metrics table is writable");
+    check("and no such event exists", forged === 0, `${forged} acknowledged event(s) on an unacknowledged report`);
+  }
+
+  const foreignEndpoint = `https://example.test/${stamp}-theirs`;
+  const { error: subErr, data: subRows } = await me.from("push_subscriptions")
+    .insert({ profile_id: f.supervisor.id, endpoint: foreignEndpoint, p256dh: "p", auth: "a" }).select("id");
+  const planted = (await admin.from("push_subscriptions").select("id").eq("endpoint", foreignEndpoint)).data?.length ?? -1;
+  check("cannot register a phone under a colleague's profile", Boolean(subErr) || (subRows?.length ?? 0) === 0,
+    `ACCEPTED — ${subRows?.length} row(s)`);
+  check("and no such device exists", planted === 0, `${planted} device(s) registered to the colleague`);
+
+  // The legitimate path — savePushSubscription() in app/actions/push.ts — is
+  // an upsert on the caller's own profile_id keyed by endpoint. It must still
+  // work, or the lock-down has taken every staff phone off the pager.
+  const ownEndpoint = `https://example.test/${stamp}-mine`;
+  const { error: ownErr } = await me.from("push_subscriptions").upsert(
+    { profile_id: f.staff.id, endpoint: ownEndpoint, p256dh: "p", auth: "a", failure_count: 0 },
+    { onConflict: "endpoint" },
+  );
+  const own = (await admin.from("push_subscriptions").select("profile_id").eq("endpoint", ownEndpoint)).data;
+  check("can still register their own phone", !ownErr && own?.length === 1 && own[0].profile_id === f.staff.id,
+    ownErr?.message ?? `${JSON.stringify(own)}`);
+  const { error: ownDelErr } = await admin.from("push_subscriptions").delete().eq("endpoint", ownEndpoint);
+  if (ownDelErr) console.log(`  !! could not remove own probe device: ${ownDelErr.message}`);
+
   console.log("\noffboarding ends access, it does not just mark it");
   const mgr = createClient(URL_, PUB, { auth: { persistSession: false } });
   await mgr.auth.signInWithPassword({ email: f.manager.email, password: f.password });
@@ -108,6 +176,12 @@ try {
   await me.auth.signOut();
   await mgr.auth.signOut();
 } finally {
+  // The report goes before the people: its acknowledged/resolved columns and
+  // events could name a fixture account, and teardown fails on that key.
+  if (probeReportId) {
+    try { await deleteReport(admin, probeReportId); console.log(`\n  removed report ${probeReportId} (GUARDS PROBE ${stamp})`); }
+    catch (e) { console.log(`\n  !! could not remove report ${probeReportId}: ${(e as Error).message}`); fail++; }
+  }
   await f.teardown();
 }
 

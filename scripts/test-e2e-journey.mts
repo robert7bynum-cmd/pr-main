@@ -84,13 +84,20 @@ const mins = (a: string, b: string) =>
   (new Date(a).getTime() - new Date(b).getTime()) / 60000;
 
 let reportId: string | null = null;
-// Nothing this suite creates outlives it: the report goes, then the people.
+// The staff-filed report from step 12, when the journey gets that far.
+let staffReportId: string | null = null;
+// Nothing this suite creates outlives it: the reports go, then the people.
 // Earlier versions left the report "resolved" as a marked artifact, and those
 // piled up in a real club's history until the owner asked for all of it gone.
+// A removal that fails is a failed test, not a log line: a leftover is exactly
+// what the owner asked never to accumulate again.
 const finish = async () => {
-  if (reportId) {
-    try { await deleteReport(admin, reportId); console.log(`\n  removed report ${reportId} (${marker})`); }
-    catch (e) { console.log(`\n  !! could not remove report ${reportId}: ${(e as Error).message}`); }
+  for (const id of [reportId, staffReportId]) {
+    if (!id) continue;
+    try { await deleteReport(admin, id); console.log(`\n  removed report ${id} (${marker})`); }
+    catch (e) {
+      check(`removed report ${id}`, false, (e as Error).message);
+    }
   }
   await fixtures.teardown();
   console.log(`\n${pass} passed, ${fail} failed`);
@@ -460,8 +467,101 @@ check("and gone from their own queue too",
   !stillMine.rows?.some((r) => r.id === reportId), stillMine.error || "still listed");
 
 await me.auth.signOut();
+
+// --------------------------------------------- 12. staff file reports too
+step(12, "a staff member files one themselves, and it takes the same road");
+// The superintendent on the morning drive, or the pro shop with a member on
+// the line. No placard, no nonce: a session, a hole and a sentence. From the
+// row down it must be the member's journey again — triage picks it up unasked,
+// routes it, pages somebody — and the filer must keep seeing it.
+const STAFF_BODY =
+  `Sprinkler head stuck on beside the cart path, water pooling on the approach. ` +
+  `[ProResponse automated end-to-end test ${marker} E2E staff-filed — safe to ignore, no action needed]`;
+
+const filerSession = await signIn(fixtures.supervisor.email);
+check("the fixture supervisor can sign in to file", Boolean(filerSession),
+  "the fixture supervisor could not sign in");
+if (!filerSession) await finish();
+const filer = filerSession!;
+
+const { data: filerMe } = await filer.rpc("me");
+const filerId = (filerMe as { profile_id: string }[] | null)?.[0]?.profile_id;
+
+const { data: filedData, error: fileErr } = await filer.rpc("file_report", {
+  p_location_id: placardLocation,
+  p_body: STAFF_BODY,
+  p_source: "staff",
+});
+check("the report is accepted from a staff session", !fileErr && typeof filedData === "string",
+  fileErr?.message ?? String(filedData));
+if (typeof filedData !== "string") await finish();
+staffReportId = filedData as string;
+note(`report ${staffReportId}`);
+
+const readStaffReport = async () => {
+  const { data } = await filer
+    .from("reports")
+    .select("id,status,category,source,filed_by,location_id,department_id")
+    .eq("id", staffReportId!)
+    .limit(1);
+  return ((data ?? [])[0] ?? null) as unknown as Record<string, unknown> | null;
+};
+
+let staffReport = await readStaffReport();
+check("it is on the hole they chose", staffReport?.location_id === placardLocation,
+  `${staffReport?.location_id} != ${placardLocation}`);
+check("its source says staff", staffReport?.source === "staff", String(staffReport?.source));
+check("and filed_by is the person whose session filed it", staffReport?.filed_by === filerId,
+  `${staffReport?.filed_by} != ${filerId}`);
+
+// Same unattended wait as step 4: nothing is invoked by hand.
+const staffDeadline = Date.now() + 120_000;
+while (Date.now() < staffDeadline) {
+  staffReport = await readStaffReport();
+  if (staffReport && staffReport.status !== "new") break;
+  await sleep(3000);
+}
+const staffTriaged = Boolean(staffReport) && staffReport!.status !== "new";
+check("triage picks it up within two minutes, unasked", staffTriaged,
+  `still ${staffReport?.status} — the scheduled sweep may not be running`);
+if (staffTriaged) note(`category ${staffReport?.category}`);
+
+const { data: staffEventRows } = await filer
+  .from("report_events")
+  .select("type,actor_id,payload")
+  .eq("report_id", staffReportId!)
+  .order("created_at");
+const staffEvents = (staffEventRows ?? []) as {
+  type: string; actor_id: string | null; payload: Record<string, unknown> | null;
+}[];
+const staffCreated = staffEvents.find((e) => e.type === "created");
+check("the created event names the filer as actor", staffCreated?.actor_id === filerId,
+  `${staffCreated?.actor_id} != ${filerId}`);
+const staffRouted = staffEvents.find((e) => e.type === "routed");
+check("a routed event is on the record", Boolean(staffRouted),
+  staffEvents.map((e) => e.type).join(","));
+check("and it reached at least one person", Number(staffRouted?.payload?.recipients ?? 0) > 0,
+  `recipients=${staffRouted?.payload?.recipients}`);
+
+// The filer, in their own queue, through the view the app renders — with the
+// columns the card now shows. The fixture supervisor is in Course Maintenance,
+// so on a sprinkler report this proves the columns live rather than isolating
+// the filed_by clause; test:queue pins that clause with a pro shop filer.
+const { data: filerQueue, error: filerQueueErr } = await filer
+  .from("my_queue")
+  .select("id,filed_by,filed_by_name,source");
+const filerRow = ((filerQueue ?? []) as {
+  id: string; filed_by: string | null; filed_by_name: string | null; source: string;
+}[]).find((r) => r.id === staffReportId);
+check("the report is in the filer's own queue", Boolean(filerRow),
+  filerQueueErr?.message || `my_queue held ${filerQueue?.length ?? 0} rows, none of them this report`);
+check("and the queue says who filed it",
+  filerRow?.filed_by === filerId && filerRow?.filed_by_name === fixtures.supervisor.full_name
+    && filerRow?.source === "staff",
+  JSON.stringify(filerRow ?? {}));
+
+await filer.auth.signOut();
 await obs.auth.signOut();
 
-// Nothing is deleted. The report stays in production, resolved, with the marker
-// in its body and in its resolution note so anyone who finds it knows what it is.
+// Both reports are removed in finish(), then the people.
 finish();

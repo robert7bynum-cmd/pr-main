@@ -78,5 +78,47 @@ const otherReport = (await one<{ id: string }>(
 const q6 = await db.query<{ id: string }>(`select id from my_queue`);
 check("another club's report is invisible", !q6.rows.some(r => r.id === otherReport));
 
+// The fourth reason: you filed it. A pro shop member logs a phoned-in
+// maintenance complaint; routing hands it to Course Maintenance, a department
+// they are not in and were not paged for. Losing sight of it at that moment is
+// "I filed it and nothing happened" — the same failure as the empty queue that
+// made the owner think the app was broken.
+console.log("\n7. whoever filed a report keeps seeing it");
+const mkShopStaff = async (name: string, email: string) => {
+  const id = (await one<{ id: string }>(
+    `insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id`, [email]))!.id;
+  await db.query(
+    `insert into profiles (id, course_id, full_name, role) values ($1,$2,$3,'staff')`,
+    [id, course, name]);
+  await db.query(`insert into staff_departments values ($1,$2)`, [id, shop]);
+  return id;
+};
+const filer = await mkShopStaff("Counter One", "counter1@example.com");
+const colleague = await mkShopStaff("Counter Two", "counter2@example.com");
+
+await act(filer);
+const filedByShop = (await one<{ file_report: string }>(
+  `select file_report($1, $2, 'phone_relay', 'A member', null)`,
+  [loc, "Member called: bunker on 5 is full of water"]))!.file_report;
+const routed = await one<{ department_id: string; recipients: number }>(
+  `select department_id, recipients from route_report($1,'course_maintenance','normal','bunker',0.9,'keyword')`,
+  [filedByShop]);
+check("it routes to maintenance, not the pro shop", routed?.department_id === maint, String(routed?.department_id));
+const pagedFiler = await one<{ n: number }>(
+  `select count(*)::int n from notifications where report_id = $1 and profile_id = $2`, [filedByShop, filer]);
+check("the filer was not paged about it (so the next check is about filing)", pagedFiler?.n === 0, `${pagedFiler?.n}`);
+
+const q7 = await db.query<{ id: string; filed_by_name: string; source: string }>(
+  `select id, filed_by_name, source::text from my_queue`);
+const seen = q7.rows.find(r => r.id === filedByShop);
+check("the pro shop member who filed it still sees it", Boolean(seen), "not in the filer's my_queue");
+check("and the card can say who filed it, and how",
+  seen?.filed_by_name === "Counter One" && seen?.source === "phone_relay", JSON.stringify(seen ?? {}));
+
+await act(colleague);
+const q7b = await db.query<{ id: string }>(`select id from my_queue`);
+check("their pro shop colleague, who did not file it, does not", !q7b.rows.some(r => r.id === filedByShop),
+  "a report filed by somebody else in another department is showing");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

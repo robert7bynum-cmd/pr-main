@@ -304,5 +304,125 @@ await db.query(`select set_config('test.uid', '', false)`);
 const noSession = await refuses(`select assign_report($1,$2,$3)`, [handed, alice.id, teammate.id]);
 check("an unauthenticated caller cannot assign", noSession !== null, "accepted");
 
+/**
+ * Staff file reports too.
+ *
+ * submit_report needs a placard and a scan nonce, so until file_report existed
+ * the only way a problem entered the system was a member typing it. From the
+ * row down a staff-filed report must be indistinguishable to triage and
+ * routing; what differs is that the filer is the caller, on the row and on the
+ * created event, and that they keep seeing it wherever it routes.
+ */
+console.log("\n15. staff file reports too");
+const supervisor = (await one<{ id: string; full_name: string }>(
+  `select id, full_name from profiles where role = 'supervisor' and active limit 1`))!;
+await act(supervisor.id);
+
+const filedId = (await one<{ file_report: string }>(
+  `select file_report($1, $2, 'staff')`,
+  [loc, "  Sprinkler head stuck on, flooding the left side of the fairway  "]))!.file_report;
+check("a supervisor can file a report", typeof filedId === "string" && filedId.length > 0);
+
+const filed = await one<{
+  source: string; filed_by: string; body: string; status: string; course_id: string;
+  location_id: string; qr_code_id: string | null; reporter_name: string | null;
+}>(`select source::text, filed_by, body, status::text, course_id, location_id, qr_code_id, reporter_name
+      from reports where id = $1`, [filedId]);
+check("its source is staff", filed?.source === "staff", filed?.source);
+check("filed_by is the caller, not an argument", filed?.filed_by === supervisor.id);
+check("the body is stored trimmed", filed?.body === "Sprinkler head stuck on, flooding the left side of the fairway", filed?.body);
+check("it starts new, like a member's", filed?.status === "new", filed?.status);
+check("at the caller's club", filed?.course_id === course);
+check("on the location asked for", filed?.location_id === loc);
+check("with no placard behind it", filed?.qr_code_id === null);
+check("a staff filing carries no reporter name", filed?.reporter_name === null, String(filed?.reporter_name));
+
+const queued = await one<{ status: string }>(
+  `select status::text from triage_queue where report_id = $1`, [filedId]);
+check("it is queued for triage in the same transaction", queued?.status === "pending", queued?.status);
+
+const createdEv = await one<{ actor_id: string; payload: Record<string, unknown> }>(
+  `select actor_id, payload from report_events where report_id = $1 and type = 'created'`, [filedId]);
+check("the created event names the filer as actor", createdEv?.actor_id === supervisor.id, String(createdEv?.actor_id));
+check("and its payload says source, location and filed_by",
+  createdEv?.payload?.source === "staff" && createdEv?.payload?.location_id === loc
+    && createdEv?.payload?.filed_by === supervisor.id,
+  JSON.stringify(createdEv?.payload ?? {}));
+
+// The rest of the pipeline must not care which door it came in by.
+const routedFiled = await one<{ department_id: string | null; recipients: number; reason: string }>(
+  `select * from route_report($1,'course_maintenance','normal','sprinkler',0.9,'keyword')`, [filedId]);
+check("route_report routes it like any other", routedFiled?.reason !== "already_triaged", routedFiled?.reason);
+check("and reaches somebody", (routedFiled?.recipients ?? 0) > 0, `${routedFiled?.recipients}`);
+const afterFiled = await one<{ status: string; department_id: string | null; queue: string }>(
+  `select r.status::text, r.department_id, q.status::text as queue
+     from reports r join triage_queue q on q.report_id = r.id where r.id = $1`, [filedId]);
+check("it is triaged with a department", afterFiled?.status === "triaged" && afterFiled?.department_id !== null,
+  `${afterFiled?.status} / ${afterFiled?.department_id}`);
+check("and its queue row is done", afterFiled?.queue === "done", afterFiled?.queue);
+
+// Visible to the filer through the same views the app renders.
+const onBoard = await one<{ filed_by: string; filed_by_name: string; source: string }>(
+  `select filed_by, filed_by_name, source::text from staff_queue where id = $1`, [filedId]);
+check("staff_queue says who filed it", onBoard?.filed_by === supervisor.id && onBoard?.filed_by_name === supervisor.full_name,
+  JSON.stringify(onBoard ?? {}));
+check("and the source", onBoard?.source === "staff", onBoard?.source);
+
+console.log("\n    a phoned-in complaint keeps the caller's details");
+const relayed = (await one<{ file_report: string }>(
+  `select file_report($1, $2, 'phone_relay', $3, $4)`,
+  [loc, "Member on the phone says the ball washer on 7 is empty", "  Pat Member ", " 571-555-0199 "]))!.file_report;
+const relay = await one<{ source: string; reporter_name: string; reporter_phone: string; filed_by: string }>(
+  `select source::text, reporter_name, reporter_phone, filed_by from reports where id = $1`, [relayed]);
+check("source is phone_relay", relay?.source === "phone_relay", relay?.source);
+check("the caller's name is stored, trimmed", relay?.reporter_name === "Pat Member", String(relay?.reporter_name));
+check("and their number", relay?.reporter_phone === "571-555-0199", String(relay?.reporter_phone));
+check("filed_by is still the staff member who took the call", relay?.filed_by === supervisor.id);
+
+const namedStaff = (await one<{ file_report: string }>(
+  `select file_report($1, $2, 'staff', $3, $4)`, [loc, "Divots not filled on the tee", "Someone", "555"]))!.file_report;
+const namedRow = await one<{ reporter_name: string | null; reporter_phone: string | null }>(
+  `select reporter_name, reporter_phone from reports where id = $1`, [namedStaff]);
+check("a name given on a staff filing is dropped — the filer is filed_by",
+  namedRow?.reporter_name === null && namedRow?.reporter_phone === null, JSON.stringify(namedRow ?? {}));
+
+console.log("\n    and what filing refuses");
+const foreign = await raises(`select file_report($1, $2, 'staff')`, [otherLoc, "not my club"]);
+check("a location at another club is refused", foreign !== null, "accepted");
+check("with the one message", Boolean(foreign?.includes("that location is not at your club")), foreign ?? "");
+const nowhere = await raises(`select file_report($1, $2, 'staff')`,
+  ["00000000-0000-0000-0000-0000000000ff", "not anywhere"]);
+check("a location that does not exist gets that same message",
+  Boolean(nowhere?.includes("that location is not at your club")), nowhere ?? "");
+
+const retiredLoc = (await one<{ id: string }>(`select id from locations where hole_number = 3`))!.id;
+await db.query(`update locations set active = false where id = $1`, [retiredLoc]);
+const retired = await raises(`select file_report($1, $2, 'staff')`, [retiredLoc, "the old third"]);
+check("a retired location is refused", retired !== null, "accepted");
+check("indistinguishably", Boolean(retired?.includes("that location is not at your club")), retired ?? "");
+await db.query(`update locations set active = true where id = $1`, [retiredLoc]);
+
+const asMember = await raises(`select file_report($1, $2, 'member_qr')`, [loc, "pretending to be a scan"]);
+check("source member_qr is refused — that door needs a placard", asMember !== null, "accepted");
+
+const tooShort = await raises(`select file_report($1, $2, 'staff')`, [loc, "  x "]);
+check("an empty body is refused", Boolean(tooShort?.includes("Please describe the issue")), tooShort ?? "accepted");
+
+await db.query(`select set_config('test.uid', '', false)`);
+const nobody = await raises(`select file_report($1, $2, 'staff')`, [loc, "no session at all"]);
+check("an unauthenticated caller cannot file", nobody !== null, "accepted");
+check("and is told what assert_actor would say",
+  Boolean(nobody?.includes("Staff actions require a signed-in user")), nobody ?? "");
+
+await db.query(`update profiles set active = false where id = $1`, [supervisor.id]);
+await act(supervisor.id);
+const offboardedFiler = await raises(`select file_report($1, $2, 'staff')`, [loc, "still have a session"]);
+check("an offboarded staff member cannot file", offboardedFiler !== null, "accepted");
+await db.query(`update profiles set active = true where id = $1`, [supervisor.id]);
+
+const filedCount = await one<{ n: number }>(
+  `select count(*)::int n from reports where filed_by = $1`, [supervisor.id]);
+check("only the three accepted filings exist", filedCount?.n === 3, `${filedCount?.n}`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

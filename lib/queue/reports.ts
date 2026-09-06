@@ -26,6 +26,10 @@ export interface QueueRow {
   department_key: string | null;
   minutes_open: number;
   ack_overdue: boolean;
+  /** Who filed it, when a staff member did. Null for a member's own report. */
+  filed_by: string | null;
+  filed_by_name: string | null;
+  source: string;
 }
 
 // Scheduled work sinks to the bottom: it is handled, just not today, and it
@@ -140,9 +144,11 @@ const DETAIL_SQL = `
   select r.id, r.status::text as status, r.urgency::text as urgency, r.category,
          r.body, r.ai_summary, r.created_at, r.acknowledged_at, r.claimed_by,
          r.scheduled_for, r.resolution_note, r.member_message,
+         r.filed_by, r.source::text as source,
          l.name as location_name, l.hole_number,
          d.name as department_name, d.key as department_key,
          cp.full_name as claimed_by_name, rp.full_name as resolved_by_name,
+         fp.full_name as filed_by_name,
          (extract(epoch from (now() - r.created_at)) / 60)::int as minutes_open,
          false as ack_overdue
     from reports r
@@ -150,6 +156,7 @@ const DETAIL_SQL = `
     left join departments d on d.id = r.department_id
     left join profiles cp on cp.id = r.claimed_by
     left join profiles rp on rp.id = r.resolved_by
+    left join profiles fp on fp.id = r.filed_by
    where r.id = $1`;
 
 const EVENTS_SQL = `
@@ -187,7 +194,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
   // club simply returns nothing.
   const [{ data: rows }, { data: events }] = await Promise.all([
     supabase.from("reports").select(
-      "id,status,urgency,category,body,ai_summary,created_at,acknowledged_at,claimed_by,scheduled_for,resolution_note,member_message,location_id,department_id,resolved_by",
+      "id,status,urgency,category,body,ai_summary,created_at,acknowledged_at,claimed_by,scheduled_for,resolution_note,member_message,location_id,department_id,resolved_by,filed_by,source",
     ).eq("id", id).limit(1),
     supabase.from("report_events").select("type,payload,created_at,actor_id")
       .eq("report_id", id).order("created_at"),
@@ -215,6 +222,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
     department_key: dept?.[0]?.key ?? null,
     claimed_by_name: nameOf(row.claimed_by),
     resolved_by_name: nameOf(row.resolved_by),
+    filed_by_name: nameOf(row.filed_by),
     resolution_note: row.resolution_note as string | null,
     member_message: row.member_message as string | null,
     minutes_open: Math.round((Date.now() - new Date(created).getTime()) / 60000),
@@ -257,4 +265,45 @@ export async function getTeam(): Promise<Teammate[]> {
     .eq("active", true)
     .order("full_name");
   return (data ?? []) as Teammate[];
+}
+
+export interface FilingLocation {
+  id: string;
+  name: string;
+  hole_number: number | null;
+  kind: string;
+}
+
+/**
+ * Where a staff member can file against: every active location at their club.
+ *
+ * Holes in play order, then facilities alphabetically — the order someone
+ * walking the course would want them in, the same rule the placard sheet
+ * prints in. Sorted here, once, so both database paths agree; RLS scopes the
+ * Supabase read to the caller's club and the dev database has one club.
+ */
+export async function getLocationsForFiling(): Promise<FilingLocation[]> {
+  const byPlayOrder = (a: FilingLocation, b: FilingLocation) => {
+    if (a.hole_number && b.hole_number) return a.hole_number - b.hole_number;
+    if (a.hole_number) return -1;
+    if (b.hole_number) return 1;
+    return a.name.localeCompare(b.name);
+  };
+
+  if (usingDevDb()) {
+    const db = await devDb();
+    const res = await db.query<FilingLocation>(
+      `select id, name, hole_number, kind::text as kind from locations where active`,
+    );
+    return res.rows.sort(byPlayOrder);
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("locations")
+    .select("id, name, hole_number, kind")
+    .eq("active", true);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as FilingLocation[]).sort(byPlayOrder);
 }

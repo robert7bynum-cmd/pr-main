@@ -60,6 +60,14 @@ export function QueueCard({
                 {row.hole_number ? `Hole ${row.hole_number}` : row.location_name}
               </h2>
             </a>
+            {/* A report a colleague filed is not a member's words, and the
+                crew reading it should know who to ask. */}
+            {row.filed_by_name && (
+              <p className="mt-2 text-[13px] text-ink-muted">
+                Filed by {row.filed_by_name}
+                {row.source === "phone_relay" ? " · by phone" : ""}
+              </p>
+            )}
             {row.claimed_by_name && (
               <p className="mt-2 text-[13px] text-ink-muted">
                 {row.acknowledged_at ? row.claimed_by_name : `Handed to ${row.claimed_by_name}`}

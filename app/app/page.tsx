@@ -55,6 +55,16 @@ export default async function StaffQueuePage({
           <div className="flex items-baseline justify-between gap-4">
             <h1 className="font-display text-[1.6rem] tracking-tight">Open reports</h1>
             <div className="flex flex-col items-end gap-1.5">
+              {/* Staff spot most problems first. One tap from the queue to
+                  filing, for everyone signed in, not just management. */}
+              <Badge
+                variant="default"
+                size="lg"
+                className="h-9 shrink-0 px-4 font-medium shadow-card"
+                render={<a href="/app/file" />}
+              >
+                Report an issue
+              </Badge>
               <span className="text-[13px] tabular-nums text-ink-muted">
                 {rows.length} open{overdue > 0 ? ` · ${overdue} overdue` : ""}
               </span>

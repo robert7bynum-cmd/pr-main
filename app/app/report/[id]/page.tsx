@@ -40,6 +40,11 @@ const EVENT_LABEL: Record<string, string> = {
  */
 function eventLabel(e: TimelineEvent): string {
   const p = e.payload ?? {};
+  // A report can now enter by three doors; the created event says which.
+  if (e.type === "created") {
+    if (p.source === "staff") return "Filed by staff";
+    if (p.source === "phone_relay") return "Logged from a phone call";
+  }
   if (e.type === "note") {
     if (typeof p.closed_no_action === "string") {
       const reason = p.closed_no_action;

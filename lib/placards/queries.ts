@@ -40,9 +40,17 @@ export async function getPlacards(requestOrigin: string): Promise<PlacardSet | n
 
   const [{ data: courses }, { data: rows }] = await Promise.all([
     supabase.from("courses").select("name, slug, settings").limit(1),
+    // Only what would be posted: a live code on a location still in use. A
+    // retired code, or any code on a retired location, no longer resolves
+    // (get_scan_context refuses both), so printing it would be printing a
+    // sign that says "this code is not active" — filtered here rather than
+    // labelled, because a labelled dead sign in a stack of live ones still
+    // gets mounted.
     supabase
       .from("qr_codes")
-      .select("token, active, locations(name, hole_number, kind, sort_order)")
+      .select("token, active, locations!inner(name, hole_number, kind, sort_order, active)")
+      .eq("active", true)
+      .eq("locations.active", true)
       .order("token"),
   ]);
 

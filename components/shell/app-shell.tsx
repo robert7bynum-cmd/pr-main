@@ -26,6 +26,8 @@ const NAV: NavItem[] = [
   { href: "/app/staff", label: "Staff", hint: "Add people, roles, departments", roles: ["manager", "owner"] },
   { href: "/app/rules", label: "Routing & SLAs", hint: "Who gets told, and how fast", roles: ["manager", "owner"] },
   { href: "/app/placards", label: "Placards", hint: "Print QR codes for the course", roles: ["manager", "owner", "supervisor"] },
+  { href: "/app/locations", label: "Locations & placards", hint: "Holes, facilities, and replacing a sign", roles: ["manager", "owner"] },
+  { href: "/app/settings", label: "Club settings", hint: "Name, timezone, placard address, quiet hours", roles: ["manager", "owner"] },
 ];
 
 export function AppShell({ user, children }: { user: ShellUser; children: React.ReactNode }) {

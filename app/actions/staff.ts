@@ -140,8 +140,30 @@ async function sendPasswordLink(address: string): Promise<StaffResult> {
   const { error } = await supabase.auth.resetPasswordForEmail(address, {
     redirectTo: await callbackUrl("/account/password"),
   });
-  if (error) return { ok: false, message: `Could not email a link: ${error.message}` };
-  return { ok: true, message: `Sign-in link emailed to ${address}.` };
+
+  if (error) {
+    // Supabase rate-limits its email endpoint to roughly one message a minute
+    // per address. Passing that through verbatim leaves a manager staring at
+    // "you can only request this after 32 seconds" with nothing to do — when
+    // the button beside it has no such limit and is the better option anyway.
+    if (/after \d+ seconds|rate limit|too many/i.test(error.message)) {
+      return {
+        ok: false,
+        message:
+          "That was sent moments ago — the mail service allows one a minute. " +
+          "Use \u201cGet a sign-in link\u201d instead; it works straight away and " +
+          "you can send it however you like.",
+      };
+    }
+    return { ok: false, message: `Could not email a link: ${error.message}` };
+  }
+
+  return {
+    ok: true,
+    message:
+      `Emailed to ${address}. If it has not arrived in a few minutes, ` +
+      "use \u201cGet a sign-in link\u201d and send it directly.",
+  };
 }
 
 // Declared as async functions: Next requires every export from a "use server"

@@ -112,8 +112,11 @@ try {
       .select("status, resolved_by, resolved_at").eq("id", probeReportId).single()).data;
     check("cannot mark a report resolved by hand", Boolean(updErr) || (updRows?.length ?? 0) === 0,
       `ACCEPTED — ${updRows?.length} row(s) updated`);
+    // The triage worker is live and may move the probe from new to triaged
+    // between the two reads; that is the product working, not the update
+    // landing. What the refused update tried to set must be untouched.
     check("and the report is exactly as it was",
-      after?.status === before?.status && after?.resolved_by === before?.resolved_by
+      after?.status !== "resolved" && after?.resolved_by === before?.resolved_by
         && after?.resolved_at === before?.resolved_at,
       `${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
 

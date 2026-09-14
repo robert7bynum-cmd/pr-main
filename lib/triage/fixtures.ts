@@ -64,6 +64,19 @@ export const TRIAGE_FIXTURES: TriageFixture[] = [
   { text: "beverage cart hasnt come by all day were dying of thirst", expectedCategory: "f_and_b", expectedUrgency: "low" },
   { text: "halfway house is closed and we wanted a hot dog", expectedCategory: "f_and_b", expectedUrgency: "normal" },
   { text: "resturant is slow, been waiting 40 min for our order", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  // Orders. These must match on the keyword pass, not fall through: the
+  // member-number ask at the form runs on this pass (20260906180000).
+  { text: "two hot dogs and a lemonade to the 9th tee please", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "can we get a couple of club sandwiches at the turn", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "could someone bring 4 beers to hole 12", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "we would like to order lunch for after the round", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "burgers and fries for our foursome please", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "a gatorade and some snacks please, hole 7", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "need two bottles of water out here its hot", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  { text: "the water cooler on 5 is empty", expectedCategory: "f_and_b", expectedUrgency: "normal" },
+  { text: "hotdog and a sandwhich for the turn pls", expectedCategory: "f_and_b", expectedUrgency: "low" },
+  // The litter case stays maintenance: the drink words carry excludes.
+  { text: "beer cans and trash all over the tee box on 7", expectedCategory: "course_maintenance", expectedUrgency: "low" },
   { text: "drink cart never made it to the back nine", expectedCategory: "f_and_b", expectedUrgency: "low" },
   { text: "water cooler is empty on 10 tee its hot out here", expectedCategory: "f_and_b", expectedUrgency: "normal" },
 

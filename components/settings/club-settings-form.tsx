@@ -145,11 +145,12 @@ export function ClubSettingsForm({ initial }: { initial: CourseSettings }) {
       <section className="rounded-card border border-line bg-surface-raised px-5 py-5 shadow-card">
         <h2 className="font-display text-[17px] tracking-tight">Member contact details</h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">
-          A member&rsquo;s name, number and email are collected only so the team
-          can ask about a report. After this many days they are removed from the
-          report automatically; the report itself stays, and its history records
-          that the details were cleared. Members read the same promise at
-          /privacy.
+          A member&rsquo;s name, number, email and member number are collected
+          only so the team can ask about a report. Once the report is closed and
+          this many days have passed, they are removed from it automatically;
+          the report itself stays, and its history records that the details were
+          cleared. An open report keeps them however old it is. Members read the
+          same promise at /privacy.
         </p>
         <div className="mt-4 max-w-[16rem]">
           <label className={label} htmlFor="retention-days">Keep contact details for</label>

@@ -224,20 +224,28 @@ console.log("\nretention");
   // counted too, so the expected total is measured, not assumed.
   const hole = (await one<{ location_id: string; qr_code_id: string }>(
     `select location_id, id qr_code_id from qr_codes where active limit 1`))!;
+  // Closed, because the purge takes only finished reports (20260906200000):
+  // an open one still needs the details it was given.
   const fileAged = async (courseId: string, locationId: string, qrId: string | null, days: number,
-                          who: { name?: string; phone?: string; email?: string }) =>
+                          who: { name?: string; phone?: string; email?: string }, status = 'resolved') =>
     (await one<{ id: string }>(
-      `insert into reports (course_id, location_id, qr_code_id, body, reporter_name, reporter_phone, reporter_email, created_at)
-       values ($1,$2,$3,'retention probe',$4,$5,$6, now() - make_interval(days => $7)) returning id`,
-      [courseId, locationId, qrId, who.name ?? null, who.phone ?? null, who.email ?? null, days]))!.id;
+      `insert into reports (course_id, location_id, qr_code_id, body, reporter_name, reporter_phone, reporter_email, status, created_at)
+       values ($1,$2,$3,'retention probe',$4,$5,$6,$7::report_status, now() - make_interval(days => $8)) returning id`,
+      [courseId, locationId, qrId, who.name ?? null, who.phone ?? null, who.email ?? null, status, days]))!.id;
   const full = { name: "Pat Member", phone: "+15555550100", email: "pat@example.com" };
   const oldReport   = await fileAged(course, hole.location_id, hole.qr_code_id, 100, full);
   const youngReport = await fileAged(course, hole.location_id, hole.qr_code_id, 10, full);
   const phoneOnly   = await fileAged(course, hole.location_id, hole.qr_code_id, 100, { phone: "+15555550199" });
   // A member number alone is a contact detail too (20260906180000).
   const numberOnly = (await one<{ id: string }>(
-    `insert into reports (course_id, location_id, qr_code_id, body, reporter_member_no, created_at)
-     values ($1,$2,$3,'retention probe','BH-0099', now() - interval '100 days') returning id`,
+    `insert into reports (course_id, location_id, qr_code_id, body, reporter_member_no, status, created_at)
+     values ($1,$2,$3,'retention probe','BH-0099','resolved', now() - interval '100 days') returning id`,
+    [course, hole.location_id, hole.qr_code_id]))!.id;
+  // Still open and long past the period. Its details stay, because stripping
+  // them would leave a food and drink order nobody can ever resolve.
+  const stillOpen = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, qr_code_id, body, reporter_name, reporter_member_no, status, created_at)
+     values ($1,$2,$3,'retention probe, still open','Pat Member','BH-0100','scheduled', now() - interval '100 days') returning id`,
     [course, hole.location_id, hole.qr_code_id]))!.id;
 
   const longKeeper = (await one<{ id: string }>(
@@ -249,6 +257,7 @@ console.log("\nretention");
   const dueBefore = Number((await one<{ n: string }>(`
     select count(*) n from reports r join courses c on c.id = r.course_id
      where r.created_at < now() - make_interval(days => coalesce((c.settings->>'retention_days')::int, 90))
+       and r.status in ('resolved', 'verified', 'closed_no_action')
        and (r.reporter_name is not null or r.reporter_phone is not null or r.reporter_email is not null
             or r.reporter_member_no is not null)`))!.n);
   check("the three aged Beacon Hill probes are due and the other two are not", dueBefore >= 3, `${dueBefore} due`);
@@ -290,6 +299,13 @@ console.log("\nretention");
     JSON.stringify({ numberRow, numberNotes }));
   check("the young report and the long-keeper's report got no note",
     (await noteOf(youngReport)).rows.length === 0 && (await noteOf(keptReport)).rows.length === 0);
+  const openRow = await contact(stillOpen);
+  check("a report still open past the period keeps its details — an order stripped of its number could never be resolved",
+    openRow?.reporter_name === "Pat Member", JSON.stringify(openRow));
+  const openNumber = await one<{ reporter_member_no: string | null }>(
+    `select reporter_member_no from reports where id = $1`, [stillOpen]);
+  check("including the member number", openNumber?.reporter_member_no === "BH-0100", JSON.stringify(openNumber));
+  check("and it gets no retention note", (await noteOf(stillOpen)).rows.length === 0);
 
   const again = (await one<{ contacts: number }>(`select contacts from purge_expired()`))!;
   check("running it again clears nothing more, and says zero", again.contacts === 0, `returned ${again.contacts}`);

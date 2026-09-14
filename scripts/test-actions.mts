@@ -3,6 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { loadRules } from "../lib/triage/load-rules.ts";
 
 const db = await PGlite.create({ extensions: { pgcrypto } });
 await db.exec(readFileSync("supabase/test-bootstrap.sql", "utf8"));
@@ -569,6 +570,62 @@ await db.query(`select set_config('test.uid', '', false)`);
 const asNobody = await raisesWith(`select record_member_no($1,$2,$3)`, [later, alice.id, "BH-9999"]);
 check("and refused with no session", asNobody.includes("signed-in user"), asNobody || "no error");
 
+console.log("\n    an order a person sent to the team is the team's to number");
+{
+  // The classifier could not read it: needs_review, routed to management.
+  const mgmt = (await one<{ id: string }>(`select id from departments where key='management' and course_id=$1`, [course]))!.id;
+  const fnb = (await one<{ id: string }>(`select id from departments where key='f_and_b' and course_id=$1`, [course]))!.id;
+  const unread = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, body, status, department_id, category, source)
+     values ($1,$2,'cpl of club sammies n a lemonade 2 the turn','triaged',$3,'needs_review','member_qr') returning id`,
+    [course, loc, mgmt]))!.id;
+  await act(alice.id);
+  const beforeReroute = await one<{ member_no_required: boolean }>(`select member_no_required from staff_queue where id=$1`, [unread]);
+  check("at management under needs_review it needs no number", beforeReroute?.member_no_required === false, JSON.stringify(beforeReroute));
+  await db.query(`select reroute_report($1,$2,$3)`, [unread, alice.id, fnb]);
+  const afterReroute = await one<{ member_no_required: boolean; category: string }>(
+    `select member_no_required, category from staff_queue where id=$1`, [unread]);
+  check("re-routed to Food & Beverage, the category is untouched and the number is now needed",
+    afterReroute?.member_no_required === true && afterReroute?.category === "needs_review", JSON.stringify(afterReroute));
+  const rerouted = await raisesWith(`select resolve_report($1,$2,$3)`, [unread, alice.id, "delivered"]);
+  check("and resolving without it is refused", rerouted.includes(NEEDED), rerouted || "no error");
+  await db.query(`select resolve_report($1,$2,$3,null,$4)`, [unread, alice.id, "delivered", "BH-3100"]);
+  check("with the number it resolves",
+    (await one<{ status: string }>(`select status from reports where id=$1`, [unread]))?.status === "resolved");
+
+  // A shared department: pro_shop routed to the F&B department by the club's
+  // own rule is where its rule put it, not an order sent over by a person.
+  await db.query(`update routing_rules set department_id=$1 where course_id=$2 and category='pro_shop'`, [fnb, course]);
+  const shopAtFnb = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, body, status, department_id, category, source)
+     values ($1,$2,'need a new glove','triaged',$3,'pro_shop','member_qr') returning id`, [course, loc, fnb]))!.id;
+  const shared = await one<{ member_no_required: boolean }>(`select member_no_required from staff_queue where id=$1`, [shopAtFnb]);
+  check("a pro-shop request at a shared department needs no number", shared?.member_no_required === false, JSON.stringify(shared));
+  await db.query(`update routing_rules set department_id=(select id from departments where key='pro_shop' and course_id=$1) where course_id=$1 and category='pro_shop'`, [course]);
+}
+
+console.log("\n    the ask at the staff filing form");
+{
+  // The harness has no keyword rules unless a suite loads them; the intake
+  // gate reads match_keywords, so without this it would pass vacuously.
+  const loaded = await loadRules(db);
+  check("keyword rules are loaded", loaded.rules > 0, JSON.stringify(loaded));
+  await act(alice.id);
+  const order = "two hot dogs and a lemonade to the 9th tee please";
+  const phoned = await raisesWith(`select file_report($1,$2,'phone_relay',$3,$4)`, [loc, order, "Pat Member", "+15555550100"]);
+  check("a phoned-in order without the member's number is refused", phoned.includes(NEEDED), phoned || "accepted");
+  const filedRow = await one<{ file_report: string }>(`select file_report($1,$2,'phone_relay',$3,$4,$5)`,
+    [loc, order, "Pat Member", "+15555550100", " BH-0500 "]);
+  const filed = await one<{ reporter_member_no: string; source: string }>(
+    `select reporter_member_no, source::text from reports where id=$1`, [filedRow?.file_report]);
+  check("with it, the report carries the number", filed?.reporter_member_no === "BH-0500" && filed?.source === "phone_relay", JSON.stringify(filed));
+  const seen = await one<{ file_report: string }>(`select file_report($1,$2,'staff')`, [loc, "grill is out of propane, hot dogs cannot be served"]);
+  check("a staff member's own F&B observation files without one", typeof seen?.file_report === "string", JSON.stringify(seen));
+  const ignored = await one<{ file_report: string }>(`select file_report($1,$2,'staff',null,null,$3)`, [loc, order, "BH-0501"]);
+  const ignoredRow = await one<{ reporter_member_no: string | null }>(`select reporter_member_no from reports where id=$1`, [ignored?.file_report]);
+  check("and a number sent with a staff-source report is not kept — it is nobody's order", ignoredRow?.reporter_member_no === null, JSON.stringify(ignoredRow));
+}
+
 console.log("\n    the rule is the club's, in routing_rules");
 await db.query(`update routing_rules set requires_member_no = false where course_id=$1 and category='f_and_b'`, [course]);
 await act(alice.id);
@@ -585,6 +642,8 @@ check("record_member_no is for staff and the worker, never anon",
 const oldResolve = await one<{ n: string }>(`select count(*) n from pg_proc where proname = 'resolve_report'`);
 check("exactly one resolve_report exists (the old signature was dropped)", Number(oldResolve?.n) === 1, String(oldResolve?.n));
 const oldFile = await one<{ n: string }>(`select count(*) n from pg_proc where proname = 'file_report'`);
+const oldReq = await one<{ n: string }>(`select count(*) n from pg_proc where proname = 'member_no_required'`);
+check("exactly one member_no_required exists (the three-argument form was dropped)", Number(oldReq?.n) === 1, String(oldReq?.n));
 check("exactly one file_report exists", Number(oldFile?.n) === 1, String(oldFile?.n));
 
 console.log(`\n${pass} passed, ${fail} failed`);

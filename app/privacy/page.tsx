@@ -4,8 +4,9 @@
  * One page for every club, written plainly: what the form collects, why, who
  * sees it, how long it is kept, and how to have it removed. The retention
  * period is the club's own setting (default 90 days; purge_expired in
- * 20260906170000 is what enforces it), so the number here is described as the
- * club's, not stated as a promise this page cannot keep on its own.
+ * 20260906170000, narrowed to finished reports in 20260906200000, is what
+ * enforces it), so the number here is described as the club's, not stated as a
+ * promise this page cannot keep on its own.
  */
 export const metadata = { title: "How we use this — ProResponse" };
 
@@ -52,11 +53,14 @@ export default function PrivacyPage() {
 
         <h2 className={h}>How long it is kept</h2>
         <p className={p}>
-          Your name, number, email and member number are removed automatically after the
-          club&rsquo;s retention period &mdash; 90 days unless the club has set
-          a different one. The report itself is kept without them, so the club
-          can see which holes and problems come up over time, and the record
-          shows that the details were removed and when.
+          Once your report has been dealt with, your name, number, email and
+          member number are removed automatically after the club&rsquo;s
+          retention period &mdash; 90 days unless the club has set a different
+          one. While a report is still open they are kept, because that is when
+          the team may still need to reach you. The report itself is kept
+          without them, so the club can see which holes and problems come up
+          over time, and the record shows that the details were removed and
+          when.
         </p>
 
         <h2 className={h}>Selling or sharing</h2>

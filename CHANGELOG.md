@@ -26,6 +26,42 @@ member's own F&B report (the grill is out of propane) is exempt, and
 `close_no_action` never needs one. The old four-argument `resolve_report`
 and five-argument `file_report` are dropped. (`20260906180000`)
 
+## 14 Sep 2026 — the gaps in the member-number rule
+
+Three things a person would have hit, found by walking the feature rather than
+by any suite. **[bug]** each.
+
+**An order the classifier could not read lost its rule when a manager fixed
+the routing.** The rule was keyed on the report's category, and re-routing
+changes the department and leaves the category alone — correctly, a re-route
+is a routing correction and not a re-classification. So a garbled order that
+landed in `needs_review` at Management and was then sent to Food & Beverage
+showed no badge, Resolve never asked, and it left the queue with nothing to
+charge. `member_no_required()` now takes the department too: the rule applies
+when the category requires it, or when the report has been moved to a
+department that some requiring category routes to. A pro-shop request sitting
+at a department the club's own rule points pro_shop at is not treated as an
+order. (`20260906190000`)
+
+**Retention could strand an order forever.** `purge_expired()` cleared contact
+details from every report past the club's period, open or not. An order left
+scheduled for ninety days lost its member number to the purge and then
+`resolve_report` refused it for the rest of time — nobody could close it and
+nobody had done anything wrong. The purge now takes only finished reports
+('resolved', 'verified', 'closed_no_action'); an open one keeps what it was
+given, because that is exactly when the team may still need it. The privacy
+notice and the settings screen say so. (`20260906200000`)
+
+**The keyword pass knew about complaints and not about orders.** Every F&B
+rule described food service going wrong; none described a member asking for
+food, so "two hot dogs and a lemonade to the 9th tee" fell through to the
+model — fine for routing, useless for the ask at the form, which runs on the
+keyword pass. Twenty-odd rules for the words golfers actually order in, with
+excludes so "beer cans all over 7" stays a maintenance report, plus `trash` /
+`litter` / `garbage` rules to catch it, six new misspellings, and eleven
+fixtures. Ten order phrasings that fell through now match; the adversarial
+probes are unchanged at 12/12.
+
 ## 6 Sep 2026 — fifth loop
 
 **Phones can be paged, and the API is written down.** iOS and Android apps are

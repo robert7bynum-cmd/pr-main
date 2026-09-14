@@ -153,7 +153,7 @@ const DETAIL_SQL = `
          r.scheduled_for, r.resolution_note, r.member_message,
          r.filed_by, r.source::text as source,
          r.reporter_member_no,
-         member_no_required(r.course_id, r.category, r.source) as member_no_required,
+         member_no_required(r.course_id, r.category, r.source, r.department_id) as member_no_required,
          l.name as location_name, l.hole_number,
          d.name as department_name, d.key as department_key,
          cp.full_name as claimed_by_name, rp.full_name as resolved_by_name,
@@ -221,6 +221,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
     // disagree about whether a number is needed.
     supabase.rpc("member_no_required", {
       p_course: row.course_id, p_category: row.category, p_source: row.source,
+      p_department: row.department_id,
     }),
   ]);
 

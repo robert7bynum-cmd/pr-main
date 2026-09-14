@@ -58,6 +58,12 @@ export type Urgency = "low" | "normal" | "high" | "urgent";
  * corrupt substrings inside other words. Keys and values are lowercase.
  */
 export const MISSPELLINGS: Record<string, string> = {
+  sandwhich: "sandwich",
+  sandwiche: "sandwich",
+  lemonaid: "lemonade",
+  gatoraid: "gatorade",
+  hotdog: "hot dog",
+  hotdogs: "hot dogs",
   // maintenance / course
   sprinkeler: "sprinkler",
   sprinker: "sprinkler",
@@ -266,6 +272,11 @@ const PACE_OF_PLAY_RULES: Rule[] = [
 // ---------------------------------------------------------------------------
 
 const COURSE_MAINTENANCE_RULES: Rule[] = [
+  // Litter is the grounds crew's, and the drink words in F_AND_B_RULES
+  // exclude it — so it needs a home here or it falls through.
+  { phrase: "trash", category: "course_maintenance", urgency: "low", confidence: 0.7 },
+  { phrase: "litter", category: "course_maintenance", urgency: "low", confidence: 0.7 },
+  { phrase: "garbage", category: "course_maintenance", urgency: "low", confidence: 0.7 },
   // irrigation / sprinklers
   { phrase: "sprinkler head is spraying the fairway", category: "course_maintenance", urgency: "normal", confidence: 0.96 },
   { phrase: "sprinkler is broken", category: "course_maintenance", urgency: "normal", confidence: 0.93 },
@@ -418,6 +429,41 @@ const F_AND_B_RULES: Rule[] = [
   { phrase: "bar is out of", category: "f_and_b", urgency: "low", confidence: 0.75 },
   { phrase: "out of beer", category: "f_and_b", urgency: "low", confidence: 0.75 },
   { phrase: "hot dogs are gone", category: "f_and_b", urgency: "low", confidence: 0.7 },
+  // Orders, not complaints. Every rule above describes something going wrong
+  // with food service; none described a member asking for food. "Two hot dogs
+  // to the 9th tee" therefore fell through to the model — which is fine for
+  // routing and not fine for the member-number ask at the form
+  // (20260906180000), which runs on this pass. These are the words a golfer
+  // uses when ordering. Bare drink words carry excludes for the litter case:
+  // "beer cans all over 7" is a maintenance report.
+  { phrase: "hot dog", category: "f_and_b", urgency: "low", confidence: 0.8 },
+  { phrase: "hot dogs", category: "f_and_b", urgency: "low", confidence: 0.8 },
+  { phrase: "sandwich", category: "f_and_b", urgency: "low", confidence: 0.8 },
+  { phrase: "sandwiches", category: "f_and_b", urgency: "low", confidence: 0.8 },
+  { phrase: "burger", category: "f_and_b", urgency: "low", confidence: 0.8 },
+  { phrase: "burgers", category: "f_and_b", urgency: "low", confidence: 0.8 },
+  { phrase: "beer", category: "f_and_b", urgency: "low", confidence: 0.75,
+    exclude: ["cans", "can", "bottles", "trash", "litter", "broken"] },
+  { phrase: "beers", category: "f_and_b", urgency: "low", confidence: 0.75,
+    exclude: ["cans", "trash", "litter"] },
+  { phrase: "lemonade", category: "f_and_b", urgency: "low", confidence: 0.85 },
+  { phrase: "gatorade", category: "f_and_b", urgency: "low", confidence: 0.85 },
+  { phrase: "iced tea", category: "f_and_b", urgency: "low", confidence: 0.85 },
+  { phrase: "soda", category: "f_and_b", urgency: "low", confidence: 0.75,
+    exclude: ["cans", "trash", "litter"] },
+  { phrase: "snacks", category: "f_and_b", urgency: "low", confidence: 0.7 },
+  { phrase: "place an order", category: "f_and_b", urgency: "low", confidence: 0.85 },
+  { phrase: "order lunch", category: "f_and_b", urgency: "low", confidence: 0.85 },
+  { phrase: "order food", category: "f_and_b", urgency: "low", confidence: 0.85 },
+  { phrase: "order some", category: "f_and_b", urgency: "low", confidence: 0.7 },
+  { phrase: "bottled water", category: "f_and_b", urgency: "low", confidence: 0.75,
+    exclude: ["trash", "litter"] },
+  { phrase: "bottles of water", category: "f_and_b", urgency: "low", confidence: 0.75,
+    exclude: ["trash", "litter"] },
+  { phrase: "bottle of water", category: "f_and_b", urgency: "low", confidence: 0.75 },
+  // "water cooler is empty" above never matched "the water cooler on 5 is
+  // empty"; the noun on its own is the signal.
+  { phrase: "water cooler", category: "f_and_b", urgency: "normal", confidence: 0.8 },
 ];
 
 // ---------------------------------------------------------------------------

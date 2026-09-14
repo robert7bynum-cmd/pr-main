@@ -38,6 +38,8 @@ export interface MemberStrings {
   errorDescribe: string;
   /** What the action says when the failure is ours, not the member's. */
   errorFallback: string;
+  /** The club needs the member number for this kind of request. */
+  errorMemberNo: string;
   /** Accessible name of the EN | ES switch. */
   languageSwitch: string;
 }
@@ -62,6 +64,7 @@ export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
     doneBody: "Our team has been notified about {location}. Someone is looking at it now.",
     errorDescribe: "Please describe the issue.",
     errorFallback: "Something went wrong. Please try again.",
+    errorMemberNo: "Food and drink requests need your member number — please add it below and send again.",
     languageSwitch: "Language",
   },
   es: {
@@ -83,6 +86,7 @@ export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
     doneBody: "Nuestro equipo ya fue notificado sobre {location}. Alguien lo está revisando ahora.",
     errorDescribe: "Por favor, describa el problema.",
     errorFallback: "Algo salió mal. Por favor, inténtelo de nuevo.",
+    errorMemberNo: "Los pedidos de comida y bebida necesitan su número de socio — agréguelo abajo y envíe de nuevo.",
     languageSwitch: "Idioma",
   },
 };

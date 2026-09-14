@@ -5,6 +5,7 @@ import { callFn, currentStaffId, getMe } from "@/lib/queue/actions-db";
 import { getDepartments } from "@/lib/queue/reports";
 import { CLOSE_REASONS, isCloseReason } from "@/lib/queue/close-reasons";
 import { reportError } from "@/lib/observability/report-error";
+import { isMemberNoNeeded } from "@/lib/queue/member-number";
 
 export interface ActionResult {
   ok: boolean;
@@ -57,24 +58,60 @@ export async function acknowledgeAction(reportId: string): Promise<ActionResult>
   return { ok: true, message: "Claimed" };
 }
 
+/**
+ * Done, with the note for the file — and, for a food and drink request, the
+ * member number if the report did not already carry one. The database is the
+ * gate: it refuses to resolve such a request without a number, whatever this
+ * form sends, so a tab opened before the rule existed gets the same answer.
+ */
 export async function resolveAction(
   reportId: string,
   internalNote: string,
+  memberNo?: string,
 ): Promise<ActionResult> {
   if (!internalNote.trim()) {
     return { ok: false, message: "Add a short note about what you did." };
   }
 
-  await call("resolve_report", {
-    p_report_id: reportId,
-    p_actor: await currentStaffId(),
-    p_internal_note: internalNote.trim(),
-    // ProResponse is an operations tool: nothing goes back to the member.
-    p_member_message: null,
-  });
+  try {
+    await call("resolve_report", {
+      p_report_id: reportId,
+      p_actor: await currentStaffId(),
+      p_internal_note: internalNote.trim(),
+      // ProResponse is an operations tool: nothing goes back to the member.
+      p_member_message: null,
+      p_member_no: memberNo?.trim() || null,
+    });
+  } catch (e) {
+    return refusal(e);
+  }
 
   revalidatePath("/app");
   return { ok: true, message: "Resolved" };
+}
+
+/**
+ * The member's number on its own — the F&B lead who rang the member back and
+ * wants it on the record before anyone resolves anything.
+ */
+export async function recordMemberNoAction(
+  reportId: string,
+  memberNo: string,
+): Promise<ActionResult> {
+  if (!memberNo.trim()) return { ok: false, message: "Type the member's number." };
+
+  try {
+    await call("record_member_no", {
+      p_report_id: reportId,
+      p_actor: await currentStaffId(),
+      p_member_no: memberNo.trim(),
+    });
+  } catch (e) {
+    return refusal(e);
+  }
+
+  refresh(reportId);
+  return { ok: true, message: "Member number recorded" };
 }
 
 export async function scheduleAction(
@@ -137,6 +174,12 @@ function refusal(e: unknown): ActionResult {
   }
   if (/signed-in user|attributed to the person/i.test(msg)) {
     return { ok: false, message: "Sign in again to do that." };
+  }
+  if (isMemberNoNeeded(msg)) {
+    return {
+      ok: false,
+      message: "This is a food and drink request — add the member's number to resolve it.",
+    };
   }
   return { ok: false, message: msg };
 }

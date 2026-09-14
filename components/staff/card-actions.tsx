@@ -44,6 +44,8 @@ export function CardActions({
   departments,
   meId,
   meKind,
+  memberNo = null,
+  memberNoRequired = false,
 }: {
   reportId: string;
   claimed: boolean;
@@ -61,11 +63,21 @@ export function CardActions({
    * and records the hand-over with the station as the actor.
    */
   meKind?: string;
+  /** The member's number already on the report, if any. */
+  memberNo?: string | null;
+  /**
+   * The club's rule says this report is resolved only with a member number.
+   * Resolve then asks for it up front; the database refuses without it either
+   * way, so this is the polite version of a refusal, not the guard.
+   */
+  memberNoRequired?: boolean;
 }) {
   const router = useRouter();
   const station = meKind === "station";
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
+  const [memberNoInput, setMemberNoInput] = useState("");
+  const askMemberNo = memberNoRequired && !memberNo;
   const [mode, setMode] = useState<"idle" | "resolve" | "schedule" | "assign">("idle");
   const [date, setDate] = useState("");
   const [assignee, setAssignee] = useState("");
@@ -214,12 +226,33 @@ export function CardActions({
   if (mode === "resolve") {
     return (
       <div className="mt-5 space-y-4 border-t border-line pt-5">
+        {askMemberNo && (
+          <div>
+            <label htmlFor={`member-no-${reportId}`} className="text-[13px] font-medium text-ink-secondary">
+              Member number
+            </label>
+            <input
+              id={`member-no-${reportId}`}
+              autoFocus
+              value={memberNoInput}
+              onChange={(e) => setMemberNoInput(e.target.value)}
+              placeholder="As on their card"
+              autoComplete="off"
+              className="mt-2 w-full rounded-control border border-line bg-surface px-3.5 py-3
+                         text-[16px] tabular-nums shadow-inset outline-none placeholder:text-ink-subtle
+                         focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
+            />
+            <p className="mt-1 text-[11px] text-ink-subtle">
+              A food and drink request goes on the member&apos;s account. It cannot be resolved without this.
+            </p>
+          </div>
+        )}
         <div>
           <label className="text-[13px] font-medium text-ink-secondary">
             What did you do?
           </label>
           <textarea
-            autoFocus
+            autoFocus={!askMemberNo}
             rows={2}
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -237,8 +270,8 @@ export function CardActions({
 
         <div className="flex gap-2">
           <button
-            disabled={pending}
-            onClick={() => run(() => resolveAction(reportId, note))}
+            disabled={pending || (askMemberNo && memberNoInput.trim() === "")}
+            onClick={() => run(() => resolveAction(reportId, note, askMemberNo ? memberNoInput : undefined))}
             className="flex-1 rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
             {pending ? "Saving…" : "Mark resolved"}

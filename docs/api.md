@@ -89,7 +89,7 @@ What a placard scan can call before anyone signs in.
 |---|---|---|---|---|
 | `get_scan_context(p_token text)` | `TABLE(course_id uuid, course_name text, course_slug text, settings jsonb, location_id uuid, location_name text, hole_number integer)` | anon, authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `issue_scan_nonce(p_token text)` | `text` | anon, authenticated, service_role | `20260904220000_lock_down.sql` | Shrinking the public surface to the minimum the product actually needs. |
-| `submit_report(p_token text, p_nonce text, p_body text, p_location_id uuid DEFAULT NULL::uuid, p_photo_path text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_member_no text DEFAULT NULL::text, p_language text DEFAULT 'en'::text)` | `uuid` | anon, authenticated, service_role | `20260906100000_finish_table_posture.sql` | Finishing the table posture 20260906070000 started, and three smaller holes found on the same pass. |
+| `submit_report(p_token text, p_nonce text, p_body text, p_location_id uuid DEFAULT NULL::uuid, p_photo_path text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_member_no text DEFAULT NULL::text, p_language text DEFAULT 'en'::text)` | `uuid` | anon, authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 
 ## Staff surface (`authenticated`)
 
@@ -107,15 +107,17 @@ Every one of these takes the caller from `auth.uid()`; none accepts a caller id.
 | `claim_profile()` | `TABLE(claimed boolean, course_slug text, full_name text)` | authenticated, service_role | `20260906030000_account_management.sql` | Account management: who may change what about whom. |
 | `close_no_action(p_report_id uuid, p_actor uuid, p_reason close_reason)` | `void` | authenticated, service_role | `20260906000000_test_alerts_and_early_close.sql` | Two ways the accountability record was picking up things that never happened. |
 | `create_staff_invite(p_email text)` | `text` | authenticated, service_role | `20260906060000_invite_scoping.sql` | An invitation is for somebody you are allowed to manage, and the database says who that is. |
-| `file_report(p_location_id uuid, p_body text, p_source report_source, p_reporter_name text DEFAULT NULL::text, p_reporter_phone text DEFAULT NULL::text)` | `uuid` | authenticated, service_role | `20260906120000_staff_filing.sql` | Only members could file. |
+| `file_report(p_location_id uuid, p_body text, p_source report_source, p_reporter_name text DEFAULT NULL::text, p_reporter_phone text DEFAULT NULL::text, p_reporter_member_no text DEFAULT NULL::text)` | `uuid` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `invite_staff(p_email text, p_full_name text, p_role staff_role, p_department_ids uuid[] DEFAULT '{}'::uuid[], p_phone text DEFAULT NULL::text)` | `uuid` | authenticated, service_role | `20260906100000_finish_table_posture.sql` | Finishing the table posture 20260906070000 started, and three smaller holes found on the same pass. |
 | `is_management_role(p_role staff_role)` | `boolean` | authenticated, service_role | `20260905170000_external_watchdog.sql` | The other half of the watchdog. |
 | `me()` | `TABLE(profile_id uuid, full_name text, role staff_role, course_id uuid, course_name text, on_duty boolean, account_kind account_kind)` | authenticated, service_role | `20260906140000_station_identity.sql` | A shared login has to be able to say it is one. |
+| `member_no_required(p_course uuid, p_category text, p_source report_source)` | `boolean` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `mint_placard(p_location_id uuid)` | `text` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
+| `record_member_no(p_report_id uuid, p_actor uuid, p_member_no text)` | `void` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `register_device(p_platform text, p_token text, p_app_version text DEFAULT NULL::text)` | `uuid` | authenticated, service_role | `20260906150000_device_tokens.sql` | A phone that is not a browser has nowhere to register. |
 | `reroute_report(p_report_id uuid, p_actor uuid, p_department_id uuid)` | `void` | authenticated, service_role | `20260905210000_actor_is_the_caller.sql` | An action is attributed to the person performing it, enforced by the database. |
-| `resolve_report(p_report_id uuid, p_actor uuid, p_internal_note text, p_member_message text DEFAULT NULL::text)` | `void` | authenticated, service_role | `20260906000000_test_alerts_and_early_close.sql` | Two ways the accountability record was picking up things that never happened. |
-| `routing_rules_for_club()` | `TABLE(category text, department_id uuid, department_name text, ack_sla_minutes integer, resolve_sla_minutes integer, reports_30d integer)` | authenticated, service_role | `20260905130000_routing_admin.sql` | Editing the routing rules. |
+| `resolve_report(p_report_id uuid, p_actor uuid, p_internal_note text, p_member_message text DEFAULT NULL::text, p_member_no text DEFAULT NULL::text)` | `void` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
+| `routing_rules_for_club()` | `TABLE(category text, department_id uuid, department_name text, ack_sla_minutes integer, resolve_sla_minutes integer, reports_30d integer, requires_member_no boolean)` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `schedule_report(p_report_id uuid, p_actor uuid, p_date date, p_note text DEFAULT NULL::text)` | `void` | authenticated, service_role | `20260905210000_actor_is_the_caller.sql` | An action is attributed to the person performing it, enforced by the database. |
 | `set_location_active(p_id uuid, p_active boolean)` | `void` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `set_my_duty(p_on_duty boolean)` | `boolean` | authenticated, service_role | `20260906030000_account_management.sql` | Account management: who may change what about whom. |
@@ -127,7 +129,7 @@ Every one of these takes the caller from `auth.uid()`; none accepts a caller id.
 | `system_health()` | `TABLE(severity text, issue text, detail text)` | authenticated, service_role | `20260905170000_external_watchdog.sql` | The other half of the watchdog. |
 | `unregister_device(p_token text)` | `boolean` | authenticated, service_role | `20260906150000_device_tokens.sql` | A phone that is not a browser has nowhere to register. |
 | `update_course_settings(p_name text, p_timezone text, p_public_url text, p_quiet_start text, p_quiet_end text, p_retention_days integer DEFAULT NULL::integer)` | `integer` | authenticated, service_role | `20260906170000_retention_and_clubs.sql` | Contact details expire, and a club can be created without hand-written SQL. |
-| `update_routing_rules(p_rules jsonb)` | `integer` | authenticated, service_role | `20260905130000_routing_admin.sql` | Editing the routing rules. |
+| `update_routing_rules(p_rules jsonb)` | `integer` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `upsert_department(p_id uuid, p_key text, p_name text, p_sort_order integer)` | `uuid` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `upsert_location(p_id uuid, p_kind location_kind, p_hole_number integer, p_name text, p_sort_order integer)` | `uuid` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 
@@ -212,6 +214,8 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `filed_by` | `uuid` |
 | `filed_by_name` | `text` |
 | `source` | `report_source` |
+| `reporter_member_no` | `text` |
+| `member_no_required` | `boolean` |
 
 ### `staff_queue`
 
@@ -240,3 +244,5 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `filed_by` | `uuid` |
 | `filed_by_name` | `text` |
 | `source` | `report_source` |
+| `reporter_member_no` | `text` |
+| `member_no_required` | `boolean` |

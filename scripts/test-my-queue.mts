@@ -42,6 +42,32 @@ const q1 = await db.query<{ id: string }>(`select id from my_queue`);
 check("sees the maintenance report", q1.rows.some(r => r.id === mine));
 check("does not see the pro shop report", !q1.rows.some(r => r.id === theirs));
 
+console.log("\n    the card can show the member number, or that it is missing (20260906180000)");
+{
+  const fnb = (await one<{ id: string }>(`select id from departments where key='f_and_b'`))!.id;
+  const order = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, body, status, department_id, category, reporter_member_no)
+     values ($1,$2,'two hot dogs to the turn','triaged',$3,'f_and_b','BH-0417') returning id`, [course, loc, fnb]))!.id;
+  const anonymous = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, body, status, department_id, category)
+     values ($1,$2,'beverage cart please','triaged',$3,'f_and_b') returning id`, [course, loc, fnb]))!.id;
+  const seen = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, body, status, department_id, category, source, filed_by)
+     values ($1,$2,'grill is out of propane','triaged',$3,'f_and_b','staff',$4) returning id`, [course, loc, fnb, manager]))!.id;
+  await act(manager);
+  const rows = (await db.query<{ id: string; reporter_member_no: string | null; member_no_required: boolean }>(
+    `select id, reporter_member_no, member_no_required from staff_queue where id = any($1::uuid[])`, [[order, anonymous, seen, mine]])).rows;
+  const by = (id: string) => rows.find((r) => r.id === id);
+  check("a numbered order shows its number and needs nothing", by(order)?.reporter_member_no === "BH-0417" && by(order)?.member_no_required === true, JSON.stringify(by(order)));
+  check("an unnumbered order is flagged as needing one", by(anonymous)?.reporter_member_no === null && by(anonymous)?.member_no_required === true, JSON.stringify(by(anonymous)));
+  check("a staff-filed F&B report needs none", by(seen)?.member_no_required === false, JSON.stringify(by(seen)));
+  check("a maintenance report needs none", by(mine)?.member_no_required === false, JSON.stringify(by(mine)));
+  const viaMine = (await db.query<{ id: string; member_no_required: boolean }>(`select id, member_no_required from my_queue where id=$1`, [anonymous])).rows[0];
+  check("my_queue carries the same columns", viaMine?.member_no_required === true, JSON.stringify(viaMine));
+  await db.query(`delete from reports where id = any($1::uuid[])`, [[order, anonymous, seen]]);
+  await act(crew);
+}
+
 console.log("\n2. but sees anything they were notified about");
 await db.query(`insert into notifications (report_id, course_id, profile_id, channel, status)
                 values ($1,$2,$3,'push','queued')`, [theirs, course, crew]);

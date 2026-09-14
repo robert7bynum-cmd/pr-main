@@ -31,7 +31,13 @@ export function ReportForm({
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [showOptional, setShowOptional] = useState(false);
   const [body, setBody] = useState("");
+  const [memberNo, setMemberNo] = useState("");
   const s = t(lang);
+
+  // The club asked for the member number and the member has not given one:
+  // the field is open, required, and focused, and the same scan sends again.
+  const askMemberNo = Boolean(result?.needsMemberNo) && memberNo.trim() === "";
+  const optionalOpen = showOptional || Boolean(result?.needsMemberNo);
 
   if (result?.ok) {
     return (
@@ -86,7 +92,7 @@ export function ReportForm({
                      focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
         />
 
-        {!showOptional ? (
+        {!optionalOpen ? (
           <button
             type="button"
             onClick={() => setShowOptional(true)}
@@ -103,8 +109,15 @@ export function ReportForm({
               className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px]
                          outline-none placeholder:text-ink-subtle focus:border-accent-border" />
             <input name="memberNo" placeholder={s.memberNoPlaceholder}
-              className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px]
-                         outline-none placeholder:text-ink-subtle focus:border-accent-border" />
+              value={memberNo}
+              onChange={(e) => setMemberNo(e.target.value)}
+              required={Boolean(result?.needsMemberNo)}
+              autoFocus={Boolean(result?.needsMemberNo)}
+              aria-invalid={askMemberNo || undefined}
+              inputMode="text" autoComplete="off"
+              className={`w-full rounded-control border bg-surface px-3.5 py-3 text-[16px]
+                         outline-none placeholder:text-ink-subtle focus:border-accent-border ${
+                           askMemberNo ? "border-urgent-border" : "border-line"}`} />
             <input name="phone" type="tel" placeholder={s.phonePlaceholder} autoComplete="tel"
               className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px]
                          outline-none placeholder:text-ink-subtle focus:border-accent-border" />
@@ -133,7 +146,7 @@ export function ReportForm({
 
       <button
         type="submit"
-        disabled={pending || body.trim().length < 3}
+        disabled={pending || body.trim().length < 3 || askMemberNo}
         className="w-full rounded-control bg-accent-strong px-6 py-4.5 text-[17px] font-medium
                    text-ink-on-accent shadow-card transition
                    disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none"

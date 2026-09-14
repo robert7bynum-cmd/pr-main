@@ -86,8 +86,8 @@ check("with the document's keys and names, in its order",
 check("sort_order 1..7", depts.map((d) => d.sort_order).join(",") === "1,2,3,4,5,6,7",
   depts.map((d) => d.sort_order).join(","));
 
-const rules = await all<{ category: string; dept: string; ack: number; resolve: number; requires_photo: boolean }>(
-  `select rr.category, d.key dept, rr.ack_sla_minutes ack, rr.resolve_sla_minutes resolve, rr.requires_photo
+const rules = await all<{ category: string; dept: string; ack: number; resolve: number; requires_photo: boolean; requires_member_no: boolean }>(
+  `select rr.category, d.key dept, rr.ack_sla_minutes ack, rr.resolve_sla_minutes resolve, rr.requires_photo, rr.requires_member_no
      from routing_rules rr join departments d on d.id = rr.department_id
     where rr.course_id = $1 order by rr.category`, [course]);
 check("ten routing rules", rules.length === 10, String(rules.length));
@@ -98,6 +98,10 @@ for (const want of docRules) {
     JSON.stringify(got ?? null));
 }
 check("no rule requires a photo", rules.every((r) => !r.requires_photo));
+// docs/taxonomy.md: food and drink goes on the member's account (20260906180000).
+check("f_and_b, and only f_and_b, needs a member number to resolve",
+  rules.filter((r) => r.requires_member_no).map((r) => r.category).join(",") === "f_and_b",
+  rules.filter((r) => r.requires_member_no).map((r) => r.category).join(","));
 check("every rule's department is at this club",
   Number((await one<{ n: string }>(
     `select count(*) n from routing_rules rr join departments d on d.id = rr.department_id

@@ -53,6 +53,8 @@ function eventLabel(e: TimelineEvent): string {
       return `Closed without action — ${isCloseReason(reason) ? CLOSE_REASONS[reason] : reason}`;
     }
     if (p.note === "started work") return "Work started";
+    // The number itself is on the report, never in the event.
+    if (p.member_no_recorded === true) return p.replaced ? "Member number corrected" : "Member number recorded";
   }
   if (e.type === "reassigned" && p.kind !== "person") return "Sent to another team";
   return EVENT_LABEL[e.type] ?? e.type;
@@ -133,6 +135,13 @@ export default async function ReportPage({
             <Badge variant="status">{time(r.created_at)}</Badge>
           </div>
           <p className="mt-5 text-[16px] leading-relaxed text-ink">{r.body}</p>
+          {r.reporter_member_no ? (
+            <p className="mt-3 text-[13px] tabular-nums text-ink-muted">Member #{r.reporter_member_no}</p>
+          ) : r.member_no_required && open ? (
+            <p className="mt-3 text-[13px] text-high">
+              Member number needed — this request cannot be resolved without one.
+            </p>
+          ) : null}
           {open && (
             <CardActions
               reportId={r.id}
@@ -142,6 +151,9 @@ export default async function ReportPage({
               team={team}
               departments={departments}
               meId={me.profile_id}
+              meKind={me.account_kind}
+              memberNo={r.reporter_member_no}
+              memberNoRequired={r.member_no_required}
             />
           )}
         </div>

@@ -474,5 +474,118 @@ check("the hand-over is attributed to the station", stationEv?.actor_id === stat
   String(stationEv?.actor_id));
 check("and says who it went to", stationEv?.payload?.to === bob.id, JSON.stringify(stationEv?.payload ?? {}));
 
+/**
+ * A food and drink request is resolved only with the member number.
+ *
+ * The number was collected and never read: not shown, not required, and a
+ * report could be resolved with it missing while the kitchen wondered whose
+ * account the order went on. The rule is data — routing_rules.requires_member_no,
+ * on for f_and_b — and resolve_report is the gate (20260906180000).
+ */
+console.log("\n17. a food and drink request is resolved only with the member number");
+const NEEDED = "A member number is needed for this request.";
+const raisesWith = async (sql: string, p: unknown[]) => {
+  try { await db.query(sql, p); return ""; } catch (e) { return (e as Error).message; }
+};
+const mkFood = async (source: string, memberNo: string | null) => (await one<{ id: string }>(
+  `insert into reports (course_id, location_id, body, status, department_id, category, source, reporter_member_no)
+   values ($1,$2,'two hot dogs and a lemonade to the turn please','triaged',
+     (select id from departments where key='f_and_b' and course_id=$1),'f_and_b',$3::report_source,$4)
+   returning id`, [course, loc, source, memberNo]))!.id;
+
+await act(alice.id);
+const food = await mkFood("member_qr", null);
+const noNumber = await raisesWith(`select resolve_report($1,$2,$3)`, [food, alice.id, "delivered to the 9th tee"]);
+check("resolving without a number is refused", noNumber.includes(NEEDED), noNumber || "no error");
+const stillOpen = await one<{ status: string }>(`select status from reports where id=$1`, [food]);
+check("and the report stays open", stillOpen?.status === "triaged", String(stillOpen?.status));
+
+const blank = await raisesWith(`select resolve_report($1,$2,$3,null,$4)`, [food, alice.id, "delivered", "   "]);
+check("a blank number is no number", blank.includes(NEEDED), blank || "no error");
+
+await db.query(`select resolve_report($1,$2,$3,null,$4)`, [food, alice.id, "delivered to the 9th tee", " BH-0417 "]);
+const foodRow = await one<{ status: string; reporter_member_no: string }>(
+  `select status, reporter_member_no from reports where id=$1`, [food]);
+check("with the number handed over at the counter, it resolves", foodRow?.status === "resolved", String(foodRow?.status));
+check("and the number is on the report, trimmed", foodRow?.reporter_member_no === "BH-0417", String(foodRow?.reporter_member_no));
+const foodEvents = await db.query<{ type: string; actor_id: string; payload: Record<string, unknown> }>(
+  `select type, actor_id, payload from report_events where report_id=$1 order by id`, [food]);
+const recorded = foodEvents.rows.find((e) => e.type === "note" && e.payload?.member_no_recorded === true);
+check("a note event says the number was recorded, by whom", recorded?.actor_id === alice.id,
+  JSON.stringify(foodEvents.rows.map((e) => e.type)));
+check("and the event never carries the number itself",
+  !JSON.stringify(foodEvents.rows.map((e) => e.payload)).includes("BH-0417"));
+check("recorded before resolved in the trail",
+  foodEvents.rows.findIndex((e) => e === recorded) < foodEvents.rows.findIndex((e) => e.type === "resolved"));
+
+const already = await mkFood("member_qr", "BH-0001");
+await db.query(`select resolve_report($1,$2,$3)`, [already, alice.id, "delivered"]);
+check("a request the member numbered on the form resolves without asking again",
+  (await one<{ status: string }>(`select status from reports where id=$1`, [already]))?.status === "resolved");
+check("and writes no recorded-number note",
+  (await db.query(`select 1 from report_events where report_id=$1 and type='note'`, [already])).rows.length === 0);
+
+const phoned = await mkFood("phone_relay", null);
+const phonedRefused = await raisesWith(`select resolve_report($1,$2,$3)`, [phoned, alice.id, "delivered"]);
+check("a phoned-in order is a member's order: refused without the number", phonedRefused.includes(NEEDED), phonedRefused || "no error");
+
+const staffSeen = await mkFood("staff", null);
+await db.query(`select resolve_report($1,$2,$3)`, [staffSeen, alice.id, "propane swapped"]);
+check("a staff member's own F&B report (grill out of propane) needs nobody's number",
+  (await one<{ status: string }>(`select status from reports where id=$1`, [staffSeen]))?.status === "resolved");
+
+const notFood = await mk();
+await db.query(`select resolve_report($1,$2,$3)`, [notFood, alice.id, "fixed"]);
+check("a maintenance report resolves without one",
+  (await one<{ status: string }>(`select status from reports where id=$1`, [notFood]))?.status === "resolved");
+
+const duplicate = await mkFood("member_qr", null);
+await db.query(`select close_no_action($1,$2,$3)`, [duplicate, alice.id, "duplicate"]);
+check("closing with nothing done never needs a number — it is not a resolution",
+  (await one<{ status: string }>(`select status from reports where id=$1`, [duplicate]))?.status === "closed_no_action");
+
+console.log("\n    the number on its own, before anyone resolves");
+const later = await mkFood("member_qr", null);
+await db.query(`select record_member_no($1,$2,$3)`, [later, alice.id, "BH-2200"]);
+check("record_member_no writes it",
+  (await one<{ reporter_member_no: string }>(`select reporter_member_no from reports where id=$1`, [later]))?.reporter_member_no === "BH-2200");
+await db.query(`select record_member_no($1,$2,$3)`, [later, alice.id, "BH-2200"]);
+check("recording the same number again writes no second note",
+  (await db.query(`select 1 from report_events where report_id=$1 and type='note'`, [later])).rows.length === 1);
+await db.query(`select record_member_no($1,$2,$3)`, [later, alice.id, "BH-2201"]);
+const corrected = await one<{ payload: Record<string, unknown> }>(
+  `select payload from report_events where report_id=$1 and type='note' order by id desc limit 1`, [later]);
+check("a correction says it replaced one", corrected?.payload?.replaced === true, JSON.stringify(corrected?.payload));
+const emptyNo = await raisesWith(`select record_member_no($1,$2,$3)`, [later, alice.id, ""]);
+check("an empty number is refused", emptyNo.includes(NEEDED), emptyNo || "no error");
+await db.query(`select resolve_report($1,$2,$3)`, [later, alice.id, "delivered"]);
+check("and the request then resolves with no number asked for",
+  (await one<{ status: string }>(`select status from reports where id=$1`, [later]))?.status === "resolved");
+
+await act(bob.id);
+const asBob = await raisesWith(`select record_member_no($1,$2,$3)`, [later, alice.id, "BH-9999"]);
+check("attributed to the caller, like every action", asBob.includes("attributed to the person"), asBob || "no error");
+await db.query(`select set_config('test.uid', '', false)`);
+const asNobody = await raisesWith(`select record_member_no($1,$2,$3)`, [later, alice.id, "BH-9999"]);
+check("and refused with no session", asNobody.includes("signed-in user"), asNobody || "no error");
+
+console.log("\n    the rule is the club's, in routing_rules");
+await db.query(`update routing_rules set requires_member_no = false where course_id=$1 and category='f_and_b'`, [course]);
+await act(alice.id);
+const ruleOff = await mkFood("member_qr", null);
+await db.query(`select resolve_report($1,$2,$3)`, [ruleOff, alice.id, "delivered"]);
+check("with the rule switched off, the same request resolves without a number",
+  (await one<{ status: string }>(`select status from reports where id=$1`, [ruleOff]))?.status === "resolved");
+await db.query(`update routing_rules set requires_member_no = true where course_id=$1 and category='f_and_b'`, [course]);
+const callers17 = (await db.query<{ role: string }>(`
+  select r.rolname as role from (values ('anon'),('authenticated'),('service_role')) r(rolname)
+   where has_function_privilege(r.rolname, 'record_member_no(uuid,uuid,text)', 'execute')`)).rows.map((r) => r.role);
+check("record_member_no is for staff and the worker, never anon",
+  callers17.join(",") === "authenticated,service_role", callers17.join(","));
+const oldResolve = await one<{ n: string }>(`select count(*) n from pg_proc where proname = 'resolve_report'`);
+check("exactly one resolve_report exists (the old signature was dropped)", Number(oldResolve?.n) === 1, String(oldResolve?.n));
+const oldFile = await one<{ n: string }>(`select count(*) n from pg_proc where proname = 'file_report'`);
+check("exactly one file_report exists", Number(oldFile?.n) === 1, String(oldFile?.n));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

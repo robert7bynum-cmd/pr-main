@@ -38,8 +38,9 @@ export default function PrivacyPage() {
         <h2 className={h}>Why</h2>
         <p className={p}>
           So the right team is told, and so someone can ask you a question about
-          the report if they need to. That is the only reason your contact
-          details are asked for.
+          the report if they need to. A food and drink request also asks for
+          your member number, so the kitchen knows whose order it is. Those are
+          the only reasons your details are asked for.
         </p>
 
         <h2 className={h}>Who sees it</h2>
@@ -51,7 +52,7 @@ export default function PrivacyPage() {
 
         <h2 className={h}>How long it is kept</h2>
         <p className={p}>
-          Your name, number and email are removed automatically after the
+          Your name, number, email and member number are removed automatically after the
           club&rsquo;s retention period &mdash; 90 days unless the club has set
           a different one. The report itself is kept without them, so the club
           can see which holes and problems come up over time, and the record

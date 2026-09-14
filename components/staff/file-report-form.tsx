@@ -138,6 +138,12 @@ export function FileReportForm({ locations }: { locations: FilingLocation[] }) {
             <input name="phone" type="tel" placeholder="Their number" autoComplete="off"
               className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px]
                          outline-none placeholder:text-ink-subtle focus:border-accent-border" />
+            {/* Food and drink orders go on the member's account, so the
+                database refuses one without this. Asked for here, once, rather
+                than by a refusal after the sentence is typed. */}
+            <input name="memberNo" placeholder="Their member number (needed for food & drink)" autoComplete="off"
+              className="w-full rounded-control border border-line bg-surface px-3.5 py-3 text-[16px]
+                         outline-none placeholder:text-ink-subtle focus:border-accent-border" />
           </div>
         )}
       </div>

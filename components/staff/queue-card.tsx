@@ -73,6 +73,14 @@ export function QueueCard({
                 {row.acknowledged_at ? row.claimed_by_name : `Handed to ${row.claimed_by_name}`}
               </p>
             )}
+            {/* Whose account a food and drink order goes on. Shown whenever a
+                member gave one; for a request that needs one and has none,
+                the gap is a badge below so nobody finds out at Resolve. */}
+            {row.reporter_member_no && (
+              <p className="mt-2 text-[13px] tabular-nums text-ink-muted">
+                Member #{row.reporter_member_no}
+              </p>
+            )}
           </div>
 
           <Badge variant={u.tone} size={u.loud ? "loud" : "default"} className="shrink-0">
@@ -91,6 +99,10 @@ export function QueueCard({
               twice — and on a 390px card every wasted badge pushes the age onto
               another line. */}
           <Badge variant={own.tone}>{own.label}</Badge>
+
+          {row.member_no_required && !row.reporter_member_no && (
+            <Badge variant="high">Member number needed</Badge>
+          )}
 
           {/* Overdue is stated plainly rather than colour-coded alone —
               colour is unreliable in bright sun. */}
@@ -116,6 +128,8 @@ export function QueueCard({
           departments={departments}
           meId={meId}
           meKind={meKind}
+          memberNo={row.reporter_member_no}
+          memberNoRequired={row.member_no_required}
         />
       </div>
     </article>

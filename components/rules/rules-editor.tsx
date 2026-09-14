@@ -127,6 +127,23 @@ export function RulesEditor({ initial, departments }: {
             </div>
           </div>
 
+          {/* The club's own rule, not the software's: which requests go on a
+              member's account and so cannot be closed without the number. */}
+          <label className="mt-5 flex items-start gap-3 text-[14px] text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={r.requires_member_no}
+              onChange={(e) => update(r.category, { requires_member_no: e.target.checked })}
+              className="mt-0.5 size-5 rounded-[4px] border-line accent-accent-strong"
+            />
+            <span>
+              Needs the member number to resolve
+              <span className="block text-[12px] leading-relaxed text-ink-muted">
+                Asked for on the form, shown to the team, and required before the report can be marked resolved.
+              </span>
+            </span>
+          </label>
+
           {r.resolve_sla_minutes < r.ack_sla_minutes && (
             <p className="mt-2 text-[12px] text-urgent">
               Resolve time cannot be shorter than pick-up time.
@@ -144,8 +161,8 @@ export function RulesEditor({ initial, departments }: {
           onClick={() =>
             start(async () => {
               const res = await saveRoutingRules(
-                rules.map(({ category, department_id, ack_sla_minutes, resolve_sla_minutes }) => ({
-                  category, department_id, ack_sla_minutes, resolve_sla_minutes,
+                rules.map(({ category, department_id, ack_sla_minutes, resolve_sla_minutes, requires_member_no }) => ({
+                  category, department_id, ack_sla_minutes, resolve_sla_minutes, requires_member_no,
                 })),
               );
               setNote({ ok: res.ok, text: res.message });

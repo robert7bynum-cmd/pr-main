@@ -3,6 +3,29 @@
 Running notes toward MVP. Newest first. Bugs I found in my own work are marked
 **[bug]** — those are the ones worth reading.
 
+## 14 Sep 2026 — the member number, closed
+
+**A food and drink request carries the member number from the tee to the
+till.** The placard form had asked for a member number since the first
+migration and nothing ever read it: not the card, not the report page, not
+the resolve step. The kitchen got "two hot dogs to the turn" with no account
+to put it on. `routing_rules.requires_member_no` (on for `f_and_b`, editable
+on the routing screen, audited) is the rule; `member_no_required()` is the one
+place it is asked. `submit_report` and `file_report` run the keyword matcher on
+the words as they arrive and refuse a numberless food request before the
+nonce is touched, so the same scan sends again with the number — the member
+form opens the field and says why, in both languages. `resolve_report` gains
+`p_member_no` and is the hard gate: it refuses when the rule applies and the
+report has no number. `record_member_no` writes the number on its own, with a
+`note` event that names who recorded it and never the number — the retention
+purge now clears `reporter_member_no` with the other three details, and an
+event keeping a copy would defeat it. `staff_queue` / `my_queue` carry
+`reporter_member_no` and `member_no_required`; the card shows "Member #…" or a
+"Member number needed" badge, and Resolve asks for it up front. A staff
+member's own F&B report (the grill is out of propane) is exempt, and
+`close_no_action` never needs one. The old four-argument `resolve_report`
+and five-argument `file_report` are dropped. (`20260906180000`)
+
 ## 6 Sep 2026 — fifth loop
 
 **Phones can be paged, and the API is written down.** iOS and Android apps are

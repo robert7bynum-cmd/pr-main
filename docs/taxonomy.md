@@ -31,6 +31,13 @@ without the other silently misroutes reports.
 `needs_review` is where low-confidence triage lands. The model never invents a
 category outside this list.
 
+`f_and_b` is the one category that needs a member number to resolve
+(`routing_rules.requires_member_no`): a food and drink order goes on the
+member's account. The form asks for it, the queue shows it or its absence, and
+`resolve_report` refuses without it. The club can change this per category on
+the routing screen; a report a staff member filed about something they saw is
+exempt.
+
 ## Urgency (`reports.urgency`)
 `low` | `normal` | `high` | `urgent`
 

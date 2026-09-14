@@ -30,6 +30,13 @@ export interface QueueRow {
   filed_by: string | null;
   filed_by_name: string | null;
   source: string;
+  /** The member's number as they gave it, or as staff recorded it. */
+  reporter_member_no: string | null;
+  /**
+   * The club's routing rule says this category is resolved only with a member
+   * number (food and drink by default), and this is a member's own report.
+   */
+  member_no_required: boolean;
 }
 
 // Scheduled work sinks to the bottom: it is handled, just not today, and it
@@ -145,6 +152,8 @@ const DETAIL_SQL = `
          r.body, r.ai_summary, r.created_at, r.acknowledged_at, r.claimed_by,
          r.scheduled_for, r.resolution_note, r.member_message,
          r.filed_by, r.source::text as source,
+         r.reporter_member_no,
+         member_no_required(r.course_id, r.category, r.source) as member_no_required,
          l.name as location_name, l.hole_number,
          d.name as department_name, d.key as department_key,
          cp.full_name as claimed_by_name, rp.full_name as resolved_by_name,
@@ -194,7 +203,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
   // club simply returns nothing.
   const [{ data: rows }, { data: events }] = await Promise.all([
     supabase.from("reports").select(
-      "id,status,urgency,category,body,ai_summary,created_at,acknowledged_at,claimed_by,scheduled_for,resolution_note,member_message,location_id,department_id,resolved_by,filed_by,source",
+      "id,status,urgency,category,body,ai_summary,created_at,acknowledged_at,claimed_by,scheduled_for,resolution_note,member_message,location_id,department_id,resolved_by,filed_by,source,course_id,reporter_member_no",
     ).eq("id", id).limit(1),
     supabase.from("report_events").select("type,payload,created_at,actor_id")
       .eq("report_id", id).order("created_at"),
@@ -202,12 +211,17 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
   if (!rows?.length) return null;
 
   const row = rows[0] as Record<string, unknown>;
-  const [{ data: loc }, { data: dept }, { data: people }] = await Promise.all([
+  const [{ data: loc }, { data: dept }, { data: people }, { data: required }] = await Promise.all([
     supabase.from("locations").select("name,hole_number").eq("id", row.location_id).limit(1),
     row.department_id
       ? supabase.from("departments").select("name,key").eq("id", row.department_id).limit(1)
       : Promise.resolve({ data: null }),
     supabase.from("profiles").select("id,full_name"),
+    // The same function the views use, so the card and this page cannot
+    // disagree about whether a number is needed.
+    supabase.rpc("member_no_required", {
+      p_course: row.course_id, p_category: row.category, p_source: row.source,
+    }),
   ]);
 
   const nameOf = (uid: unknown) =>
@@ -225,6 +239,8 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
     filed_by_name: nameOf(row.filed_by),
     resolution_note: row.resolution_note as string | null,
     member_message: row.member_message as string | null,
+    reporter_member_no: (row.reporter_member_no as string | null) ?? null,
+    member_no_required: required === true,
     minutes_open: Math.round((Date.now() - new Date(created).getTime()) / 60000),
     ack_overdue: false,
     events: (events ?? []).map((e) => {

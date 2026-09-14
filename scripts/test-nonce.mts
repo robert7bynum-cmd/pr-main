@@ -11,6 +11,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { MEMBER_NO_NEEDED } from "../lib/queue/member-number";
+import { loadRules } from "../lib/triage/load-rules.ts";
 
 const db = await PGlite.create({ extensions: { pgcrypto } });
 await db.exec(readFileSync("supabase/test-bootstrap.sql", "utf8"));
@@ -151,6 +153,51 @@ console.log("\nflood control on submission");
  * from the escalate sweep. PGlite has no pg_cron, so the schedule is asserted
  * on the migration text, the way test-delivery-gate does for the triage gate.
  */
+/**
+ * A food and drink request asks for the member number at the form.
+ *
+ * The keyword pass runs on the words as they arrive; when it says f_and_b and
+ * no number was given, the submission is refused before the nonce is touched,
+ * so the member adds the number and sends the same form again. The message is
+ * matched by app/actions/submit-report.ts through lib/queue/member-number.ts;
+ * this holds the migration to that string.
+ */
+console.log("\nmember number at the form");
+{
+  // A placard nobody else in this file has used, so flood control stays out of it.
+  const placard = (await one<{ token: string }>(
+    `select token from qr_codes where active and token <> $1 order by token limit 1`, [token]))!;
+  const mintFor = async () =>
+    (await one<{ issue_scan_nonce: string }>(`select issue_scan_nonce($1)`, [placard.token]))!.issue_scan_nonce;
+  const refusedWith = async (sql: string, p: unknown[]) => (await fails(sql, p)) ?? "";
+  // The harness has no keyword rules unless a suite loads them; the intake
+  // gate reads match_keywords, so without this the gate passes vacuously.
+  const loaded = await loadRules(db);
+  check("keyword rules are loaded", loaded.rules > 0, JSON.stringify(loaded));
+  const kw = await one<{ category: string }>(`select category from match_keywords($1)`,
+    ["The beverage cart hasnt come by, can we get two waters and a hot dog"]);
+  check("the matcher reads that request as food and drink", kw?.category === "f_and_b", JSON.stringify(kw));
+  const fresh = await mintFor();
+  const refused = await refusedWith(`select submit_report($1,$2,$3)`,
+    [placard.token, fresh, "The beverage cart hasnt come by, can we get two waters and a hot dog"]);
+  check("a food and drink request with no member number is refused", refused.includes(MEMBER_NO_NEEDED), refused || "accepted");
+  const untouched = await one<{ used_at: string | null }>(`select used_at from scan_nonces where nonce=$1`, [fresh]);
+  check("and the nonce is untouched — the same scan sends again", untouched?.used_at === null, JSON.stringify(untouched));
+  const blank = await refusedWith(`select submit_report($1,$2,$3,null,null,null,null,null,$4)`,
+    [placard.token, fresh, "The beverage cart hasnt come by, can we get two waters and a hot dog", "  "]);
+  check("a blank number is no number", blank.includes(MEMBER_NO_NEEDED), blank || "accepted");
+  const filed = await one<{ submit_report: string }>(`select submit_report($1,$2,$3,null,null,null,null,null,$4)`,
+    [placard.token, fresh, "The beverage cart hasnt come by, can we get two waters and a hot dog", " BH-0042 "]);
+  check("with the number, the same nonce files the report", typeof filed?.submit_report === "string", JSON.stringify(filed));
+  const stored = await one<{ reporter_member_no: string; source: string }>(
+    `select reporter_member_no, source::text from reports where id=$1`, [filed?.submit_report]);
+  check("and the number is stored, trimmed", stored?.reporter_member_no === "BH-0042", JSON.stringify(stored));
+  const other = await mintFor();
+  const plain = await one<{ submit_report: string }>(`select submit_report($1,$2,$3)`,
+    [placard.token, other, "Sprinkler head stuck on beside the cart path"]);
+  check("a maintenance report never asks for one", typeof plain?.submit_report === "string", JSON.stringify(plain));
+}
+
 console.log("\nretention");
 {
   await db.query(`update scan_nonces set issued_at = now() - interval '2 days' where nonce = $1`, [n2]);
@@ -187,6 +234,11 @@ console.log("\nretention");
   const oldReport   = await fileAged(course, hole.location_id, hole.qr_code_id, 100, full);
   const youngReport = await fileAged(course, hole.location_id, hole.qr_code_id, 10, full);
   const phoneOnly   = await fileAged(course, hole.location_id, hole.qr_code_id, 100, { phone: "+15555550199" });
+  // A member number alone is a contact detail too (20260906180000).
+  const numberOnly = (await one<{ id: string }>(
+    `insert into reports (course_id, location_id, qr_code_id, body, reporter_member_no, created_at)
+     values ($1,$2,$3,'retention probe','BH-0099', now() - interval '100 days') returning id`,
+    [course, hole.location_id, hole.qr_code_id]))!.id;
 
   const longKeeper = (await one<{ id: string }>(
     `insert into courses (slug, name, settings) values ('long-keeper','Long Keeper GC','{"retention_days": 400}') returning id`))!.id;
@@ -197,8 +249,9 @@ console.log("\nretention");
   const dueBefore = Number((await one<{ n: string }>(`
     select count(*) n from reports r join courses c on c.id = r.course_id
      where r.created_at < now() - make_interval(days => coalesce((c.settings->>'retention_days')::int, 90))
-       and (r.reporter_name is not null or r.reporter_phone is not null or r.reporter_email is not null)`))!.n);
-  check("the two aged Beacon Hill probes are due and the other two are not", dueBefore >= 2, `${dueBefore} due`);
+       and (r.reporter_name is not null or r.reporter_phone is not null or r.reporter_email is not null
+            or r.reporter_member_no is not null)`))!.n);
+  check("the three aged Beacon Hill probes are due and the other two are not", dueBefore >= 3, `${dueBefore} due`);
 
   const purged = (await one<{ nonces: number; alerts: number; contacts: number }>(`select * from purge_expired()`))!;
   check("purge_expired() returns how many nonces it deleted", purged.nonces === old, `returned ${purged.nonces}, expected ${old}`);
@@ -229,6 +282,12 @@ console.log("\nretention");
   const { rows: phoneNotes } = await noteOf(phoneOnly);
   check("a report that only had a phone says only the phone was cleared",
     phoneNotes.length === 1 && JSON.stringify(phoneNotes[0].payload.cleared) === JSON.stringify(["reporter_phone"]), JSON.stringify(phoneNotes));
+  const numberRow = await one<{ reporter_member_no: string | null }>(`select reporter_member_no from reports where id = $1`, [numberOnly]);
+  const { rows: numberNotes } = await noteOf(numberOnly);
+  check("a 100-day-old report's member number is gone, and the note says so",
+    numberRow?.reporter_member_no === null && numberNotes.length === 1
+      && JSON.stringify(numberNotes[0].payload.cleared) === JSON.stringify(["reporter_member_no"]),
+    JSON.stringify({ numberRow, numberNotes }));
   check("the young report and the long-keeper's report got no note",
     (await noteOf(youngReport)).rows.length === 0 && (await noteOf(keptReport)).rows.length === 0);
 

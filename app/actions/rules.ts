@@ -8,6 +8,8 @@ export interface RuleInput {
   department_id: string;
   ack_sla_minutes: number;
   resolve_sla_minutes: number;
+  /** Resolved only once the report carries a member number (food and drink). */
+  requires_member_no: boolean;
 }
 
 /**

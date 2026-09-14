@@ -1,6 +1,7 @@
 "use server";
 
 import { isLang, t, type Lang } from "@/lib/i18n/member";
+import { isMemberNoNeeded } from "@/lib/queue/member-number";
 
 /**
  * The one write a member is allowed to make.
@@ -13,6 +14,11 @@ import { isLang, t, type Lang } from "@/lib/i18n/member";
 export interface SubmitResult {
   ok: boolean;
   error?: string;
+  /**
+   * The club needs a member number for this kind of request and none was
+   * given. The form opens the field and asks; the same scan sends again.
+   */
+  needsMemberNo?: boolean;
 }
 
 export async function submitReport(formData: FormData): Promise<SubmitResult> {
@@ -86,6 +92,11 @@ export async function submitReport(formData: FormData): Promise<SubmitResult> {
   }
 
   if (error) {
+    // A food and drink request without a member number: said in the
+    // member's language, and the form knows which field to open.
+    if (isMemberNoNeeded(error.message)) {
+      return { ok: false, error: s.errorMemberNo, needsMemberNo: true };
+    }
     // The RPC raises friendly messages for the cases a member can cause
     // (empty body, dead placard, flood control); anything else is ours.
     // Those messages are English today — the RPC does not know the language.

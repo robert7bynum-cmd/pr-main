@@ -24,6 +24,7 @@ export async function fileReport(formData: FormData): Promise<FileResult> {
   const byPhone = formData.get("byPhone") === "on";
   const name = String(formData.get("name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
+  const memberNo = String(formData.get("memberNo") ?? "").trim();
 
   if (!locationId) return { ok: false, error: "Pick where the problem is." };
   if (body.length < 3) return { ok: false, error: "Please describe the issue." };
@@ -35,6 +36,9 @@ export async function fileReport(formData: FormData): Promise<FileResult> {
       p_source: byPhone ? "phone_relay" : "staff",
       p_reporter_name: byPhone && name ? name : null,
       p_reporter_phone: byPhone && phone ? phone : null,
+      // A food and drink order phoned in needs the member's number; the RPC
+      // refuses without it and the message is shown as it is.
+      p_reporter_member_no: byPhone && memberNo ? memberNo : null,
     });
 
     // PostgREST hands a scalar-returning function back as the bare value; the

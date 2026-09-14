@@ -101,6 +101,31 @@ const audit = await one<{ n: number }>(
   `select count(*)::int n from admin_events where type='routing_rule_changed'`);
 check("the change is audited", (audit?.n ?? 0) >= 1);
 
+const fnbRule = (await db.query<{ category: string; requires_member_no: boolean }>(
+  `select category, requires_member_no from routing_rules_for_club() where category = 'f_and_b'`)).rows[0];
+check("the rules screen shows that food and drink needs a member number", fnbRule?.requires_member_no === true, JSON.stringify(fnbRule));
+const withoutFlag = JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 20, resolve_sla_minutes: 120 }]);
+const before = await one<{ requires_member_no: boolean }>(
+  `select requires_member_no from routing_rules where course_id=$1 and category=$2`, [course, rules[0].category]);
+await db.query(`select update_routing_rules($1::jsonb)`, [withoutFlag]);
+const afterNoFlag = await one<{ requires_member_no: boolean }>(
+  `select requires_member_no from routing_rules where course_id=$1 and category=$2`, [course, rules[0].category]);
+check("a save that does not mention the flag leaves it as it was", afterNoFlag?.requires_member_no === before?.requires_member_no);
+const auditBefore = (await one<{ n: number }>(`select count(*)::int n from admin_events where type='routing_rule_changed'`))!.n;
+await db.query(`select update_routing_rules($1::jsonb)`, [JSON.stringify([{
+  category: "f_and_b", department_id: (await one<{ department_id: string }>(
+    `select department_id from routing_rules where course_id=$1 and category='f_and_b'`, [course]))!.department_id,
+  ack_sla_minutes: 10, resolve_sla_minutes: 30, requires_member_no: false }])]);
+const switchedOff = await one<{ requires_member_no: boolean }>(
+  `select requires_member_no from routing_rules where course_id=$1 and category='f_and_b'`, [course]);
+check("a manager can switch the member-number rule off", switchedOff?.requires_member_no === false);
+const flagAudit = await one<{ detail: { to?: { requires_member_no?: boolean } } }>(
+  `select detail from admin_events where type='routing_rule_changed' order by created_at desc, id desc limit 1`);
+check("and the change is audited with the flag",
+  (await one<{ n: number }>(`select count(*)::int n from admin_events where type='routing_rule_changed'`))!.n === auditBefore + 1
+    && flagAudit?.detail?.to?.requires_member_no === false, JSON.stringify(flagAudit?.detail));
+await db.query(`update routing_rules set requires_member_no = true where course_id=$1 and category='f_and_b'`, [course]);
+
 check("resolve shorter than acknowledge is refused", await throws(
   `select update_routing_rules($1::jsonb)`,
   [JSON.stringify([{ category: rules[0].category, department_id: dept, ack_sla_minutes: 60, resolve_sla_minutes: 10 }])]));

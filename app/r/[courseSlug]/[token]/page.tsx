@@ -39,10 +39,15 @@ export async function generateMetadata({
   params: Promise<{ token: string }>;
   searchParams: SearchParams;
 }) {
-  const [{ token }, { lang: langParam }, h] = await Promise.all([params, searchParams, headers()]);
+  const [{ token }, { lang: langParam, ask: askParam }, h] = await Promise.all([
+    params, searchParams, headers(),
+  ]);
   const ctx = await getScanContext(token);
   const s = t(pickLang(langParam, h.get("accept-language")));
-  return { title: ctx ? `${s.title} — ${ctx.courseName}` : s.title };
+  // The tab said "Report an issue" while a member was ordering a hot dog.
+  const ask = pickAsk(askParam, ctx?.orderingEnabled ?? false);
+  const title = ask === "order" ? s.chooseOrder : s.title;
+  return { title: ctx ? `${title} — ${ctx.courseName}` : title };
 }
 
 export default async function ReporterPage({

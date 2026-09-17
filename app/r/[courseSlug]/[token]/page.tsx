@@ -2,12 +2,35 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getScanContext, issueScanNonce } from "@/lib/scan/context";
 import { ReportForm } from "@/components/reporter/report-form";
+import { OrderForm } from "@/components/reporter/order-form";
 import { brandStyle } from "@/lib/branding";
 import { LANGS, pickLang, t } from "@/lib/i18n/member";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ lang?: string | string[] }>;
+type SearchParams = Promise<{ lang?: string | string[]; ask?: string | string[] }>;
+
+/**
+ * Which of the two things the member is here to do.
+ *
+ * A plain query parameter rather than client state, for the same reason the
+ * language switch is a link: the page re-renders on the server, mints one
+ * nonce, and a member who taps back gets a working form rather than a stale
+ * one. It also means a club can print a sign that goes straight to ordering.
+ *
+ * Absent means "ask them" — unless the club has ordering switched off, in
+ * which case there is nothing to ask and the page is exactly what it was
+ * before ordering existed.
+ */
+type Ask = "choose" | "issue" | "order";
+
+function pickAsk(param: string | string[] | undefined, orderingEnabled: boolean): Ask {
+  if (!orderingEnabled) return "issue";
+  const v = Array.isArray(param) ? param[0] : param;
+  if (v === "order") return "order";
+  if (v === "issue") return "issue";
+  return "choose";
+}
 
 export async function generateMetadata({
   params,
@@ -29,7 +52,7 @@ export default async function ReporterPage({
   params: Promise<{ courseSlug: string; token: string }>;
   searchParams: SearchParams;
 }) {
-  const [{ courseSlug, token }, { lang: langParam }, h] = await Promise.all([
+  const [{ courseSlug, token }, { lang: langParam, ask: askParam }, h] = await Promise.all([
     params,
     searchParams,
     headers(),
@@ -40,10 +63,14 @@ export default async function ReporterPage({
   // filed against the wrong hole is worse than one never filed.
   if (!ctx) notFound();
 
-  // Minted here and only here. generateMetadata above deliberately does not
-  // mint: it runs as a separate invocation, and minting in both was doubling
-  // every placard's nonce consumption.
-  const nonce = await issueScanNonce(token);
+  const ask = pickAsk(askParam, ctx.orderingEnabled);
+
+  // Minted here and only here, and only when a form is actually on screen.
+  // generateMetadata above deliberately does not mint: it runs as a separate
+  // invocation, and minting in both was doubling every placard's nonce
+  // consumption. The chooser mints nothing for the same reason — a member
+  // reading two buttons has not started filling anything in.
+  const nonce = ask === "choose" ? null : await issueScanNonce(token);
 
   // The page's language, not the document's: <html lang> is set once in the
   // root layout for the whole app, so the member page marks itself instead.
@@ -72,7 +99,9 @@ export default async function ReporterPage({
                     <span aria-current="true" className="font-medium text-ink">{l}</span>
                   ) : (
                     <a
-                      href={`/r/${courseSlug}/${token}?lang=${l}`}
+                      href={`/r/${courseSlug}/${token}?lang=${l}${
+                        ask === "choose" ? "" : `&ask=${ask}`
+                      }`}
                       hrefLang={l}
                       className="underline underline-offset-4 hover:text-ink-secondary"
                     >
@@ -91,12 +120,58 @@ export default async function ReporterPage({
             {ctx.locationName}
           </h1>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-secondary">
-            {s.intro}
+            {ask === "choose" ? s.chooseIntro : ask === "order" ? s.orderIntro : s.intro}
           </p>
         </header>
 
         <div className="flex-1 pb-12">
-          <ReportForm ctx={ctx} token={token} nonce={nonce} lang={lang} />
+          {ask === "choose" ? (
+            <div className="space-y-3">
+              {/* Two links, not two tabs: each is a whole page, so the back
+                  button does what a member expects and neither form is
+                  rendered until it is wanted. */}
+              <a
+                href={`/r/${courseSlug}/${token}?lang=${lang}&ask=issue`}
+                className="block rounded-card border border-line bg-surface-raised px-6 py-6 shadow-card transition hover:border-accent-border"
+              >
+                <span className="block font-display text-[1.35rem] leading-tight tracking-tight">
+                  {s.chooseIssue}
+                </span>
+                <span className="mt-1.5 block text-[14px] leading-relaxed text-ink-secondary">
+                  {s.chooseIssueHint}
+                </span>
+              </a>
+              <a
+                href={`/r/${courseSlug}/${token}?lang=${lang}&ask=order`}
+                className="block rounded-card border border-line bg-surface-raised px-6 py-6 shadow-card transition hover:border-accent-border"
+              >
+                <span className="block font-display text-[1.35rem] leading-tight tracking-tight">
+                  {s.chooseOrder}
+                </span>
+                <span className="mt-1.5 block text-[14px] leading-relaxed text-ink-secondary">
+                  {s.chooseOrderHint}
+                </span>
+              </a>
+            </div>
+          ) : (
+            <>
+              {ask === "order" ? (
+                <OrderForm ctx={ctx} token={token} nonce={nonce} lang={lang} />
+              ) : (
+                <ReportForm ctx={ctx} token={token} nonce={nonce} lang={lang} />
+              )}
+              {ctx.orderingEnabled && (
+                <p className="mt-6 text-center text-[13px]">
+                  <a
+                    href={`/r/${courseSlug}/${token}?lang=${lang}`}
+                    className="text-ink-muted underline underline-offset-4 hover:text-ink-secondary"
+                  >
+                    ← {s.back}
+                  </a>
+                </p>
+              )}
+            </>
+          )}
         </div>
 
         <footer className="border-t border-line py-6">

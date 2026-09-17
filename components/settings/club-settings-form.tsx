@@ -11,6 +11,8 @@ export interface CourseSettings {
   quietEnd: string;
   /** Days, as typed; blank means the default of 90. */
   retentionDays: string;
+  /** Whether members may order food and drink from a placard. */
+  orderingEnabled: boolean;
 }
 
 // The zones a US club is actually in. The current value is always offered
@@ -140,6 +142,31 @@ export function ClubSettingsForm({ initial }: { initial: CourseSettings }) {
             Clear both to escalate around the clock.
           </p>
         )}
+      </section>
+
+      <section className="rounded-card border border-line bg-surface-raised px-5 py-5 shadow-card">
+        <h2 className="font-display text-[17px] tracking-tight">Food &amp; drink ordering</h2>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">
+          Members scanning a sign can ask for food and drink to be brought out
+          to them, with their member number so you can put it on their account.
+          Orders reach whichever team your routing sends Food &amp; Beverage to.
+          Turn this off and the sign offers reporting only, exactly as before.
+        </p>
+        <label className="mt-4 flex items-start gap-3 text-[14px] text-ink-secondary">
+          <input
+            type="checkbox"
+            checked={form.orderingEnabled}
+            onChange={(e) => set({ orderingEnabled: e.target.checked })}
+            className="mt-0.5 size-5 rounded-[4px] border-line accent-accent-strong"
+          />
+          <span>
+            Take food &amp; drink orders from placards
+            <span className="block text-[12px] leading-relaxed text-ink-muted">
+              Nothing is charged here. The order names the member and your point
+              of sale does the rest.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="rounded-card border border-line bg-surface-raised px-5 py-5 shadow-card">

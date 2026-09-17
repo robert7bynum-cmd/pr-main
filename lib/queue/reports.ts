@@ -37,6 +37,12 @@ export interface QueueRow {
    * number (food and drink by default), and this is a member's own report.
    */
   member_no_required: boolean;
+  /**
+   * 'issue' (something is wrong) or 'order' (a member asked for food and
+   * drink). The card reads differently for each: an order is delivered, not
+   * resolved.
+   */
+  kind: string;
 }
 
 // Scheduled work sinks to the bottom: it is handled, just not today, and it
@@ -153,7 +159,8 @@ const DETAIL_SQL = `
          r.scheduled_for, r.resolution_note, r.member_message,
          r.filed_by, r.source::text as source,
          r.reporter_member_no,
-         member_no_required(r.course_id, r.category, r.source, r.department_id) as member_no_required,
+         member_no_required(r.course_id, r.category, r.source, r.department_id, r.kind) as member_no_required,
+         r.kind,
          l.name as location_name, l.hole_number,
          d.name as department_name, d.key as department_key,
          cp.full_name as claimed_by_name, rp.full_name as resolved_by_name,
@@ -203,7 +210,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
   // club simply returns nothing.
   const [{ data: rows }, { data: events }] = await Promise.all([
     supabase.from("reports").select(
-      "id,status,urgency,category,body,ai_summary,created_at,acknowledged_at,claimed_by,scheduled_for,resolution_note,member_message,location_id,department_id,resolved_by,filed_by,source,course_id,reporter_member_no",
+      "id,status,urgency,category,body,ai_summary,created_at,acknowledged_at,claimed_by,scheduled_for,resolution_note,member_message,location_id,department_id,resolved_by,filed_by,source,course_id,reporter_member_no,kind",
     ).eq("id", id).limit(1),
     supabase.from("report_events").select("type,payload,created_at,actor_id")
       .eq("report_id", id).order("created_at"),
@@ -221,7 +228,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
     // disagree about whether a number is needed.
     supabase.rpc("member_no_required", {
       p_course: row.course_id, p_category: row.category, p_source: row.source,
-      p_department: row.department_id,
+      p_department: row.department_id, p_kind: row.kind,
     }),
   ]);
 
@@ -242,6 +249,7 @@ export async function getReportDetail(id: string): Promise<ReportDetail | null> 
     member_message: row.member_message as string | null,
     reporter_member_no: (row.reporter_member_no as string | null) ?? null,
     member_no_required: required === true,
+    kind: (row.kind as string | undefined) ?? "issue",
     minutes_open: Math.round((Date.now() - new Date(created).getTime()) / 60000),
     ack_overdue: false,
     events: (events ?? []).map((e) => {

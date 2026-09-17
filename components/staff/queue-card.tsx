@@ -55,6 +55,13 @@ export function QueueCard({
       <div className="py-5 pl-7 pr-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
+            {/* An order is a different job from a fault, and the difference has
+                to be readable before the words are. */}
+            {row.kind === "order" && (
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-accent-strong">
+                Order
+              </p>
+            )}
             <a href={`/app/report/${row.id}`} className="block">
               <h2 className="font-display text-[1.7rem] leading-none tracking-tight underline-offset-[6px] hover:underline">
                 {row.hole_number ? `Hole ${row.hole_number}` : row.location_name}
@@ -130,6 +137,7 @@ export function QueueCard({
           meKind={meKind}
           memberNo={row.reporter_member_no}
           memberNoRequired={row.member_no_required}
+          kind={row.kind}
         />
       </div>
     </article>

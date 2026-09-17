@@ -17,6 +17,13 @@ export interface ScanContext {
   locationName: string;
   holeNumber: number | null;
   branding: Branding;
+  /**
+   * Whether this club takes food and drink orders from the placard. Stored as
+   * the absence of `ordering_enabled` in the club's settings, so every club
+   * that existed before ordering has it, and a club that switches it off sees
+   * exactly the page it saw before (update_course_settings, 20260917110000).
+   */
+  orderingEnabled: boolean;
 }
 
 import { DEFAULT_BRANDING, type Branding } from "@/lib/branding";
@@ -57,6 +64,7 @@ function fallback(token: string): ScanContext | null {
     locationName,
     holeNumber,
     branding: DEFAULT_BRANDING,
+    orderingEnabled: true,
   };
 }
 
@@ -81,6 +89,8 @@ export async function getScanContext(token: string): Promise<ScanContext | null>
     locationName: row.location_name,
     holeNumber: row.hole_number,
     branding: { ...DEFAULT_BRANDING, ...branding },
+    // Only an explicit false turns it off.
+    orderingEnabled: row.settings?.ordering_enabled !== false,
   };
 }
 

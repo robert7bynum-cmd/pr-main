@@ -77,6 +77,15 @@ moment is whatever `/api/health` says.
   is set.
 - **Deployment** — Vercel, previews per branch; CI runs lint, types and
   `verify:offline` on every push.
+- **Ordering food and drink** — a member scanning a placard chooses between
+  reporting an issue and ordering food and drink. An order is free text plus a
+  member number (required — the club puts it on that account through their own
+  point of sale; ProResponse takes no payment and stores no prices), goes
+  straight to Food & Beverage without being classified, and is paged inside the
+  transaction that takes it. Staff see it as an order and mark it delivered, or
+  close it as "couldn't fulfil" so an unserved member is never counted as
+  served. `/app/settings` has the on/off switch; off restores the old page
+  exactly.
 - **Retention and a second club** — `purge_expired()` clears a member's name,
   phone, email and member number from *finished* reports older than the club's
   retention period (default 90 days, set in `/app/settings`, 30–3650) and writes

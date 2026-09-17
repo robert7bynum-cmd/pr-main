@@ -26,6 +26,40 @@ member's own F&B report (the grill is out of propane) is exempt, and
 `close_no_action` never needs one. The old four-argument `resolve_report`
 and five-argument `file_report` are dropped. (`20260906180000`)
 
+## 17 Sep 2026 — food is something you order
+
+**Ordering is its own path, not a complaint with a number attached.** The three
+migrations before this one made the member number required for food, but they
+did it by treating an order as a fault report: a member wanting two hot dogs
+typed them into a box headed "What did you notice?", and a keyword pass had to
+guess from their words that it was an order at all. The guessing was
+load-bearing, which is the tell that the model was wrong.
+
+A placard now asks what the member is here to do. "Report an issue" is the page
+it always was. "Order food & drink" is free text, their member number — which
+is required here and is the whole point, not an inference — and nothing else.
+No menu: the club would have to keep one current, and a member asking in their
+own words is the request. No prices and no payment: the order names the member
+and the club charges it through their own point of sale, so nothing in this
+system touches money.
+
+Because the member declared what it is, nothing classifies it. `submit_order`
+writes `category = 'f_and_b'`, `kind = 'order'` and `triage_source =
+'declared'`, then routes through `route_report` **inside the same
+transaction** — a report can wait a minute for the sweep, an order that sits
+unrouted is a member watching an empty fairway. If it reaches nobody the whole
+thing rolls back and the member is told, because taking an order nobody will
+see is exactly the silence this codebase forbids.
+
+Staff work it in the same queue with the same routing, escalation, paging, SLAs
+and history; only the words change. The card says Order, "I'll take it out",
+"I'm making it" and **Delivered** rather than Resolve, and the write-up is
+optional because a runner holding a tray should not have to type. A kitchen
+that has run out closes it as **couldn't fulfil** (`close_reason` gained the
+value) so a member who got nothing is never counted as one who was served.
+`/app/settings` has the switch; a club with ordering off sees the page exactly
+as it was. (`20260917100000`, `20260917110000`)
+
 ## 14 Sep 2026 — the gaps in the member-number rule
 
 Three things a person would have hit, found by walking the feature rather than

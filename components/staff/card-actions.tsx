@@ -12,7 +12,7 @@ import {
   startAction,
 } from "@/app/actions/report-actions";
 import type { Department, Teammate } from "@/lib/queue/reports";
-import { CLOSE_REASONS, type CloseReason } from "@/lib/queue/close-reasons";
+import { CLOSE_REASONS, closeReasonsFor, type CloseReason } from "@/lib/queue/close-reasons";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -46,6 +46,7 @@ export function CardActions({
   meKind,
   memberNo = null,
   memberNoRequired = false,
+  kind = "issue",
 }: {
   reportId: string;
   claimed: boolean;
@@ -71,8 +72,16 @@ export function CardActions({
    * way, so this is the polite version of a refusal, not the guard.
    */
   memberNoRequired?: boolean;
+  /**
+   * 'issue' or 'order'. An order is brought to a member, not investigated, and
+   * every word on these controls changes to say so — "Delivered" rather than
+   * "Resolve". The database calls both the same transition; only the person
+   * reading the card is different.
+   */
+  kind?: string;
 }) {
   const router = useRouter();
+  const isOrder = kind === "order";
   const station = meKind === "station";
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
@@ -142,16 +151,20 @@ export function CardActions({
 
         {status !== "in_progress" && (
           <section className="border-t border-line pt-4">
-            <p className="text-[13px] font-medium text-ink-secondary">Start work</p>
+            <p className="text-[13px] font-medium text-ink-secondary">
+              {isOrder ? "Start preparing" : "Start work"}
+            </p>
             <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
-              Marks it in progress, so the team can see it is being handled now.
+              {isOrder
+                ? "Marks it in progress, so the rest of the team can see it is being made."
+                : "Marks it in progress, so the team can see it is being handled now."}
             </p>
             <button
               disabled={pending}
               onClick={() => runMore(() => startAction(reportId))}
               className="mt-3 w-full rounded-control border border-line bg-surface px-4 py-3.5 text-[15px] font-medium text-ink-secondary transition hover:border-line-strong disabled:opacity-40"
             >
-              {pending ? "…" : "I'm on it now"}
+              {pending ? "…" : isOrder ? "I'm making it" : "I'm on it now"}
             </button>
           </section>
         )}
@@ -194,12 +207,16 @@ export function CardActions({
         </section>
 
         <section className="border-t border-line pt-4">
-          <p className="text-[13px] font-medium text-ink-secondary">Close without action</p>
+          <p className="text-[13px] font-medium text-ink-secondary">
+            {isOrder ? "Close without delivering" : "Close without action"}
+          </p>
           <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
-            Nothing to fix. It leaves the queue and stays out of the response times.
+            {isOrder
+              ? "Nothing went out. It leaves the queue and is never counted as an order that was served."
+              : "Nothing to fix. It leaves the queue and stays out of the response times."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(Object.keys(CLOSE_REASONS) as CloseReason[]).map((r) => (
+            {closeReasonsFor(kind).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -249,14 +266,14 @@ export function CardActions({
         )}
         <div>
           <label className="text-[13px] font-medium text-ink-secondary">
-            What did you do?
+            {isOrder ? "Anything to note? (optional)" : "What did you do?"}
           </label>
           <textarea
             autoFocus={!askMemberNo}
             rows={2}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Swapped the valve, tested twice"
+            placeholder={isOrder ? "Taken out to the 9th tee" : "Swapped the valve, tested twice"}
             className="mt-2 w-full resize-none rounded-control border border-line bg-surface px-3.5 py-3
                        text-[16px] shadow-inset outline-none placeholder:text-ink-subtle
                        focus:border-accent-border focus:ring-4 focus:ring-accent-surface"
@@ -270,11 +287,22 @@ export function CardActions({
 
         <div className="flex gap-2">
           <button
-            disabled={pending || (askMemberNo && memberNoInput.trim() === "")}
-            onClick={() => run(() => resolveAction(reportId, note, askMemberNo ? memberNoInput : undefined))}
+            disabled={pending || (!isOrder && !note.trim()) || (askMemberNo && memberNoInput.trim() === "")}
+            // An order needs no write-up to be handed over: the note is
+            // optional and defaults to the fact of it, so a runner with a tray
+            // in one hand is not made to type before the queue clears.
+            onClick={() =>
+              run(() =>
+                resolveAction(
+                  reportId,
+                  isOrder ? note.trim() || "Delivered" : note,
+                  askMemberNo ? memberNoInput : undefined,
+                ),
+              )
+            }
             className="flex-1 rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
-            {pending ? "Saving…" : "Mark resolved"}
+            {pending ? "Saving…" : isOrder ? "Mark delivered" : "Mark resolved"}
           </button>
           <button
             onClick={() => setMode("idle")}
@@ -390,7 +418,7 @@ export function CardActions({
             onClick={() => (station ? setMode("assign") : run(() => acknowledgeAction(reportId)))}
             className="w-full rounded-control bg-accent-strong px-4 py-3.5 text-[15px] font-medium text-ink-on-accent shadow-card transition disabled:opacity-40 disabled:shadow-none"
           >
-            {pending ? "…" : station ? "Who's taking this?" : "I've got this"}
+            {pending ? "…" : station ? "Who's taking this?" : isOrder ? "I'll take it out" : "I've got this"}
           </button>
         )}
         <div className="flex gap-2">
@@ -398,7 +426,7 @@ export function CardActions({
             onClick={() => setMode("resolve")}
             className="flex-1 rounded-control border border-line bg-surface-raised px-4 py-3.5 text-[15px] font-medium text-ink-secondary transition hover:border-line-strong"
           >
-            Resolve
+            {isOrder ? "Delivered" : "Resolve"}
           </button>
           <button
             onClick={() => setMode("schedule")}

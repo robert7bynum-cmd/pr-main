@@ -89,6 +89,7 @@ What a placard scan can call before anyone signs in.
 |---|---|---|---|---|
 | `get_scan_context(p_token text)` | `TABLE(course_id uuid, course_name text, course_slug text, settings jsonb, location_id uuid, location_name text, hole_number integer)` | anon, authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `issue_scan_nonce(p_token text)` | `text` | anon, authenticated, service_role | `20260904220000_lock_down.sql` | Shrinking the public surface to the minimum the product actually needs. |
+| `submit_order(p_token text, p_nonce text, p_body text, p_member_no text, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_language text DEFAULT 'en'::text)` | `uuid` | anon, authenticated, service_role | `20260917110000_food_is_orderable.sql` | Food and drink is something a member can order, not something they report. |
 | `submit_report(p_token text, p_nonce text, p_body text, p_location_id uuid DEFAULT NULL::uuid, p_photo_path text DEFAULT NULL::text, p_name text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_member_no text DEFAULT NULL::text, p_language text DEFAULT 'en'::text)` | `uuid` | anon, authenticated, service_role | `20260906190000_member_number_follows_the_team.sql` | A report a person sends to the food and beverage team is theirs to number. |
 
 ## Staff surface (`authenticated`)
@@ -111,12 +112,12 @@ Every one of these takes the caller from `auth.uid()`; none accepts a caller id.
 | `invite_staff(p_email text, p_full_name text, p_role staff_role, p_department_ids uuid[] DEFAULT '{}'::uuid[], p_phone text DEFAULT NULL::text)` | `uuid` | authenticated, service_role | `20260906100000_finish_table_posture.sql` | Finishing the table posture 20260906070000 started, and three smaller holes found on the same pass. |
 | `is_management_role(p_role staff_role)` | `boolean` | authenticated, service_role | `20260905170000_external_watchdog.sql` | The other half of the watchdog. |
 | `me()` | `TABLE(profile_id uuid, full_name text, role staff_role, course_id uuid, course_name text, on_duty boolean, account_kind account_kind)` | authenticated, service_role | `20260906140000_station_identity.sql` | A shared login has to be able to say it is one. |
-| `member_no_required(p_course uuid, p_category text, p_source report_source, p_department uuid)` | `boolean` | authenticated, service_role | `20260906190000_member_number_follows_the_team.sql` | A report a person sends to the food and beverage team is theirs to number. |
+| `member_no_required(p_course uuid, p_category text, p_source report_source, p_department uuid, p_kind text DEFAULT 'issue'::text)` | `boolean` | authenticated, service_role | `20260917110000_food_is_orderable.sql` | Food and drink is something a member can order, not something they report. |
 | `mint_placard(p_location_id uuid)` | `text` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `record_member_no(p_report_id uuid, p_actor uuid, p_member_no text)` | `void` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `register_device(p_platform text, p_token text, p_app_version text DEFAULT NULL::text)` | `uuid` | authenticated, service_role | `20260906150000_device_tokens.sql` | A phone that is not a browser has nowhere to register. |
 | `reroute_report(p_report_id uuid, p_actor uuid, p_department_id uuid)` | `void` | authenticated, service_role | `20260905210000_actor_is_the_caller.sql` | An action is attributed to the person performing it, enforced by the database. |
-| `resolve_report(p_report_id uuid, p_actor uuid, p_internal_note text, p_member_message text DEFAULT NULL::text, p_member_no text DEFAULT NULL::text)` | `void` | authenticated, service_role | `20260906190000_member_number_follows_the_team.sql` | A report a person sends to the food and beverage team is theirs to number. |
+| `resolve_report(p_report_id uuid, p_actor uuid, p_internal_note text, p_member_message text DEFAULT NULL::text, p_member_no text DEFAULT NULL::text)` | `void` | authenticated, service_role | `20260917110000_food_is_orderable.sql` | Food and drink is something a member can order, not something they report. |
 | `routing_rules_for_club()` | `TABLE(category text, department_id uuid, department_name text, ack_sla_minutes integer, resolve_sla_minutes integer, reports_30d integer, requires_member_no boolean)` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `schedule_report(p_report_id uuid, p_actor uuid, p_date date, p_note text DEFAULT NULL::text)` | `void` | authenticated, service_role | `20260905210000_actor_is_the_caller.sql` | An action is attributed to the person performing it, enforced by the database. |
 | `set_location_active(p_id uuid, p_active boolean)` | `void` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
@@ -128,7 +129,7 @@ Every one of these takes the caller from `auth.uid()`; none accepts a caller id.
 | `start_report(p_report_id uuid, p_actor uuid)` | `void` | authenticated, service_role | `20260905210000_actor_is_the_caller.sql` | An action is attributed to the person performing it, enforced by the database. |
 | `system_health()` | `TABLE(severity text, issue text, detail text)` | authenticated, service_role | `20260905170000_external_watchdog.sql` | The other half of the watchdog. |
 | `unregister_device(p_token text)` | `boolean` | authenticated, service_role | `20260906150000_device_tokens.sql` | A phone that is not a browser has nowhere to register. |
-| `update_course_settings(p_name text, p_timezone text, p_public_url text, p_quiet_start text, p_quiet_end text, p_retention_days integer DEFAULT NULL::integer)` | `integer` | authenticated, service_role | `20260906170000_retention_and_clubs.sql` | Contact details expire, and a club can be created without hand-written SQL. |
+| `update_course_settings(p_name text, p_timezone text, p_public_url text, p_quiet_start text, p_quiet_end text, p_retention_days integer DEFAULT NULL::integer, p_ordering_enabled boolean DEFAULT true)` | `integer` | authenticated, service_role | `20260917110000_food_is_orderable.sql` | Food and drink is something a member can order, not something they report. |
 | `update_routing_rules(p_rules jsonb)` | `integer` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `upsert_department(p_id uuid, p_key text, p_name text, p_sort_order integer)` | `uuid` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `upsert_location(p_id uuid, p_kind location_kind, p_hole_number integer, p_name text, p_sort_order integer)` | `uuid` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
@@ -216,6 +217,7 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `source` | `report_source` |
 | `reporter_member_no` | `text` |
 | `member_no_required` | `boolean` |
+| `kind` | `text` |
 
 ### `staff_queue`
 
@@ -246,3 +248,4 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `source` | `report_source` |
 | `reporter_member_no` | `text` |
 | `member_no_required` | `boolean` |
+| `kind` | `text` |

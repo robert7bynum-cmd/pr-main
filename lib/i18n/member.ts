@@ -42,6 +42,35 @@ export interface MemberStrings {
   errorMemberNo: string;
   /** Accessible name of the EN | ES switch. */
   languageSwitch: string;
+
+  // -- Choosing what to do. Shown only when the club has ordering switched on;
+  // -- a club without it sees exactly the page it saw before ordering existed.
+  /** Header line above the two choices. */
+  chooseIntro: string;
+  chooseIssue: string;
+  chooseIssueHint: string;
+  chooseOrder: string;
+  chooseOrderHint: string;
+  /** Link back from either form to the two choices. */
+  back: string;
+
+  // -- Ordering food and drink.
+  orderIntro: string;
+  orderBodyLabel: string;
+  orderBodyPlaceholder: string;
+  orderMemberNoLabel: string;
+  orderMemberNoHint: string;
+  orderNameHint: string;
+  orderSubmit: string;
+  orderSending: string;
+  orderDoneHeading: string;
+  /** `{location}` is replaced with the location name, lower-cased. */
+  orderDoneBody: string;
+  orderFooter: string;
+  /** What the action says when the description is too short to send. */
+  errorOrderBody: string;
+  /** What the action says when no member number was given. */
+  errorOrderMemberNo: string;
 }
 
 export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
@@ -66,6 +95,25 @@ export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
     errorFallback: "Something went wrong. Please try again.",
     errorMemberNo: "Food and drink requests need your member number — please add it below and send again.",
     languageSwitch: "Language",
+    chooseIntro: "What can we help with?",
+    chooseIssue: "Report an issue",
+    chooseIssueHint: "Something out here needs attention",
+    chooseOrder: "Order food & drink",
+    chooseOrderHint: "Brought out to you where you are",
+    back: "Back",
+    orderIntro: "Tell us what you'd like and we'll bring it out to you.",
+    orderBodyLabel: "What would you like?",
+    orderBodyPlaceholder: "Two hot dogs and a lemonade",
+    orderMemberNoLabel: "Member number",
+    orderMemberNoHint: "So the club knows whose order this is. We need this to send it.",
+    orderNameHint: "Your name and number, if you'd like the team to be able to check something with you.",
+    orderSubmit: "Send my order",
+    orderSending: "Sending…",
+    orderDoneHeading: "Order received.",
+    orderDoneBody: "The team has your order for {location} and is getting it ready now.",
+    orderFooter: "The club puts this on your member account. No payment here.",
+    errorOrderBody: "Please say what you would like.",
+    errorOrderMemberNo: "We need your member number so the club knows whose order this is.",
   },
   es: {
     title: "Reportar un problema",
@@ -88,6 +136,25 @@ export const MEMBER_STRINGS: Record<Lang, MemberStrings> = {
     errorFallback: "Algo salió mal. Por favor, inténtelo de nuevo.",
     errorMemberNo: "Los pedidos de comida y bebida necesitan su número de socio — agréguelo abajo y envíe de nuevo.",
     languageSwitch: "Idioma",
+    chooseIntro: "¿En qué podemos ayudarle?",
+    chooseIssue: "Reportar un problema",
+    chooseIssueHint: "Algo en el campo necesita atención",
+    chooseOrder: "Pedir comida o bebida",
+    chooseOrderHint: "Se lo llevamos hasta donde usted está",
+    back: "Volver",
+    orderIntro: "Díganos qué desea y se lo llevamos hasta donde está.",
+    orderBodyLabel: "¿Qué desea pedir?",
+    orderBodyPlaceholder: "Dos hot dogs y una limonada",
+    orderMemberNoLabel: "Número de socio",
+    orderMemberNoHint: "Para que el club sepa de quién es el pedido. Lo necesitamos para enviarlo.",
+    orderNameHint: "Su nombre y número, por si el equipo necesita consultarle algo.",
+    orderSubmit: "Enviar mi pedido",
+    orderSending: "Enviando…",
+    orderDoneHeading: "Pedido recibido.",
+    orderDoneBody: "El equipo ya tiene su pedido para {location} y lo está preparando.",
+    orderFooter: "El club lo carga a su cuenta de socio. Aquí no se paga nada.",
+    errorOrderBody: "Por favor, díganos qué desea.",
+    errorOrderMemberNo: "Necesitamos su número de socio para saber de quién es el pedido.",
   },
 };
 

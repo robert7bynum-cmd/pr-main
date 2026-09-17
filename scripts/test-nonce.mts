@@ -198,6 +198,92 @@ console.log("\nmember number at the form");
   check("a maintenance report never asks for one", typeof plain?.submit_report === "string", JSON.stringify(plain));
 }
 
+/**
+ * Ordering food and drink: the member's second write.
+ *
+ * Not a report with a number bolted on — a different form, a different RPC,
+ * and a member number that is structurally required rather than inferred from
+ * the words. submit_order also routes inside its own transaction, so a member
+ * who orders is in the kitchen's queue before the page has finished loading.
+ */
+console.log("\nordering food and drink");
+{
+  const placard = (await one<{ token: string; course_id: string }>(
+    `select token, course_id from qr_codes where active and token <> $1 order by token desc limit 1`, [token]))!;
+  const mintFor = async () =>
+    (await one<{ issue_scan_nonce: string }>(`select issue_scan_nonce($1)`, [placard.token]))!.issue_scan_nonce;
+  const refusedWith = async (sql: string, p: unknown[]) => (await fails(sql, p)) ?? "";
+  const order = (n: string, body: string, memberNo: string | null) =>
+    `select submit_order($$${placard.token}$$, $$${n}$$, $$${body}$$, ${memberNo === null ? "null" : `$$${memberNo}$$`})`;
+
+  const n1 = await mintFor();
+  const noNumber = await refusedWith(order(n1, "two hot dogs and a lemonade to the 9th tee", null), []);
+  check("an order without a member number is refused", noNumber.includes(MEMBER_NO_NEEDED), noNumber || "accepted");
+  const blank = await refusedWith(order(n1, "two hot dogs and a lemonade to the 9th tee", "   "), []);
+  check("a blank member number is no member number", blank.includes(MEMBER_NO_NEEDED), blank || "accepted");
+  const untouched = await one<{ used_at: string | null }>(`select used_at from scan_nonces where nonce=$1`, [n1]);
+  check("and the nonce is untouched, so the same scan sends again", untouched?.used_at === null, JSON.stringify(untouched));
+
+  const empty = await refusedWith(order(n1, "hi", "BH-0417"), []);
+  check("an order that says nothing is refused", empty.includes("Please say what you would like"), empty || "accepted");
+
+  const placed = await one<{ submit_order: string }>(order(n1, "two hot dogs and a lemonade to the 9th tee", " BH-0417 "), []);
+  const id = placed?.submit_order;
+  check("with a number, the order is taken", typeof id === "string", JSON.stringify(placed));
+
+  const row = await one<{ kind: string; category: string; urgency: string; status: string; source: string;
+                          reporter_member_no: string; triage_source: string; department_id: string;
+                          ai_summary: string | null; ai_confidence: string | null }>(
+    `select kind, category, urgency::text as urgency, status::text as status, source::text as source,
+            reporter_member_no, triage_source::text as triage_source, department_id, ai_summary, ai_confidence
+       from reports where id=$1`, [id]);
+  check("it is an order, not an issue", row?.kind === "order", JSON.stringify(row?.kind));
+  check("categorised f_and_b without anything having to guess", row?.category === "f_and_b", String(row?.category));
+  check("and the source says the member declared it", row?.triage_source === "declared", String(row?.triage_source));
+  check("no model summary and no confidence, because no model ran",
+    row?.ai_summary === null && row?.ai_confidence === null, JSON.stringify([row?.ai_summary, row?.ai_confidence]));
+  check("a hungry fourball is not an emergency", row?.urgency === "normal", String(row?.urgency));
+  check("the member number is stored, trimmed", row?.reporter_member_no === "BH-0417", String(row?.reporter_member_no));
+
+  const fnb = (await one<{ id: string }>(`select id from departments where key='f_and_b' and course_id=$1`, [placard.course_id]))!.id;
+  check("routed to Food & Beverage in the same transaction that took it",
+    row?.department_id === fnb, `${row?.department_id} vs ${fnb}`);
+  check("and it is already triaged, not waiting for a sweep", row?.status === "triaged", String(row?.status));
+
+  const evs = (await db.query<{ type: string; payload: Record<string, unknown> }>(
+    `select type::text as type, payload from report_events where report_id=$1 order by id`, [id])).rows;
+  check("the trail reads created, triaged, routed",
+    evs.map((e) => e.type).join(",") === "created,triaged,routed", evs.map((e) => e.type).join(","));
+  check("and the created event says it was an order", evs[0]?.payload?.kind === "order", JSON.stringify(evs[0]?.payload));
+  const paged = await one<{ n: string }>(
+    `select count(*) n from notifications where report_id=$1 and status='queued'`, [id]);
+  check("somebody was actually paged", Number(paged?.n) > 0, `${paged?.n}`);
+  const queued = await one<{ status: string }>(`select status::text as status from triage_queue where report_id=$1`, [id]);
+  check("the triage queue row is done, so the worker will not re-route it", queued?.status === "done", String(queued?.status));
+
+  const reused = await refusedWith(order(n1, "and another lemonade", "BH-0417"), []);
+  check("the nonce is single use here too", reused.includes("This form has expired"), reused || "accepted");
+
+  // A club that has closed its kitchen.
+  await db.query(`update courses set settings = jsonb_set(settings, '{ordering_enabled}', 'false') where id=$1`, [placard.course_id]);
+  const n2 = await mintFor();
+  const closed = await refusedWith(order(n2, "a club sandwich please", "BH-0417"), []);
+  check("a club that has switched ordering off refuses the order",
+    closed.includes("ordering is closed right now"), closed || "accepted");
+  const stillThere = await one<{ used_at: string | null }>(`select used_at from scan_nonces where nonce=$1`, [n2]);
+  check("without burning the scan", stillThere?.used_at === null, JSON.stringify(stillThere));
+  await db.query(`update courses set settings = settings - 'ordering_enabled' where id=$1`, [placard.course_id]);
+  const n3 = await mintFor();
+  const reopened = await one<{ submit_order: string }>(order(n3, "a club sandwich please", "BH-0417"), []);
+  check("switching it back on takes orders again", typeof reopened?.submit_order === "string", JSON.stringify(reopened));
+
+  const callers = (await db.query<{ role: string }>(`
+    select r.rolname as role from (values ('anon'),('authenticated'),('service_role')) r(rolname)
+     where has_function_privilege(r.rolname, 'submit_order(text,text,text,text,text,text,text)', 'execute')`)).rows.map((r) => r.role);
+  check("a member ordering is anonymous, like a member reporting",
+    callers.join(",") === "anon,authenticated,service_role", callers.join(","));
+}
+
 console.log("\nretention");
 {
   await db.query(`update scan_nonces set issued_at = now() - interval '2 days' where nonce = $1`, [n2]);

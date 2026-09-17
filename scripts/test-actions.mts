@@ -646,5 +646,65 @@ const oldReq = await one<{ n: string }>(`select count(*) n from pg_proc where pr
 check("exactly one member_no_required exists (the three-argument form was dropped)", Number(oldReq?.n) === 1, String(oldReq?.n));
 check("exactly one file_report exists", Number(oldFile?.n) === 1, String(oldFile?.n));
 
+/**
+ * An order on the staff side.
+ *
+ * Same table, same queue, same routing and the same transitions — the words on
+ * the card are what differ, and those are asserted in the component. What the
+ * database has to guarantee is that an order always needs a member number
+ * whatever the club's routing rules say, that delivering one is recorded as an
+ * order being delivered, and that a kitchen which cannot fill it has a way to
+ * say so that is not "resolved" (20260917110000).
+ */
+console.log("\n18. an order is worked like a report and counted like an order");
+const mkOrder = async (memberNo: string | null) => (await one<{ id: string }>(
+  `insert into reports (course_id, location_id, body, status, department_id, category, source, kind, reporter_member_no, triage_source)
+   values ($1,$2,'two hot dogs and a lemonade','triaged',
+     (select id from departments where key='f_and_b' and course_id=$1),'f_and_b','member_qr','order',$3,'declared')
+   returning id`, [course, loc, memberNo]))!.id;
+
+await act(alice.id);
+const withNumber = await mkOrder("BH-0417");
+const orderRow = await one<{ kind: string; member_no_required: boolean; reporter_member_no: string }>(
+  `select kind, member_no_required, reporter_member_no from staff_queue where id=$1`, [withNumber]);
+check("the queue says it is an order", orderRow?.kind === "order", String(orderRow?.kind));
+check("and carries the member number", orderRow?.reporter_member_no === "BH-0417", String(orderRow?.reporter_member_no));
+
+// The club switches the f_and_b rule off. An order still needs a number:
+// without one there is no account to put it on, and that is not a routing
+// preference.
+await db.query(`update routing_rules set requires_member_no = false where course_id=$1 and category='f_and_b'`, [course]);
+const ruleOffOrder = await mkOrder(null);
+const stillNeeded = await one<{ member_no_required: boolean }>(
+  `select member_no_required from staff_queue where id=$1`, [ruleOffOrder]);
+check("an order needs one even with the club's rule switched off", stillNeeded?.member_no_required === true,
+  JSON.stringify(stillNeeded));
+const refusedOrder = await raisesWith(`select resolve_report($1,$2,$3)`, [ruleOffOrder, alice.id, "delivered"]);
+check("and delivering it without one is refused", refusedOrder.includes(NEEDED), refusedOrder || "no error");
+await db.query(`update routing_rules set requires_member_no = true where course_id=$1 and category='f_and_b'`, [course]);
+
+await db.query(`select resolve_report($1,$2,$3)`, [withNumber, alice.id, "Delivered"]);
+const delivered = await one<{ status: string }>(`select status from reports where id=$1`, [withNumber]);
+check("an order with a number is delivered in one tap", delivered?.status === "resolved", String(delivered?.status));
+const deliveredEvent = await one<{ payload: Record<string, unknown> }>(
+  `select payload from report_events where report_id=$1 and type='resolved'`, [withNumber]);
+check("and the event says an order was what closed, so the timeline can say Delivered",
+  deliveredEvent?.payload?.kind === "order", JSON.stringify(deliveredEvent?.payload));
+
+const unfillable = await mkOrder("BH-0500");
+await db.query(`select close_no_action($1,$2,'cannot_fulfil')`, [unfillable, alice.id]);
+const notServed = await one<{ status: string; close_reason: string }>(
+  `select status, close_reason::text as close_reason from reports where id=$1`, [unfillable]);
+check("a kitchen that cannot fill an order says so, and it is not a resolution",
+  notServed?.status === "closed_no_action" && notServed?.close_reason === "cannot_fulfil", JSON.stringify(notServed));
+const resolvedCount = await one<{ n: number }>(
+  `select count(*)::int n from reports where id=$1 and status='resolved'`, [unfillable]);
+check("so a member who got nothing is never counted as served", (resolvedCount?.n ?? -1) === 0, `${resolvedCount?.n}`);
+
+const issueStill = await mk();
+await db.query(`select resolve_report($1,$2,$3)`, [issueStill, alice.id, "fixed"]);
+check("and an ordinary issue is untouched by any of this",
+  (await one<{ kind: string; status: string }>(`select kind, status from reports where id=$1`, [issueStill]))?.kind === "issue");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

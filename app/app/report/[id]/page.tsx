@@ -40,11 +40,14 @@ const EVENT_LABEL: Record<string, string> = {
  */
 function eventLabel(e: TimelineEvent): string {
   const p = e.payload ?? {};
-  // A report can now enter by three doors; the created event says which.
+  // A report can now enter by four doors; the created event says which.
   if (e.type === "created") {
+    if (p.kind === "order") return "Ordered by a member";
     if (p.source === "staff") return "Filed by staff";
     if (p.source === "phone_relay") return "Logged from a phone call";
   }
+  // The same row closes an order and a fault; the word differs.
+  if (e.type === "resolved" && p.kind === "order") return "Delivered";
   if (e.type === "note") {
     // Retention: the nightly purge cleared the member's contact details and said so.
     if (p.retention === true) return "Contact details removed (retention)";
@@ -127,6 +130,11 @@ export default async function ReportPage({
         </a>
 
         <div className="mt-4 rounded-card border border-line bg-surface-raised px-6 py-6 shadow-card">
+          {r.kind === "order" && (
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-accent-strong">
+              Order
+            </p>
+          )}
           <h1 className="font-display text-[1.85rem] leading-none tracking-tight">
             {r.hole_number ? `Hole ${r.hole_number}` : r.location_name}
           </h1>
@@ -154,6 +162,7 @@ export default async function ReportPage({
               meKind={me.account_kind}
               memberNo={r.reporter_member_no}
               memberNoRequired={r.member_no_required}
+              kind={r.kind}
             />
           )}
         </div>

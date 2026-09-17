@@ -38,6 +38,20 @@ member's account. The form asks for it, the queue shows it or its absence, and
 the routing screen; a report a staff member filed about something they saw is
 exempt.
 
+## Kinds (`reports.kind`)
+
+| kind | what it is |
+| --- | --- |
+| `issue` | Something is wrong and needs attention. Everything the product did before ordering. |
+| `order` | A member asked for something to be brought to them. Food and drink today. |
+
+An order skips classification entirely: the member said what it was by tapping
+"order food & drink", so `submit_order` writes `category = 'f_and_b'` and
+`triage_source = 'declared'` and routes in the same transaction. An order
+always needs a member number, whatever `requires_member_no` says, because
+without one there is no account to put it on. A club can switch the whole path
+off with `settings.ordering_enabled = false`; absent means on.
+
 ## Urgency (`reports.urgency`)
 `low` | `normal` | `high` | `urgent`
 

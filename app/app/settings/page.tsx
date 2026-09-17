@@ -32,6 +32,8 @@ export default async function SettingsPage() {
     // Absent means the default (90); the form shows blank for that so a club
     // that never chose a number is not shown one as if it had.
     retentionDays: typeof settings.retention_days === "number" ? String(settings.retention_days) : "",
+    // Absent means on, so only an explicit false turns ordering off.
+    orderingEnabled: settings.ordering_enabled !== false,
   };
 
   return (

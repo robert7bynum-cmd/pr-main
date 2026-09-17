@@ -85,7 +85,10 @@ export default async function ReporterPage({
   return (
     <main lang={lang} className="min-h-dvh bg-surface text-ink antialiased" style={brandStyle(ctx.branding)}>
       <div className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6">
-        <header className="pt-12 pb-9">
+        {/* pb kept tight: the heading names where the member is standing and
+            the form is the answer to it, so a wide gap reads as two unrelated
+            screens stacked. */}
+        <header className="pt-12 pb-4">
           <div className="flex items-start justify-between gap-4">
             <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
               {ctx.courseName}
@@ -124,7 +127,7 @@ export default async function ReporterPage({
           <h1 className="mt-7 font-display text-[2.3rem] leading-none tracking-tight">
             {ctx.locationName}
           </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-ink-secondary">
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-secondary">
             {ask === "choose" ? s.chooseIntro : ask === "order" ? s.orderIntro : s.intro}
           </p>
         </header>

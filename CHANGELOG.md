@@ -26,6 +26,44 @@ member's own F&B report (the grill is out of propane) is exempt, and
 `close_no_action` never needs one. The old four-argument `resolve_report`
 and five-argument `file_report` are dropped. (`20260906180000`)
 
+## 1 Oct 2026 — a club that works the day it is created
+
+**`create_club` built a club that could not receive a single report.** It made
+the course, seven departments, ten routing rules and an owner invite, and
+**no locations**. No locations means no placard can be minted, which means no
+member can scan anything. The owner signed in to a shell that looked finished
+and was unreachable. Found by reading the function against what a first
+customer would actually do, not by any test.
+
+It now installs a course template: holes numbered and ordered the way a person
+walks them, plus clubhouse, practice range, putting green, cart barn, halfway
+house and two restrooms — and **a placard for each**, because a location
+without a code is still not reachable. Hole count is an argument, defaulting
+to eighteen and refusing anything daft.
+
+`mint_placard_batch()` mints a whole course in one call so an owner prints one
+sheet instead of clicking through two dozen locations. By default it fills
+gaps only: regenerating retires every active code at once and would kill every
+physical sign on the course, so that stays behind an explicit argument, and
+every location is audited exactly as a single mint is.
+
+`club_readiness()` answers what a new club still has to do — staff invited,
+somebody able to receive an alert, the placard address set — from live data,
+so the checklist on the staff home cannot be marked complete while members
+would still reach nobody. A database function rather than a TypeScript query,
+because `lib/queue` already writes every read twice and that duplication is on
+the debt register.
+
+**[bug]** Rebuilding `create_club` from the `20260906170000` body silently
+dropped `requires_member_no`, which `20260906180000` had added — a brand-new
+club would not have asked for a member number on food orders. `test:club-create`
+caught it. **[bug]** `mint_placard_batch`'s output column `token` collided with
+`qr_codes.token` inside the function; Postgres refused it as ambiguous and the
+same suite caught that too.
+
+Proven on staging, not just offline: a club created by one call took a scanned
+placard report end to end with no manual setup. (`20261002100000`)
+
 ## 17 Sep 2026 — food is something you order
 
 **Ordering is its own path, not a complaint with a number attached.** The three

@@ -128,13 +128,17 @@ paid add-on. The password is not viewable after project creation; reset it in
 Project Settings → Database. `SUPABASE_DB_URL` stays pointed at production and is not edited.
 
 ```
-./scripts/staging.sh check     what is applied to staging right now
-./scripts/staging.sh migrate   apply every migration to staging
+npm run staging:check     what is applied to staging right now
+npm run staging:migrate   apply every migration to staging
 ```
 
-The script refuses to run if the URL names the production project, or does not
-name the staging one, because pointing it at production by mistake is the only
-way it could do harm. Free-tier projects pause after about a week idle.
+It refuses if the URL names the production project, or does not name the
+staging one, because pointing it at production by mistake is the only way it
+could do harm. The value is read by Node's own `--env-file` parser and never
+printed. An earlier shell version *sourced* `.env.local`, which executes it —
+a line that is not a `KEY=value` assignment then runs as a command and echoes
+part of itself into the error. That is how a staging password once reached a
+transcript. Nothing here executes the file. Free-tier projects pause after about a week idle.
 
 Preview deployments point at staging once Vercel's **Preview** environment
 carries staging's URL and keys. Production's variables are left untouched.

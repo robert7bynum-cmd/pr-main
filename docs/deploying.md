@@ -121,7 +121,11 @@ A preview is a full copy of the app, but four things do not follow it:
 deployments and the live suites stop writing production's rows.
 
 Its connection string lives in `.env.local` as `STAGING_DB_URL` and nowhere
-else. `SUPABASE_DB_URL` stays pointed at production and is not edited.
+else. Use the **session pooler** host
+`aws-0-us-east-1.pooler.supabase.com` on port **5432** — not the transaction
+pooler on 6543, and not the direct connection, which is IPv6-only without the
+paid add-on. The password is not viewable after project creation; reset it in
+Project Settings → Database. `SUPABASE_DB_URL` stays pointed at production and is not edited.
 
 ```
 ./scripts/staging.sh check     what is applied to staging right now

@@ -16,7 +16,10 @@
 *.pem
 *.tsbuildinfo
 .DS_Store
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/skills/
 .env
 .env*
 .env*.local
@@ -40,3 +43,5 @@ out/
 supabase/.temp/
 yarn-debug.log*
 yarn-error.log*
+# .last-gate is local state written by npm run gate
+.claude/.last-gate

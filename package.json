@@ -58,7 +58,8 @@
     "test:i18n": "tsx scripts/test-i18n.mts",
     "test:export": "tsx scripts/test-export.mts",
     "club:create": "tsx --env-file=.env.local scripts/create-club.mts",
-    "test:club-create": "tsx scripts/test-club-create.mts"
+    "test:club-create": "tsx scripts/test-club-create.mts",
+    "gate": "npm run lint && npx next typegen && npx tsc --noEmit && npm run verify:offline && mkdir -p .claude && date +%s > .claude/.last-gate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

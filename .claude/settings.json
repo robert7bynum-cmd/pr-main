@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run gate)",
+      "Bash(npm run verify:offline)",
+      "Bash(npm run db:validate)",
+      "Bash(npm run db:check)",
+      "Bash(npm run api:doc)",
+      "Bash(npm run triage:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm ci)",
+      "Bash(npm install)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx next typegen)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git stash list)",
+      "Bash(git worktree list)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(curl -s https://pr-main-dun.vercel.app/api/health)",
+      "Read",
+      "Edit",
+      "Write",
+      "Grep",
+      "Glob"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(npm run db:apply)",
+      "Bash(npm run db:keywords)",
+      "Bash(npm run club:create)",
+      "Bash(npm run verify:live)",
+      "Bash(npx vercel:*)",
+      "Bash(supabase:*)",
+      "Bash(npx supabase:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/gate-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

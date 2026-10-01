@@ -115,6 +115,26 @@ A preview is a full copy of the app, but four things do not follow it:
   on preview deployments. Deployment protection is still the thing keeping
   people out; noindex only keeps search engines out.
 
+## Staging
+
+`proresponse-staging` (`sywwnifudqfupyshufuy`, us-east-1) exists so that preview
+deployments and the live suites stop writing production's rows.
+
+Its connection string lives in `.env.local` as `STAGING_DB_URL` and nowhere
+else. `SUPABASE_DB_URL` stays pointed at production and is not edited.
+
+```
+./scripts/staging.sh check     what is applied to staging right now
+./scripts/staging.sh migrate   apply every migration to staging
+```
+
+The script refuses to run if the URL names the production project, or does not
+name the staging one, because pointing it at production by mistake is the only
+way it could do harm. Free-tier projects pause after about a week idle.
+
+Preview deployments point at staging once Vercel's **Preview** environment
+carries staging's URL and keys. Production's variables are left untouched.
+
 ## The shared database
 
 There is one Supabase project (`proresponse-dev`). Production and every

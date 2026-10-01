@@ -60,7 +60,31 @@ if (mode === "migrate") {
 } else if (mode === "check") {
   const { Client } = await import("pg");
   const c = new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
-  await c.connect();
+  try {
+    await c.connect();
+  } catch (e) {
+    // A stack trace from the driver tells a person nothing they can act on.
+    // These three are the whole failure space in practice.
+    const m = e instanceof Error ? e.message : String(e);
+    if (/password authentication failed/i.test(m)) {
+      console.error(
+        "Staging refused the password.\n\n" +
+        "Everything else is right — it reached the host and the username was\n" +
+        "accepted. Only the password is wrong. Reset it at\n" +
+        `  https://supabase.com/dashboard/project/${STAGING_REF}/database/settings\n` +
+        "and replace YOURPASSWORD in the STAGING_DB_URL line of .env.local.",
+      );
+    } else if (/ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED/i.test(m)) {
+      console.error(
+        `Could not reach staging: ${m}\n\n` +
+        "Check the host is aws-0-us-east-1.pooler.supabase.com on port 5432.\n" +
+        "The direct db.*.supabase.co host is IPv6-only without the paid add-on.",
+      );
+    } else {
+      console.error(`Staging connection failed: ${m}`);
+    }
+    process.exit(1);
+  }
   const t = await c.query<{ n: number }>(
     `select count(*)::int n from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE'`,

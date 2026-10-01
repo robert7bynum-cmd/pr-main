@@ -143,6 +143,24 @@ transcript. Nothing here executes the file. Free-tier projects pause after about
 Preview deployments point at staging once Vercel's **Preview** environment
 carries staging's URL and keys. Production's variables are left untouched.
 
+```
+npm run staging:diff
+```
+
+compares the two catalogues — tables, views, functions with argument types,
+RLS policies, enum labels, columns — and prints only what differs. A staging
+environment nobody compares has quietly drifted, which defeats the point of
+having one.
+
+**One known difference, and it is expected.** Production carries an event
+trigger function `rls_auto_enable()` that enables row-level security on any
+newly created table in `public`. It exists in no migration and in no file
+here: it is Supabase platform tooling, not something this project wrote. So
+production has a belt-and-braces guard that staging does not. The consequence
+worth knowing: a migration that forgets `enable row level security` would be
+caught by the RLS suite on staging and silently fixed on production. Staging
+is the stricter of the two, which is the right way round.
+
 ## The shared database
 
 There is one Supabase project (`proresponse-dev`). Production and every

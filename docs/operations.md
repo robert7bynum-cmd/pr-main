@@ -88,3 +88,11 @@ assignment ran as a command and printed part of itself. The password was
 reset and the script rewritten as `scripts/staging.mts`, which parses and
 executes nothing. No production credential was involved.
 
+**2026-10-01 — Claude.** Migration `20261002100000` applied to **staging** and
+exercised there: `create_club` produced 25 locations, 18 holes, 25 live
+placards, 7 departments, 10 routing rules with `f_and_b` requiring a member
+number, and one pending owner. A member then filed a report by scanning one of
+those placards, with no manual setup. A sample club `staging-test` is left in
+place on staging deliberately. **Not applied to production** — that is a hard
+stop in the plan and Bobby's call.
+

@@ -113,8 +113,27 @@ check("one pending owner, email lowercased, unclaimed",
   owner?.role === "owner" && owner?.email === "gm@pinevalley.com" && owner?.full_name === "Jane Doe" && owner?.claimed_at === null,
   JSON.stringify(owner));
 check("the owner is scoped to every department", owner?.department_ids.length === 7, String(owner?.department_ids.length));
-check("no locations — the club adds its own",
-  Number((await one<{ n: string }>(`select count(*) n from locations where course_id = $1`, [course]))!.n) === 0);
+// A club with no locations can mint no placard, so no member can report
+// anything. It used to arrive that way (20261002100000).
+const locs = await all<{ kind: string; hole_number: number | null; name: string; sort_order: number }>(
+  `select kind::text, hole_number, name, sort_order from locations
+    where course_id = $1 order by sort_order, name`, [course]);
+check("eighteen holes and seven facilities", locs.length === 25, String(locs.length));
+const holes = locs.filter((l) => l.kind === "hole");
+check("holes are numbered 1..18", holes.map((h) => h.hole_number).join(",") === [...Array(18)].map((_, i) => i + 1).join(","),
+  holes.map((h) => h.hole_number).join(","));
+check("named Hole N, and sorted by that number so the sheet and the picker agree",
+  holes.every((h) => h.name === `Hole ${h.hole_number}` && h.sort_order === h.hole_number));
+check("facilities sort after every hole", locs.filter((l) => l.kind !== "hole").every((l) => l.sort_order >= 100));
+check("a halfway house, where the food orders come from",
+  locs.some((l) => l.kind === "halfway_house"), locs.map((l) => l.kind).join(","));
+
+const codes = await one<{ locations: string; coded: string }>(
+  `select (select count(*) from locations where course_id = $1 and active) locations,
+          (select count(*) from qr_codes q join locations l on l.id = q.location_id
+            where l.course_id = $1 and q.active) coded`, [course]);
+check("every location has exactly one live placard — a location nobody can scan is not reachable",
+  codes?.locations === codes?.coded, JSON.stringify(codes));
 
 const ev = await one<{ type: string; actor_id: string | null; detail: { event?: string } }>(
   `select type::text, actor_id, detail from admin_events where course_id = $1 order by id`, [course]);
@@ -138,21 +157,21 @@ check("none of those left a club behind",
 
 const callers = await all<{ role: string }>(`
   select r.rolname as role from (values ('anon'),('authenticated'),('service_role')) r(rolname)
-   where has_function_privilege(r.rolname, 'create_club(text,text,text,text,text)', 'execute')`);
+   where has_function_privilege(r.rolname, 'create_club(text,text,text,text,text,int)', 'execute')`);
 check("only the service role may call it",
   callers.length === 1 && callers[0].role === "service_role", callers.map((c) => c.role).join(", "));
 check("not PUBLIC either",
-  (await one<{ ok: boolean }>(`select has_function_privilege('public', 'create_club(text,text,text,text,text)', 'execute') ok`))!.ok === false);
+  (await one<{ ok: boolean }>(`select has_function_privilege('public', 'create_club(text,text,text,text,text,int)', 'execute') ok`))!.ok === false);
 
 // ------------------------------------------------------ 3. an empty club routes
 console.log("\n3. a report at the new club is not silently routed to nobody");
 let report = "";
 {
-  // The club has no locations yet; give it one placard so a member can scan.
-  const loc = (await one<{ id: string }>(
-    `insert into locations (course_id, kind, hole_number, name) values ($1,'hole',1,'Hole 1') returning id`, [course]))!.id;
+  // The club's OWN placard, minted by create_club. Nothing is hand-built
+  // here any more: that is the point of the change.
   const token = (await one<{ token: string }>(
-    `insert into qr_codes (course_id, location_id) values ($1,$2) returning token`, [course, loc]))!.token;
+    `select q.token from qr_codes q join locations l on l.id = q.location_id
+      where l.course_id = $1 and l.hole_number = 1 and q.active`, [course]))!.token;
   const nonce = (await one<{ n: string }>(`select issue_scan_nonce($1) n`, [token]))!.n;
   report = (await one<{ id: string }>(
     `select submit_report($1,$2,'Bunker rake missing on 1') id`, [token, nonce]))!.id;
@@ -204,6 +223,65 @@ console.log("\n4. the owner's first sign-in claims the pending profile, and the 
   check("and that person is the owner", who?.profile_id === uid, JSON.stringify(who));
 }
 
+
+// ------------------------------------------------- 5. hole count, and batches
+console.log("\n5. a nine-hole club, and minting a whole course at once");
+{
+  const nine = (await one<{ id: string }>(
+    `select create_club('sandy-links','Sandy Links','America/Denver','pro@sandylinks.com','Pat Pro', 9) id`))!.id;
+  const shape = await one<{ holes: string; total: string; coded: string }>(
+    `select (select count(*) from locations where course_id = $1 and kind = 'hole') holes,
+            (select count(*) from locations where course_id = $1) total,
+            (select count(*) from qr_codes q join locations l on l.id = q.location_id
+              where l.course_id = $1 and q.active) coded`, [nine]);
+  check("nine holes, not eighteen", Number(shape?.holes) === 9, JSON.stringify(shape));
+  check("the same seven facilities", Number(shape?.total) === 16, String(shape?.total));
+  check("and every one of them scannable", shape?.total === shape?.coded, JSON.stringify(shape));
+
+  const silly = await errorOf(`select create_club('too-big','Too Big','America/Denver','x@y.com','Someone', 500)`);
+  check("a course cannot have 500 holes", silly?.includes("between 0 and 72") ?? false, silly ?? "accepted");
+
+  // Batch minting runs as a manager. Claim the Sandy Links owner.
+  const uid2 = (await one<{ id: string }>(
+    `insert into auth.users (id, email, aud, role, confirmation_token, recovery_token, email_change_token_new, email_change)
+     values (gen_random_uuid(),'pro@sandylinks.com','authenticated','authenticated','','','','') returning id`))!.id;
+  await db.query(`select set_config('test.uid', $1, false)`, [uid2]);
+  await db.query(`select claim_profile()`);
+
+  // Nothing is missing, so a plain batch mints nothing. This is the guard that
+  // matters: a batch that re-minted everything would retire every active code
+  // and kill every printed sign on the course.
+  const noop = await all<{ token: string }>(`select * from mint_placard_batch()`);
+  check("with every location already coded, a batch mints nothing", noop.length === 0, String(noop.length));
+
+  // Retire one code by hand, as a lost or damaged sign would be.
+  const gap = (await one<{ id: string; name: string }>(
+    `update qr_codes set active = false
+      where id = (select q.id from qr_codes q join locations l on l.id = q.location_id
+                   where l.course_id = $1 and l.hole_number = 3 and q.active limit 1)
+      returning location_id id, (select name from locations where id = location_id) name`, [nine]))!;
+  const filled = await all<{ location_id: string; name: string; token: string }>(`select * from mint_placard_batch()`);
+  check("a batch fills exactly the gap", filled.length === 1 && filled[0].location_id === gap.id,
+    JSON.stringify(filled.map((f) => f.name)));
+  check("and hands back the token so it can be printed",
+    typeof filled[0]?.token === "string" && filled[0].token.length === 24, filled[0]?.token ?? "none");
+
+  const before = Number((await one<{ n: string }>(
+    `select count(*) n from admin_events where course_id = $1 and type = 'placard_regenerated'`, [nine]))!.n);
+  const all16 = await all<{ token: string }>(`select * from mint_placard_batch(true)`);
+  check("regenerating is possible, but only when asked for explicitly", all16.length === 16, String(all16.length));
+  const after = Number((await one<{ n: string }>(
+    `select count(*) n from admin_events where course_id = $1 and type = 'placard_regenerated'`, [nine]))!.n);
+  check("every one of them audited, one row per location", after - before === 16, `${after - before}`);
+  const live = await one<{ n: string }>(
+    `select count(*) n from qr_codes q join locations l on l.id = q.location_id
+      where l.course_id = $1 and q.active`, [nine]);
+  check("and exactly one live code per location afterwards", Number(live?.n) === 16, String(live?.n));
+  await db.query(`select set_config('test.uid', '', false)`);
+
+  const anon = await errorOf(`select * from mint_placard_batch()`);
+  check("a signed-out caller cannot mint a club's placards", anon !== null, "accepted");
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

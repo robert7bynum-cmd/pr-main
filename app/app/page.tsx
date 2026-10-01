@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { QueueCard } from "@/components/staff/queue-card";
 import { QueueLive } from "@/components/staff/queue-live";
 import { PushSetup } from "@/components/staff/push-setup";
+import { FirstRunChecklist } from "@/components/staff/first-run-checklist";
+import { getClubReadiness } from "@/lib/queue/onboarding";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Queue — ProResponse" };
@@ -30,12 +32,15 @@ export default async function StaffQueuePage({
 
   const view: "mine" | "all" = scope === "all" ? "all" : "mine";
 
-  const [rows, departments, team, allDepartments] = await Promise.all([
+  const [rows, departments, team, allDepartments, readiness] = await Promise.all([
     getQueue(dept, view),
     getDepartmentCounts(view),
     // Once per page, not once per card.
     getTeam(),
     getDepartments(),
+    // What a brand-new club still has to do. Returns every step complete for
+    // an established one, and the checklist then renders nothing.
+    getClubReadiness(),
   ]);
 
   // An empty personal queue and a broken app look identical, and that is not a
@@ -114,6 +119,14 @@ export default async function StaffQueuePage({
         </header>
 
         <div className="mb-4">
+          {/* Only while the club genuinely is not ready, and only for the
+              people who can fix it. A groundskeeper cannot invite staff or
+              set the placard address, so showing them a list of things they
+              cannot do is just noise. */}
+          {readiness && !readiness.ready && ["manager", "owner"].includes(me.role) && (
+            <FirstRunChecklist readiness={readiness} courseName={me.course_name} />
+          )}
+
           <PushSetup />
         </div>
 

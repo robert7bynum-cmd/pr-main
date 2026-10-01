@@ -61,7 +61,8 @@
     "test:club-create": "tsx scripts/test-club-create.mts",
     "gate": "npm run lint && npx next typegen && npx tsc --noEmit && npm run verify:offline && mkdir -p .claude && date +%s > .claude/.last-gate",
     "staging:check": "tsx --env-file=.env.local scripts/staging.mts check",
-    "staging:migrate": "tsx --env-file=.env.local scripts/staging.mts migrate"
+    "staging:migrate": "tsx --env-file=.env.local scripts/staging.mts migrate",
+    "staging:diff": "tsx --env-file=.env.local scripts/schema-diff.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

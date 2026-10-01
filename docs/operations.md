@@ -72,3 +72,19 @@ against it, then point Vercel's Preview environment at it. Until that last
 step, every preview deployment still reads and writes production's rows.
 Free-tier projects pause after about a week idle.
 
+**2026-10-01 — Claude.** Staging populated. All 60 migrations applied to
+`proresponse-staging` via `npm run staging:migrate`. Verified with
+`npm run staging:diff`: tables 25/25, views 7/7, policies 19/19, enum labels
+73/73, columns 275/275 identical to production. One function differs —
+production's `rls_auto_enable()`, a Supabase platform event trigger that is in
+no migration; documented in docs/deploying.md as expected. Still to do:
+Vercel's Preview environment must be pointed at staging before previews stop
+writing production's rows.
+
+**2026-10-01 — Claude.** A staging database password was echoed into a session
+transcript by an earlier version of `scripts/staging.sh`, which sourced
+`.env.local` rather than parsing it; a line that was not a `KEY=value`
+assignment ran as a command and printed part of itself. The password was
+reset and the script rewritten as `scripts/staging.mts`, which parses and
+executes nothing. No production credential was involved.
+

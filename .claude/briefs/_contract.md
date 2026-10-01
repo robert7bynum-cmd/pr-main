@@ -30,7 +30,14 @@ between briefs.
 8. **Never push, apply a migration, deploy, or run the live suites.** Those are
    serial and belong to the integrator in the main checkout. Your settings will
    ask before any of them; the answer from a track is no.
-9. **Run `npm run gate` before you finish.** Lint, types and 19 offline suites,
+9. **Anything you do to production goes in `docs/operations.md`.** Applying a
+   migration, deploying, changing a setting, creating a real club, running a
+   live suite. Code is trailed by git; these are not, and a scattered record
+   across four vendors is not a record. Never write a secret's value — record
+   that it was set.
+10. **Main takes changes only through a pull request.** Protection is on and
+   includes administrators, so CI must pass before anything merges.
+11. **Run `npm run gate` before you finish.** Lint, types and 19 offline suites,
    about 47 seconds. A Stop hook blocks you from ending with source changes
    newer than the last passing gate.
 

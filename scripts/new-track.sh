@@ -45,6 +45,9 @@ echo "Track $TRACK ready."
 echo "  folder : $DIR"
 echo "  branch : $BRANCH"
 echo
+echo "Push this branch as you go — 'git push -u origin $BRANCH'. It is your"
+echo "backup and the only way anyone can see the work before it merges."
+echo
 echo "Open a Claude session there, then run /start, then /brief <session-id>."
 echo "Never push, apply a migration, or deploy from a track — that is the"
 echo "integrator's job in the main checkout."

@@ -1,0 +1,64 @@
+# Operations log
+
+Every action taken against production that leaves no commit behind. Code is
+already trailed by git; this is for the rest, so the record lives in one place
+a person can read instead of scattered across Supabase, Vercel and GitHub.
+
+`CLAUDE.md` names this gap under the organizational half it does not yet have:
+"Audit logging of admin actions (staff actions are logged; configuration
+changes are not)." This file is the engineering half of closing it.
+
+## What goes in here
+
+- A migration applied to production (`npm run db:apply`)
+- An edge function deployed
+- Any account setting changed in Vercel or Supabase
+- A club created for a real customer
+- A live suite run that created or deleted production records
+- Anything manual done to production data
+
+## What does not
+
+Code, migrations as files, tests, docs and plans. Git already has those.
+
+## Rules
+
+One line per action, newest last. Date, who, what, and the evidence that it
+worked — a commit, a version number, a probe result. Never a secret: record
+that a value was set, never the value.
+
+Only whoever is integrating performs these, because tracks are forbidden from
+pushing, deploying or touching the database. So there is one author and no
+coordination problem.
+
+---
+
+## 2026
+
+**2026-09-05 — Bobby/Claude.** Supabase project `nfyshykwwtiwkluwiuyf` in use as
+dev, staging and production simultaneously. Recorded here because it is the
+standing risk behind every line below: there is no rehearsal environment.
+
+**2026-09-06 — Claude.** Secrets moved out of the plaintext `app_settings`
+table into Supabase Vault behind `service_role_secret()` and `anthropic_key()`.
+Values never passed through a script or a transcript.
+
+**2026-09-17 — Claude.** Migrations `20260917100000` and `20260917110000`
+applied to production (ordering vocabulary, then food ordering). Edge function
+unchanged. Verified: 60 migrations recorded, `submit_order` present, enums
+carry `declared` and `cannot_fulfil`.
+
+**2026-09-20 — a member.** First real order placed through a placard at Beacon
+Hill: two items, member number attached, routed to Food & Beverage,
+acknowledged and delivered. No intervention. Noted because it is the first
+evidence the ordering path works unattended.
+
+**2026-09-30 — Bobby.** `CRON_SECRET` set in Vercel Production and redeployed.
+Verified by probe: `/api/watchdog` moved from 503 to 401, so the route now
+finds a secret and checks callers against it. The value itself was generated
+locally and never entered a transcript.
+
+**2026-10-01 — Claude.** Branch protection enabled on `main`: the `verify` check
+must pass, branches must be current, force pushes and deletions refused, and
+administrators are included. Verified by attempting a direct push to main and
+having it rejected. Main now takes changes only through a pull request.

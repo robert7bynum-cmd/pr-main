@@ -31,11 +31,18 @@ if [ -z "${STAGING_DB_URL:-}" ]; then
   cat >&2 <<'MSG'
 STAGING_DB_URL is not set in .env.local.
 
-Get it from the Supabase dashboard: project proresponse-staging →
-Settings → Database → Connection string → Session pooler. Copy the URI and
-put your database password into it, then add one line to .env.local:
+The password cannot be looked up. This project was created through the API,
+so Supabase generated one and showed it to nobody. Reset it to get one:
 
-  STAGING_DB_URL=postgresql://postgres.sywwnifudqfupyshufuy:YOURPASSWORD@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+  https://supabase.com/dashboard/project/sywwnifudqfupyshufuy/database/settings
+
+Click "Reset password", copy the new one (it is shown once), then add one line
+to .env.local — Session pooler, port 5432, NOT the 6543 transaction pooler:
+
+  STAGING_DB_URL=postgresql://postgres.sywwnifudqfupyshufuy:YOURPASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+
+Use the session pooler rather than the direct connection: direct is IPv6-only
+unless you buy the IPv4 add-on, which fails from most laptops.
 
 Leave SUPABASE_DB_URL alone — it stays pointed at production.
 MSG

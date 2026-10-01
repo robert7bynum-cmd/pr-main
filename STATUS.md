@@ -73,8 +73,8 @@ moment is whatever `/api/health` says.
   through a definer function and recorded in `admin_events`.
 - **QR placards** — `/app/placards`, print-ready SVG; refuses to print on a preview.
 - **Watchdog** — heartbeat + `system_health()` inside the database; `/api/watchdog`
-  outside it on Vercel cron, once a day on the Hobby plan, 503 until `CRON_SECRET`
-  is set.
+  outside it on Vercel cron, once a day on the Hobby plan (`CRON_SECRET` set
+  30 Sep 2026; the route answered 503 until then).
 - **Deployment** — Vercel, previews per branch; CI runs lint, types and
   `verify:offline` on every push.
 - **Ordering food and drink** — a member scanning a placard chooses between
@@ -112,14 +112,18 @@ the monitoring gaps), plus:
   URL sit in a service-role-only table, not in Vault.
 - **A database for previews** — every preview writes production's rows
   (`docs/deploying.md`).
-- **Watchdog cadence** — daily is a floor. An external pinger every five minutes,
-  or Vercel Pro, is what "dead for ten minutes" needs.
+- **Watchdog cadence** — daily is a floor, and it is the live constraint now
+  that `CRON_SECRET` is set (30 Sep 2026: the route authenticates, 503 → 401).
+  `system_health_for` raises "the scheduler has stopped" after ten minutes
+  without a heartbeat, but nothing asks it more than once a day on the Hobby
+  plan, so that threshold is currently decorative. An external pinger every
+  five minutes, or Vercel Pro, is what makes it mean anything.
 
 ## Waiting on Bobby
 
 | Item | Blocks | Notes |
 | --- | --- | --- |
-| `CRON_SECRET` in Vercel Production | the external watchdog — the route answers 503 until it exists | `openssl rand -hex 32`; Settings → Environment Variables, exactly this name; redeploy |
+| Vercel plan above Hobby, or an external pinger | watchdog coverage worth the name | Hobby caps crons at one a day, so the sweep heartbeat is checked at 13:00 UTC and a scheduler that dies at 13:05 goes unreported for 24 hours. Pro allows the `*/5` schedule the route was written for. An external uptime service hitting `/api/watchdog` every five minutes with the same bearer is the cheaper fix and the better one — it still reports when Vercel itself is down |
 | Leaked-password protection in Supabase Auth | staff choosing a password already in a breach corpus | Authentication → Settings → Password |
 | Custom domain for placards | printing any placard | QR codes encode the origin permanently; a `vercel.app` placard dies with the project name |
 | Custom SMTP in Supabase Auth | onboarding a whole roster in one sitting | the built-in mailer caps emails per hour (invites and reset links share it) — configure the club's own SMTP before staff onboarding day |

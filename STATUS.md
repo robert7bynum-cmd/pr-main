@@ -111,7 +111,10 @@ the monitoring gaps), plus:
 - **Supabase Vault for `app_settings`** — the Anthropic key and the edge-function
   URL sit in a service-role-only table, not in Vault.
 - **A database for previews** — every preview writes production's rows
-  (`docs/deploying.md`).
+  (`docs/deploying.md`). A staging project now exists
+  (`proresponse-staging`, created 2026-10-01) but is empty and unwired, so
+  this is still true today. It gets worse with parallel tracks: every push to
+  a track branch builds a preview that reads and writes production.
 - **Watchdog cadence** — daily is a floor, and it is the live constraint now
   that `CRON_SECRET` is set (30 Sep 2026: the route authenticates, 503 → 401).
   `system_health_for` raises "the scheduler has stopped" after ten minutes

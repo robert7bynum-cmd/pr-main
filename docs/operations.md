@@ -62,3 +62,13 @@ locally and never entered a transcript.
 must pass, branches must be current, force pushes and deletions refused, and
 administrators are included. Verified by attempting a direct push to main and
 having it rejected. Main now takes changes only through a pull request.
+
+**2026-10-01 — Claude.** Second Supabase project created: `proresponse-staging`
+(`sywwnifudqfupyshufuy`, us-east-1, same region as production so behaviour is
+comparable). $0/month on the free tier. **Empty — not yet usable.** Three steps
+remain and the first needs a person: take the database password from the
+Supabase dashboard into `.env.local` as `STAGING_DB_URL`, run the migrations
+against it, then point Vercel's Preview environment at it. Until that last
+step, every preview deployment still reads and writes production's rows.
+Free-tier projects pause after about a week idle.
+

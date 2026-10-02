@@ -108,3 +108,16 @@ stays hidden because Beacon Hill has staff, two of three reachable, and a
 sign address set. Probe account removed; zero probe profiles and zero probe
 auth users remain.
 
+**2026-10-02 — Claude.** Migrations `20261002110000` (one definition of
+reachable) and `20261002120000` (orders are not problems) applied to
+production; 61 to 63. Verified in production: `reachable_devices()` exists and
+all three callers use it; `system_health_for(uuid)` is NOT executable by
+`authenticated` (it takes a course id, so that grant would have been a
+cross-tenant leak) while the scoped `system_health()` still is; `assert_actor`
+and `assert_can_manage` revoked from `authenticated`. The health check now
+reports one real finding for Beacon Hill: "Staff on duty cannot be reached —
+1 on duty with no browser and no phone registered". Dashboard views recreated
+with their five `security_invoker` settings intact and zero readable by
+`anon`. Staging brought level; the two agree on everything except Supabase's
+own `rls_auto_enable()`.
+

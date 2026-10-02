@@ -149,6 +149,8 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `open_now` | `integer` |
 | `total_30d` | `integer` |
 | `median_resolve_minutes` | `numeric` |
+| `orders_30d` | `integer` |
+| `median_order_minutes` | `numeric` |
 
 ### `dashboard_by_person`
 
@@ -159,6 +161,7 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `full_name` | `text` |
 | `resolved_30d` | `integer` |
 | `median_handling_minutes` | `numeric` |
+| `orders_delivered_30d` | `integer` |
 
 ### `dashboard_daily`
 
@@ -188,6 +191,9 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `resolved_today` | `integer` |
 | `median_ack_minutes` | `numeric` |
 | `median_resolve_minutes` | `numeric` |
+| `orders_open` | `integer` |
+| `orders_today` | `integer` |
+| `median_order_minutes` | `numeric` |
 
 ### `my_queue`
 

@@ -26,6 +26,38 @@ member's own F&B report (the grill is out of propane) is exempt, and
 `close_no_action` never needs one. The old four-argument `resolve_report`
 and five-argument `file_report` are dropped. (`20260906180000`)
 
+## 1 Oct 2026 — an order delivered in six minutes is not a sprinkler fixed in six
+
+**[bug]** The dashboard was written in `20260904160000`. `reports.kind`
+arrived in `20260917100000` and no migration since had touched those views,
+so every figure a GM reads mixed food orders in with faults. Same shape as
+the reachability bug above, found by going looking for more of it.
+
+It gets worse rather than better. Orders are the highest-volume category —
+drinks on a Saturday — and resolve in minutes, while a sprinkler takes hours.
+As ordering ramps up the median collapses and the GM reads "we are getting
+faster" when maintenance has not changed at all. With twenty five-minute
+orders and four two-hundred-minute faults, the old view reports a median
+resolve time of **5 minutes**; the real figure for a fault is **200**.
+
+`dashboard_recurring` was the worst of them. Its own comment calls it the
+view that earns the renewal, turning a month of complaints into "hole 4
+irrigation, nine times". With orders in it, "f_and_b, twenty occurrences"
+tops the list — a thriving drinks business filed as a problem to fix.
+
+Every existing column keeps its name, so nothing in `lib/dashboard` breaks.
+The three medians now mean problems only, and order figures sit beside them:
+`orders_open`, `orders_today`, `median_order_minutes`, `orders_30d`,
+`orders_delivered_30d`. A runner's deliveries still show as their work.
+
+The views name `issue` and `order` explicitly rather than "not an order", so
+a future third kind appears in neither until somebody decides where it
+belongs. That is deliberate: it forces the question instead of silently
+folding a booking into the maintenance median.
+
+`test:dashboard-kinds` builds a club where the two are far apart on purpose —
+14 assertions, 2 of which fail against the old views. (`20261002120000`)
+
 ## 1 Oct 2026 — one definition of "can this person be reached"
 
 **[bug]** The question was answered in three places and two were wrong.

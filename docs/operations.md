@@ -121,3 +121,13 @@ with their five `security_invoker` settings intact and zero readable by
 `anon`. Staging brought level; the two agree on everything except Supabase's
 own `rls_auto_enable()`.
 
+**2026-10-02 — Claude.** Migration `20261002130000` applied to production;
+63 to 64. Separates the two reachability questions: `reachable_devices()` for
+reports, which the worker delivers over browsers and phones, and
+`watchdog_can_reach()` for system alarms, which `app/api/watchdog` delivers
+over web push only. Also fixes `dashboard_daily`, which counted every report
+per day with no knowledge of `kind`. Production health now reports one
+finding, correctly: "Staff on duty cannot be reached — 1". The watchdog alarm
+is silent because two managers have browser subscriptions, which is the right
+answer. Staging brought level.
+

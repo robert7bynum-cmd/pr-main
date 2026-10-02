@@ -26,6 +26,42 @@ member's own F&B report (the grill is out of propane) is exempt, and
 `close_no_action` never needs one. The old four-argument `resolve_report`
 and five-argument `file_report` are dropped. (`20260906180000`)
 
+## 1 Oct 2026 — one definition of "can this person be reached"
+
+**[bug]** The question was answered in three places and two were wrong.
+`staff_roster` shows a device count, `system_health_for` raises an alarm when
+no manager can receive one, and `club_readiness` asks whether anybody is
+listening. The first two counted browser subscriptions only. `device_tokens`
+arrived in `20260906150000`, after both were written, and neither was
+revisited — so the moment the native apps ship, somebody reachable only on
+their phone reads as unreachable. The watchdog would cry wolf and a manager
+would chase a person already covered. The roster's own comment says a phone
+and a browser is better coverage than one; the intent was written down and
+never implemented.
+
+`reachable_devices()` is now the single answer and all three ask it.
+
+**New alert: "Staff on duty cannot be reached."** Somebody on shift with no
+browser and no phone is the product's one promise failing silently, and until
+now only a hand-written query would have shown it. Beacon Hill has a manager
+who has missed twelve pages; nothing said so. Two test fixtures called a club
+healthy while leaving on-duty staff unreachable, which was the same blind spot
+in miniature — both now mean what they say.
+
+**[bug]** Recreating `system_health_for` reset its grants and I handed it to
+`authenticated`. It takes a course id, so any signed-in caller could have
+asked about any club's health. `test:watchdog` caught it before it left the
+branch. The no-argument `system_health()` wrapper stays the authenticated
+door, scoped to the caller's own club.
+
+Also closes a standing audit item: `assert_actor` and `assert_can_manage` were
+executable by `authenticated` with no caller needing it. They run inside other
+definer functions, so revoking changes no behaviour.
+
+`test:reachability` holds all three callers to the same answer — 22
+assertions, 7 of which fail if the definition goes back to browsers only.
+(`20261002110000`)
+
 ## 1 Oct 2026 — a club that works the day it is created
 
 **`create_club` built a club that could not receive a single report.** It made

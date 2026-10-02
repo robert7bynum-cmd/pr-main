@@ -96,3 +96,15 @@ those placards, with no manual setup. A sample club `staging-test` is left in
 place on staging deliberately. **Not applied to production** — that is a hard
 stop in the plan and Bobby's call.
 
+**2026-10-01 — Claude.** Migration `20261002100000` applied to **production**
+(`npm run db:apply`), taking it from 60 to 61. Additive only: three new
+functions and a replaced `create_club`; no table altered, no row touched —
+Beacon Hill still has its 24 locations and 24 reports. Verified with
+`npm run staging:diff`: production and staging now agree on tables, views,
+policies, enum labels and columns, with the single expected exception of
+Supabase's own `rls_auto_enable()`. Signed in on production afterwards and
+loaded the staff queue: it renders, and the first-run checklist correctly
+stays hidden because Beacon Hill has staff, two of three reachable, and a
+sign address set. Probe account removed; zero probe profiles and zero probe
+auth users remain.
+

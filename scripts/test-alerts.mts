@@ -63,6 +63,15 @@ await db.query(`
   select id, 'https://example.test/probe', 'p', 'a' from profiles
    where course_id = $1 and active and is_management_role(role) limit 1`, [course]);
 
+// A healthy club is also one where everybody on shift can be paged
+// (20261002110000). Leaving on-duty staff unreachable and calling it healthy
+// is the exact blind spot that change exists to remove.
+await db.query(`
+  insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+  select p.id, 'https://example.test/onduty-' || p.id, 'p', 'a' from profiles p
+   where p.course_id = $1 and p.active and p.on_duty and p.account_kind = 'individual'
+     and not exists (select 1 from push_subscriptions s where s.profile_id = p.id)`, [course]);
+
 console.log("\na healthy club says nothing");
 check("no alerts when everything is fine", (await sweep()).length === 0);
 

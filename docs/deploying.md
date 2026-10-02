@@ -152,6 +152,17 @@ RLS policies, enum labels, columns — and prints only what differs. A staging
 environment nobody compares has quietly drifted, which defeats the point of
 having one.
 
+```
+npm run test:isolation
+```
+
+proves two clubs on one database cannot reach each other, against real
+Postgres with real policies and a real `auth.uid()`. It builds two whole
+clubs, attacks each from the other in both directions, and deletes everything
+— a leftover fails the suite. It refuses to run against production, because
+it creates and destroys clubs. Part of `verify:live`, never of
+`verify:offline`, since CI runs without secrets.
+
 **One known difference, and it is expected.** Production carries an event
 trigger function `rls_auto_enable()` that enables row-level security on any
 newly created table in `public`. It exists in no migration and in no file

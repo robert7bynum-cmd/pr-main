@@ -35,6 +35,16 @@ await db.query(`
   insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
   values ($1, 'https://example.test/baseline', 'p', 'a')`, [manager]);
 
+// And everybody on shift reachable. 20261002110000 made "somebody on duty
+// nobody can page" an alert in its own right, because that is the failure
+// that cost Beacon Hill twelve missed pages with every screen green. A
+// baseline that leaves on-duty staff unreachable is not a healthy club.
+await db.query(`
+  insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+  select p.id, 'https://example.test/onduty-' || p.id, 'p', 'a' from profiles p
+   where p.active and p.on_duty and p.account_kind = 'individual'
+     and not exists (select 1 from push_subscriptions s where s.profile_id = p.id)`);
+
 console.log("\n1. a healthy system says nothing");
 await act(manager);
 check("no issues reported", (await health()).length === 0, JSON.stringify(await health()));

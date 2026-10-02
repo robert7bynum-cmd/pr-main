@@ -26,6 +26,38 @@ member's own F&B report (the grill is out of propane) is exempt, and
 `close_no_action` never needs one. The old four-argument `resolve_report`
 and five-argument `file_report` are dropped. (`20260906180000`)
 
+## 2 Oct 2026 — the rule, and what it caught in its first run
+
+`CLAUDE.md` gains a rule with two failures behind it, both from yesterday:
+**code written before a column existed does not learn about it.** Adding a
+column is not finished when the new code uses it; grep for everything written
+before it that should have.
+
+Then the rule was made a mechanism, because a rule people remember is weaker
+than a check that runs. `test:reachability` now asserts that every function
+touching `push_subscriptions` is either a definition, a write path, or asks a
+definition by name, and that every dashboard view over `reports` knows about
+`kind`.
+
+**It found two more on its first run.**
+
+**[bug]** `watchdog_recipients` joined `push_subscriptions` alone. Not a stale
+copy — a different question, and worth naming as one. A *report* is delivered
+by the triage worker, which speaks web push, APNs and FCM, so a phone counts.
+A *system alarm* is delivered by `app/api/watchdog`, a route with web push
+only; it cannot borrow the worker's transport because the worker is one of the
+things it watches. Pointing "No manager can receive system alerts" at general
+reachability yesterday made it claim a phone-only manager was covered when the
+watchdog could not reach them at all. There are now two named predicates,
+`reachable_devices()` for reports and `watchdog_can_reach()` for alarms, and
+the distinction is written down in both so the next person does not re-merge
+them. A test asserted the wrong behaviour for half a day and has been flipped.
+
+**[bug]** `dashboard_daily`, the volume trend, counted every report per day
+and knew nothing about `kind`. The day ordering goes live that line leaps and
+a GM reads a course falling apart when members are buying drinks. `filed` is
+now problems only; `orders` sits beside it. (`20261002130000`)
+
 ## 1 Oct 2026 — an order delivered in six minutes is not a sprinkler fixed in six
 
 **[bug]** The dashboard was written in `20260904160000`. `reports.kind`

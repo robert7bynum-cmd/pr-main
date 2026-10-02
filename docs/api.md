@@ -134,6 +134,7 @@ Every one of these takes the caller from `auth.uid()`; none accepts a caller id.
 | `update_routing_rules(p_rules jsonb)` | `integer` | authenticated, service_role | `20260906180000_member_number_for_food.sql` | A food and drink request carries the member number from the tee to the till. |
 | `upsert_department(p_id uuid, p_key text, p_name text, p_sort_order integer)` | `uuid` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
 | `upsert_location(p_id uuid, p_kind location_kind, p_hole_number integer, p_name text, p_sort_order integer)` | `uuid` | authenticated, service_role | `20260906130000_club_settings.sql` | The write path 20260906100000 took away, given back as functions. |
+| `watchdog_can_reach(p_profile uuid)` | `boolean` | authenticated, service_role | `20261002130000_two_kinds_of_reachable.sql` | Reachable by the product, and reachable by the watchdog, are not the same. |
 
 ## Views readable by staff
 
@@ -170,6 +171,7 @@ All are `security_invoker`, so the underlying tables' row-level security applies
 | `course_id` | `uuid` |
 | `day` | `date` |
 | `filed` | `integer` |
+| `orders` | `integer` |
 
 ### `dashboard_recurring`
 

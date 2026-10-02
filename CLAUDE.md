@@ -119,6 +119,24 @@ plan — silently took down a whole push. *Announcing a fix requires reading the
 deployed commit back and seeing the change live, not watching a build go
 green.*
 
+**Code written before a column existed does not learn about it.**
+Twice in one day. `device_tokens` arrived in `20260906150000`; `staff_roster`
+and `system_health_for` had been written earlier and still counted browser
+subscriptions only, so once the native apps ship a person reachable on their
+phone reads as unreachable — a watchdog crying wolf and a manager chasing
+somebody already covered. `reports.kind` arrived in `20260917100000`; the
+dashboard was written in `20260904160000` and no migration since had touched
+it, so every figure a GM reads mixed food orders in with faults. Measured:
+twenty five-minute orders against four two-hundred-minute faults reported a
+median resolve time of 5 minutes when the real figure was 200, and a popular
+drinks spot topped the recurring-*problems* list. Neither was caught by a
+test, because nothing was broken — the old code did exactly what it said.
+*Adding a column or a table is not finished when the new code uses it. Grep
+for everything written before it that should have, and either update it or
+write down why not. The same applies in reverse when reading unfamiliar code:
+if a query predates a column it should care about, that is a defect, not a
+style.*
+
 **Two implementations of one rule will drift. There is one of everything.**
 The auth stub was copy-pasted into five files and broke every suite when the
 seed changed. The keyword matcher existed in TypeScript and SQL and disagreed

@@ -17,6 +17,12 @@ between briefs.
 4. **One implementation of any rule.** If logic must exist twice, generate one
    from the other or add a test asserting they agree. Check the Debt Register
    in the plan before adding a second copy of anything.
+4b. **If your work adds a column, a table or an enum value, grep for what was
+   written before it.** Earlier code does not learn about a late arrival on its
+   own, and nothing breaks, so no test catches it. Two bugs on 2026-10-02 came
+   from exactly this and neither was found by a suite. Either update what you
+   find or report it — you may not own those files, and reporting is enough.
+   The rule and both worked examples are in `CLAUDE.md`.
 5. **Stay inside your file list.** The brief names the files you own. Editing
    anything else creates a conflict with a track running right now. If the work
    genuinely requires a file you do not own, stop and report it.

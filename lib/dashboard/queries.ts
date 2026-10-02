@@ -9,7 +9,7 @@ export interface Today {
   median_ack_minutes: number | null;
   median_resolve_minutes: number | null;
 }
-export interface Daily { day: string; filed: number }
+export interface Daily { day: string; filed: number; orders: number }
 export interface ByDept {
   key: string; name: string; open_now: number;
   total_30d: number; median_resolve_minutes: number | null;

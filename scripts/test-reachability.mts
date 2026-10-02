@@ -81,11 +81,28 @@ check("with no manager reachable, the alarm fires",
   noneReachable.some((h) => h.issue === "No manager can receive system alerts"),
   noneReachable.map((h) => h.issue).join(" | "));
 
+// A phone does NOT silence this one, and that is deliberate (20261002130000).
+// Reports are delivered by the worker, which speaks to phones. System alarms
+// are delivered by app/api/watchdog, a Next.js route with web push only — it
+// cannot borrow the worker's transport, because the worker is one of the
+// things it exists to watch. This assertion said the opposite for half a day.
 await db.query(`insert into device_tokens (profile_id, platform, token) values ($1,'android','tok-mgr-1')`, [mgr.id]);
 const phoneMgr = await all<{ issue: string }>(`select issue from system_health_for($1)`, [course]);
-check("a manager with only a phone silences it — the false alarm this fixes",
-  !phoneMgr.some((h) => h.issue === "No manager can receive system alerts"),
+check("a phone does not silence the watchdog alarm — the watchdog cannot send to phones",
+  phoneMgr.some((h) => h.issue === "No manager can receive system alerts"),
   phoneMgr.map((h) => h.issue).join(" | "));
+check("and watchdog_recipients agrees: a phone-only manager is not in its list",
+  (await all<{ profile_id: string }>(`select profile_id from watchdog_recipients($1)`, [course]))
+    .every((r) => r.profile_id !== mgr.id));
+
+// A browser does silence it, because that is what the route can send to.
+await db.query(
+  `insert into push_subscriptions (profile_id, endpoint, p256dh, auth)
+   values ($1, 'https://example.test/mgr-browser', 'p', 'a')`, [mgr.id]);
+const browserMgr = await all<{ issue: string }>(`select issue from system_health_for($1)`, [course]);
+check("a browser silences it",
+  !browserMgr.some((h) => h.issue === "No manager can receive system alerts"),
+  browserMgr.map((h) => h.issue).join(" | "));
 
 // ------------------------------- 3. on-duty staff nobody can reach
 console.log("\n3. somebody on shift who cannot be paged is said out loud");
@@ -190,6 +207,56 @@ check("nor assert_can_manage",
   who("assert_can_manage(staff_role)") || "(none)");
 const anon = await errorOf(`select reachable_devices(gen_random_uuid())`);
 check("the definition itself still answers for a legitimate caller", anon === null, anon ?? "");
+
+// ------------------------------------- 6. no fifth copy can appear quietly
+// The rule in CLAUDE.md — code written before a column existed does not learn
+// about it — is only worth having if something enforces it. This is that
+// something. It found watchdog_recipients the first time it was run.
+console.log("\n6. nothing asks the reachability question on its own again");
+{
+  const askers = await all<{ proname: string; phones: boolean; one_def: boolean; watchdog_def: boolean }>(`
+    select p.proname,
+           (pg_get_functiondef(p.oid) like '%device_tokens%')     as phones,
+           (pg_get_functiondef(p.oid) like '%reachable_devices%')  as one_def,
+           (pg_get_functiondef(p.oid) like '%watchdog_can_reach%') as watchdog_def
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prokind = 'f'
+       and pg_get_functiondef(p.oid) like '%push_subscriptions%'
+     order by 1`);
+
+  // Three legitimate reasons to name push_subscriptions directly:
+  //   reachable_devices  — it IS the definition for reports
+  //   watchdog_can_reach — it IS the definition for alarms, web push only
+  //   set_staff_active   — a write path; it clears devices on deactivation
+  // Anything else asking the question itself is the drift this suite exists
+  // to stop. watchdog_recipients is allowed because it asks the predicate.
+  const DEFINITIONS = ["reachable_devices", "watchdog_can_reach"];
+  const WRITE_PATHS = ["set_staff_active"];
+  const strays = askers.filter(
+    (f) => !DEFINITIONS.includes(f.proname) && !WRITE_PATHS.includes(f.proname)
+           && !f.one_def && !f.watchdog_def);
+  check("every function touching push_subscriptions is a definition, a write path, or asks one by name",
+    strays.length === 0,
+    strays.length
+      ? `these ask the question themselves: ${strays.map((f) => f.proname).join(", ")} — ` +
+        `use reachable_devices() for reports or watchdog_can_reach() for alarms`
+      : "");
+
+  check("there are exactly two definitions, and they are the named ones",
+    askers.filter((f) => DEFINITIONS.includes(f.proname)).length === 2,
+    askers.map((f) => f.proname).join(", "));
+
+  // And the dashboard's sibling rule, same shape: a view that aggregates
+  // reports and forgets `kind` mixes orders in with faults (20261002120000).
+  const views = await all<{ relname: string; knows: boolean }>(`
+    select c.relname, (pg_get_viewdef(c.oid) like '%kind%') as knows
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind = 'v' and c.relname like 'dashboard%'
+       and pg_get_viewdef(c.oid) like '%reports%'`);
+  const blind = views.filter((v) => !v.knows).map((v) => v.relname);
+  check("every dashboard view over reports knows that orders are not problems",
+    blind.length === 0, blind.join(", "));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
